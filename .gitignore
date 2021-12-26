@@ -1,0 +1,11 @@
+# Ignore most JetBrains IDE files.
+/.idea/*
+# Share the default run configuration for CLion.
+!/.idea/runConfigurations
+# Share the default CMake configuration for CLion.
+!/.idea/cmake.xml
+# Ignore temporary CLion CMake directories.
+cmake-build-*/
+
+# Ignore Python bytecode cache files.
+__pycache__/
