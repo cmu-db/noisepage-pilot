@@ -11,19 +11,19 @@
 ## Folder contents
 
 - database.h
-  - Header for database tuning problem specification.
-  - Corresponding OpenSpiel location: open_spiel/games/
+    - Header for database tuning problem specification.
+    - Corresponding OpenSpiel location: open_spiel/games/
 - database.cc
-  - Implementation for database tuning problem specification.
-  - Corresponding OpenSpiel location: open_spiel/games/
+    - Implementation for database tuning problem specification.
+    - Corresponding OpenSpiel location: open_spiel/games/
 - database_game.cc
-  - Solver for the database tuning problem.
-  - Corresponding OpenSpiel location: open_spiel/examples/
+    - Solver for the database tuning problem.
+    - Corresponding OpenSpiel location: open_spiel/examples/
 - CMakeLists.txt
-  - Build system for this project.
-  - You probably will need to modify this file:
-    - If you add dependencies.
-    - If you use OpenSpiel's JAX / PyTorch / TensorFlow / etc. components. 
+    - Build system for this project.
+    - You probably will need to modify this file:
+        - If you add dependencies.
+        - If you use OpenSpiel's JAX / PyTorch / TensorFlow / etc. components.
 
 ## References
 
