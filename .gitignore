@@ -1,3 +1,9 @@
+# By convention, we ignore the following folders.
+# Build artifacts.
+artifacts
+# Directory for building code.
+build
+
 # Ignore most JetBrains IDE files.
 /.idea/*
 # Share the default run configuration for CLion.
@@ -9,3 +15,5 @@ cmake-build-*/
 
 # Ignore Python bytecode cache files.
 __pycache__/
+# Ignore Python doit db.
+.doit.db
