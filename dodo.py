@@ -129,3 +129,21 @@ def task_action_recommendation():
             },
         ],
     }
+
+
+def task_ci_python():
+    """
+    This should be run and all warnings fixed before pushing commits.
+    """
+    folders = ["action", "forecast"]
+
+    return {
+        "actions": [
+            "black dodo.py",
+            *[f"isort {folder}" for folder in folders],
+            *[f"black --verbose {folder}" for folder in folders],
+            *[f"flake8 {folder}" for folder in folders],
+        ],
+        "verbosity": VERBOSITY_DEFAULT,
+        "uptodate": [False],
+    }
