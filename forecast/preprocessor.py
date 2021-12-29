@@ -30,30 +30,30 @@ class Preprocessor:
     # The columns that constitute a CSVLOG file, as defined by PostgreSQL.
     # See: https://www.postgresql.org/docs/14/runtime-config-logging.html
     _PG_LOG_COLUMNS: List[str] = [
-        'log_time',
-        'user_name',
-        'database_name',
-        'process_id',
-        'connection_from',
-        'session_id',
-        'session_line_num',
-        'command_tag',
-        'session_start_time',
-        'virtual_transaction_id',
-        'transaction_id',
-        'error_severity',
-        'sql_state_code',
-        'message',
-        'detail',
-        'hint',
-        'internal_query',
-        'internal_query_pos',
-        'context',
-        'query',
-        'query_pos',
-        'location',
-        'application_name',
-        'backend_type',
+        "log_time",
+        "user_name",
+        "database_name",
+        "process_id",
+        "connection_from",
+        "session_id",
+        "session_line_num",
+        "command_tag",
+        "session_start_time",
+        "virtual_transaction_id",
+        "transaction_id",
+        "error_severity",
+        "sql_state_code",
+        "message",
+        "detail",
+        "hint",
+        "internal_query",
+        "internal_query_pos",
+        "context",
+        "query",
+        "query_pos",
+        "location",
+        "application_name",
+        "backend_type",
     ]
 
     def get_dataframe(self):
@@ -141,7 +141,7 @@ class Preprocessor:
     def substitute_params(query_template, params):
         assert type(query_template) == str
         query = query_template
-        keys = [f'${i}' for i in range(1, len(params) + 1)]
+        keys = [f"${i}" for i in range(1, len(params) + 1)]
         for k, v in zip(keys, params):
             query = query.replace(k, v)
         return query
@@ -166,9 +166,14 @@ class Preprocessor:
         return pd.read_csv(
             csvlog,
             names=Preprocessor._PG_LOG_COLUMNS,
-            parse_dates=['log_time', 'session_start_time'],
-            usecols=['log_time', 'session_start_time', 'command_tag',
-                     'message', 'detail'],
+            parse_dates=["log_time", "session_start_time"],
+            usecols=[
+                "log_time",
+                "session_start_time",
+                "command_tag",
+                "message",
+                "detail",
+            ],
             header=None,
             index_col=False,
         )
@@ -205,17 +210,17 @@ class Preprocessor:
         query : pd.Series
             A str-typed series containing the queries from the log.
         """
-        simple = r'statement: ((?:DELETE|INSERT|SELECT|UPDATE).*)'
-        extended = r'execute .+: ((?:DELETE|INSERT|SELECT|UPDATE).*)'
-        regex = f'(?:{simple})|(?:{extended})'
+        simple = r"statement: ((?:DELETE|INSERT|SELECT|UPDATE).*)"
+        extended = r"execute .+: ((?:DELETE|INSERT|SELECT|UPDATE).*)"
+        regex = f"(?:{simple})|(?:{extended})"
         query = message_series.str.extract(regex, flags=re.IGNORECASE)
         # Combine the capture groups for simple and extended query protocol.
         query = query[0].fillna(query[1])
-        print('TODO(WAN): Disabled SQL format for being too slow.')
+        print("TODO(WAN): Disabled SQL format for being too slow.")
         # Prettify each SQL query for standardized formatting.
         # query = query.parallel_map(pglast.prettify, na_action='ignore')
         # Replace NA values (irrelevant log messages) with empty strings.
-        query.fillna('', inplace=True)
+        query.fillna("", inplace=True)
         return query.astype(str)
 
     @staticmethod
@@ -237,15 +242,15 @@ class Preprocessor:
 
         def extract(detail):
             detail = str(detail)
-            prefix = 'parameters: '
+            prefix = "parameters: "
             idx = detail.find(prefix)
             if idx == -1:
                 return {}
-            parameter_list = detail[idx + len(prefix):]
+            parameter_list = detail[idx + len(prefix) :]
             params = {}
-            for pstr in parameter_list.split(', '):
-                pnum, pval = pstr.split(' = ')
-                assert pnum.startswith('$')
+            for pstr in parameter_list.split(", "):
+                pnum, pval = pstr.split(" = ")
+                assert pnum.startswith("$")
                 assert pnum[1:].isdigit()
                 params[pnum] = pval
             return params
@@ -300,17 +305,17 @@ class Preprocessor:
         def parse(sql):
             new_sql, params, last_end = [], [], 0
             for token in pglast.parser.scan(sql):
-                token_str = sql[token.start:token.end + 1]
+                token_str = sql[token.start : token.end + 1]
                 if token.start > last_end:
-                    new_sql.append(' ')
-                if token.name in ['ICONST', 'FCONST', 'SCONST']:
+                    new_sql.append(" ")
+                if token.name in ["ICONST", "FCONST", "SCONST"]:
                     # Integer, float, or string constant.
-                    new_sql.append('$' + str(len(params) + 1))
+                    new_sql.append("$" + str(len(params) + 1))
                     params.append(token_str)
                 else:
                     new_sql.append(token_str)
                 last_end = token.end + 1
-            new_sql = ''.join(new_sql)
+            new_sql = "".join(new_sql)
             return new_sql, tuple(params)
 
         return query_series.parallel_apply(parse)
@@ -334,29 +339,30 @@ class Preprocessor:
         def clock(label):
             nonlocal time_end, time_start
             time_end = time.perf_counter()
-            print('\r{}: {:.2f} s'.format(label, time_end - time_start))
+            print("\r{}: {:.2f} s".format(label, time_end - time_start))
             time_start = time_end
 
         df = self._read_df(csvlogs)
-        clock('Read dataframe')
+        clock("Read dataframe")
 
-        print('Extract queries: ', end='', flush=True)
-        df['query_raw'] = self._extract_query(df['message'])
-        clock('Extract queries')
+        print("Extract queries: ", end="", flush=True)
+        df["query_raw"] = self._extract_query(df["message"])
+        clock("Extract queries")
 
-        print('Extract parameters: ', end='', flush=True)
-        df['params'] = self._extract_params(df['detail'])
-        clock('Extract parameters')
+        print("Extract parameters: ", end="", flush=True)
+        df["params"] = self._extract_params(df["detail"])
+        clock("Extract parameters")
 
-        print('Substitute parameters into query: ', end='', flush=True)
-        df['query_subst'] = self._substitute_params(df, 'query_raw', 'params')
-        clock('Substitute parameters into query')
+        print("Substitute parameters into query: ", end="", flush=True)
+        df["query_subst"] = self._substitute_params(df, "query_raw", "params")
+        clock("Substitute parameters into query")
 
-        print('Parse query: ', end='', flush=True)
-        parsed = self._parse(df['query_subst'])
-        df[['query_template', 'query_params']] = \
-            pd.DataFrame(parsed.tolist(), index=df.index)
-        clock('Parse query')
+        print("Parse query: ", end="", flush=True)
+        parsed = self._parse(df["query_subst"])
+        df[["query_template", "query_params"]] = pd.DataFrame(
+            parsed.tolist(), index=df.index
+        )
+        clock("Parse query")
 
         return df
 
@@ -376,26 +382,25 @@ class Preprocessor:
             df = self._from_csvlogs(csvlogs)
         else:
             assert hdf_path is not None
-            df = pd.read_hdf(hdf_path, key='df')
+            df = pd.read_hdf(hdf_path, key="df")
 
         # Round all times to the closest second.
-        df['log_time_s'] = df['log_time'].round('S')
+        df["log_time_s"] = df["log_time"].round("S")
         # Group the data by query template and log time.
         # This is the primary "output" of the Preprocessor class.
-        gbs = df.groupby(['query_template', 'log_time_s']).size()
-        grouped_by_sec = pd.DataFrame(gbs, columns=['count'])
+        gbs = df.groupby(["query_template", "log_time_s"]).size()
+        grouped_by_sec = pd.DataFrame(gbs, columns=["count"])
         # Drop empty strings which represent irrelevant query log entries.
-        grouped_by_sec.drop('', axis=0, level=0, inplace=True)
+        grouped_by_sec.drop("", axis=0, level=0, inplace=True)
 
         # Repeat the above grouping operation for the query parameters.
-        gbp = df.groupby(['query_template', 'query_params']).size()
-        grouped_by_params = pd.DataFrame(gbp, columns=['count'])
+        gbp = df.groupby(["query_template", "query_params"]).size()
+        grouped_by_params = pd.DataFrame(gbp, columns=["count"])
         # grouped_by_params.drop('', axis=0, level=0, inplace=True)
         # TODO(WAN): I am not sure if I'm wrong or pandas is wrong.
         #  Above raises ValueError: Must pass non-zero number of levels/codes.
         #  So we'll do this instead...
-        grouped_by_params = \
-            grouped_by_params[~grouped_by_params.index.isin([('', ())])]
+        grouped_by_params = grouped_by_params[~grouped_by_params.index.isin([("", ())])]
 
         self._df = df
         self._grouped_df_sec = grouped_by_sec
@@ -403,17 +408,19 @@ class Preprocessor:
 
 
 class PreprocessorCLI(cli.Application):
-    query_log_folder = cli.SwitchAttr('--query-log-folder', str, mandatory=True)
-    output_hdf = cli.SwitchAttr('--output-hdf', str, mandatory=True)
+    query_log_folder = cli.SwitchAttr("--query-log-folder", str, mandatory=True)
+    output_hdf = cli.SwitchAttr("--output-hdf", str, mandatory=True)
 
     def main(self):
-        pgfiles = glob.glob(str(Path(self.query_log_folder) / 'postgresql*.csv'))
-        assert len(pgfiles) > 0, f"No PostgreSQL query log files found in: {self.query_log_folder}"
+        pgfiles = glob.glob(str(Path(self.query_log_folder) / "postgresql*.csv"))
+        assert (
+            len(pgfiles) > 0
+        ), f"No PostgreSQL query log files found in: {self.query_log_folder}"
         preprocessor = Preprocessor(pgfiles)
-        # TODO(WAN): The mixing of types in a column leads to a PerformanceWarning for PyTables.
-        #  If someone wants to take care of that, feel free.
-        warnings.simplefilter(action='ignore', category=pd.errors.PerformanceWarning)
-        preprocessor.get_dataframe().to_hdf(self.output_hdf, key='df')
+        # TODO(WAN): The mixing of types in a column leads to
+        #  a PerformanceWarning for PyTables. Feel free to fix.
+        warnings.simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
+        preprocessor.get_dataframe().to_hdf(self.output_hdf, key="df")
 
 
 if __name__ == "__main__":
