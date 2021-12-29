@@ -1,0 +1,7 @@
+black
+doit
+flake8
+isort
+plumbum
+psycopg2
+toml
