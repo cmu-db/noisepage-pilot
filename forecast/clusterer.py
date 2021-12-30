@@ -322,11 +322,11 @@ class Clusterer:
                 if assignment[template] is None:
                     first_arrival = self._get_first_arrival(template)
                     if current_time <= first_arrival:
-                        print(
-                            f"Template has not yet arrived at "
-                            f"{current_time}, skipping: "
-                            f"{self._dbgname[template]}"
-                        )
+                        # print(
+                        #     f"Template has not yet arrived at "
+                        #     f"{current_time}, skipping: "
+                        #     f"{self._dbgname[template]}"
+                        # )
                         continue
                     # print(f'Template arrived at {current_time}: '
                     #       f'{self._dbgname[template]}')
