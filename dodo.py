@@ -88,6 +88,7 @@ def task_action_generation():
             # Generate create index suggestions for TPC-C.
             f"python3 ./action/generation/generate_create_index_tpcc.py --min-num-cols 1 --max-num-cols 4 --output-sql ./artifacts/actions.sql",
         ],
+        "file_dep": ["./action/generation/generate_create_index_tpcc.py"],
         "targets": ["./artifacts/actions.sql"],
         "verbosity": VERBOSITY_DEFAULT,
     }
@@ -98,16 +99,17 @@ def task_action_recommendation():
     Apply recommended actions to the DBMS.
     """
 
-    def index_picker(db_conn_string):
+    def index_picker(batch_size, db_conn_string):
         action = (
             f"python3 action/recommendation/index_picker.py "
             # index_picker.py arguments.
             "--database-game-path ./artifacts/database_game "
+            f"--batch-size {batch_size} "
             "-- "
             # database_game arguments.
             f'--db_conn_string "{db_conn_string}" '
             "--actions_path ./artifacts/actions.sql "
-            "--forecast_path ./artifacts/forecast.csv"
+            "--forecast_path ./artifacts/forecast.csv "
         )
         return action
 
@@ -121,6 +123,14 @@ def task_action_recommendation():
         "verbosity": VERBOSITY_DEFAULT,
         "uptodate": [False],
         "params": [
+            # index_picker parameters.
+            {
+                "name": "batch_size",
+                "long": "--batch_size",
+                "help": "The batch size to use for actions.",
+                "default": 2500,
+            },
+            # database_game parameters.
             {
                 "name": "db_conn_string",
                 "long": "--db_conn_string",

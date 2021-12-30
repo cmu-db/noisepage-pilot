@@ -9,13 +9,11 @@ NOOP_ACTION = "SELECT 1;"
 
 
 class IndexPickerCLI(cli.Application):
-    database_game_path = cli.SwitchAttr(
-        "--database-game-path", str, mandatory=True
-    )  # noqa
-    batch_size = cli.SwitchAttr("--batch-size", str, default=100)  # noqa
+    database_game_path = cli.SwitchAttr("--database-game-path", str, mandatory=True)
+    batch_size = cli.SwitchAttr("--batch-size", int, default=100)
     tmp_actions_path = cli.SwitchAttr(
         "--tmp-actions-path", str, default="/tmp/actions.csv"
-    )  # noqa
+    )
 
     def main(self, *args):
         # Preprocess the arguments to reuse some of them.
@@ -74,7 +72,7 @@ class IndexPickerCLI(cli.Application):
             """
             with open(self.tmp_actions_path, "w") as actions_file:
                 for action in batch:
-                    print(action, file=actions_file)
+                    print(action.strip(), file=actions_file)
 
         actions_taken = []
         previous_returns = -math.inf
