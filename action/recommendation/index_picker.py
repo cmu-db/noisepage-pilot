@@ -29,6 +29,7 @@ class IndexPickerCLI(cli.Application):
         # Read the original actions path.
         with open(actions_path, "r") as all_actions:
             actions = all_actions.readlines()
+            actions = [sql.strip() for sql in actions]
 
         # Bind the commands for the database_game binary invocation.
         db = local[self.database_game_path][args]
@@ -108,7 +109,7 @@ class IndexPickerCLI(cli.Application):
                                 current_returns = float(val_str)
 
                         # Always remove the recommended action from the
-                        # current batch of actions, unless it is a NOOP.
+                        # current batch of actions.
                         if action in batch:
                             batch.remove(action)
 
@@ -128,7 +129,7 @@ class IndexPickerCLI(cli.Application):
                         # Therefore recommended actions are only applied if
                         # they improve the overall returns.
                         # TODO(WAN): heuristic for improvement, say, 10%?
-                        if current_returns <= previous_returns:
+                        if action == NOOP_ACTION or current_returns <= previous_returns:
                             # The recommended action is not an improvement.
                             # Start a new batch.
                             break
