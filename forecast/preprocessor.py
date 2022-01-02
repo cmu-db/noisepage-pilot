@@ -53,7 +53,7 @@ class Preprocessor:
         "query_pos",
         "location",
         "application_name",
-        "backend_type",
+        #"backend_type",
     ]
 
     def get_dataframe(self):
@@ -68,9 +68,14 @@ class Preprocessor:
         """
         return self._df
 
-    def get_grouped_dataframe_seconds(self):
+    def get_grouped_dataframe_interval(self, interval):
         """
         Get the pre-grouped version of query log data.
+
+        Parameters
+        ----------
+        interval : pd.TimeDelta
+            time interval to group and count the query templates
 
         Returns
         -------
@@ -78,7 +83,11 @@ class Preprocessor:
             Dataframe containing the pre-grouped query log data.
             Grouped on query template and log time.
         """
-        return self._grouped_df_sec
+        gb = self._df.groupby('query_template').resample(interval).size()
+        grouped_df = pd.DataFrame(gb, columns=['count'])
+        grouped_df.drop('', axis=0, level=0, inplace=True)
+        del gb
+        return grouped_df
 
     def get_grouped_dataframe_params(self):
         """
@@ -305,7 +314,7 @@ class Preprocessor:
         def parse(sql):
             new_sql, params, last_end = [], [], 0
             for token in pglast.parser.scan(sql):
-                token_str = sql[token.start : token.end + 1]
+                token_str = str(sql[token.start : token.end + 1])
                 if token.start > last_end:
                     new_sql.append(" ")
                 if token.name in ["ICONST", "FCONST", "SCONST"]:
@@ -347,14 +356,17 @@ class Preprocessor:
 
         print("Extract queries: ", end="", flush=True)
         df["query_raw"] = self._extract_query(df["message"])
+        df.drop(columns=["message"], inplace=True)
         clock("Extract queries")
 
         print("Extract parameters: ", end="", flush=True)
         df["params"] = self._extract_params(df["detail"])
+        df.drop(columns=["detail"], inplace=True)
         clock("Extract parameters")
 
         print("Substitute parameters into query: ", end="", flush=True)
         df["query_subst"] = self._substitute_params(df, "query_raw", "params")
+        df.drop(columns=["query_raw", "params"], inplace=True)
         clock("Substitute parameters into query")
 
         print("Parse query: ", end="", flush=True)
@@ -364,9 +376,10 @@ class Preprocessor:
         )
         clock("Parse query")
 
-        return df
+        # only keep the relevant columns for storage
+        return df[["log_time","query_template", "query_params"]]
 
-    def __init__(self, csvlogs=None, hdf_path=None):
+    def __init__(self, csvlogs=None, parquet_path=None):
         """
         Initialize the preprocessor with either CSVLOGs or a HDF dataframe.
 
@@ -381,19 +394,12 @@ class Preprocessor:
         if csvlogs is not None:
             df = self._from_csvlogs(csvlogs)
         else:
-            assert hdf_path is not None
-            df = pd.read_hdf(hdf_path, key="df")
+            assert parquet_path is not None
+            df = pd.read_parquet(parquet_path)
+            # convert params from array back to tuple so it is hashable
+            df['query_params'] = df['query_params'].map(lambda x: tuple(x))
 
-        # Round all times to the closest second.
-        df["log_time_s"] = df["log_time"].round("S")
-        # Group the data by query template and log time.
-        # This is the primary "output" of the Preprocessor class.
-        gbs = df.groupby(["query_template", "log_time_s"]).size()
-        grouped_by_sec = pd.DataFrame(gbs, columns=["count"])
-        # Drop empty strings which represent irrelevant query log entries.
-        grouped_by_sec.drop("", axis=0, level=0, inplace=True)
-
-        # Repeat the above grouping operation for the query parameters.
+        # grouping queries by template-parameters count.
         gbp = df.groupby(["query_template", "query_params"]).size()
         grouped_by_params = pd.DataFrame(gbp, columns=["count"])
         # grouped_by_params.drop('', axis=0, level=0, inplace=True)
@@ -401,15 +407,14 @@ class Preprocessor:
         #  Above raises ValueError: Must pass non-zero number of levels/codes.
         #  So we'll do this instead...
         grouped_by_params = grouped_by_params[~grouped_by_params.index.isin([("", ())])]
-
         self._df = df
-        self._grouped_df_sec = grouped_by_sec
+        self._df.set_index('log_time',inplace=True)
         self._grouped_df_params = grouped_by_params
 
 
 class PreprocessorCLI(cli.Application):
     query_log_folder = cli.SwitchAttr("--query-log-folder", str, mandatory=True)
-    output_hdf = cli.SwitchAttr("--output-hdf", str, mandatory=True)
+    output_parquet = cli.SwitchAttr("--output-parquet", str, mandatory=True)
 
     def main(self):
         pgfiles = glob.glob(str(Path(self.query_log_folder) / "postgresql*.csv"))
@@ -420,7 +425,8 @@ class PreprocessorCLI(cli.Application):
         # TODO(WAN): The mixing of types in a column leads to
         #  a PerformanceWarning for PyTables. Feel free to fix.
         warnings.simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
-        preprocessor.get_dataframe().to_hdf(self.output_hdf, key="df")
+        print("storing parquet")
+        preprocessor.get_dataframe().to_parquet(self.output_parquet, compression="gzip")
 
 
 if __name__ == "__main__":
