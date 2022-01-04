@@ -2,7 +2,7 @@ import datetime
 import math
 import random
 
-import psycopg2
+import psycopg
 from plumbum import cli, local
 
 NOOP_ACTION = "SELECT 1;"
@@ -80,7 +80,7 @@ class IndexPickerCLI(cli.Application):
 
         # Loop through all of the action batches, applying recommended
         # actions as long as there is an improvement in overall returns.
-        with psycopg2.connect(db_conn_string) as conn:
+        with psycopg.connect(db_conn_string) as conn:
             with conn.cursor() as cursor:
                 for batch in action_batches():
                     batch = list(batch)
