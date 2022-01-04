@@ -3,5 +3,5 @@ doit
 flake8
 isort
 plumbum
-psycopg2
+psycopg
 toml
