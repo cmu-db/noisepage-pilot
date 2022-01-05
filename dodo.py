@@ -164,11 +164,115 @@ def task_action_recommendation():
     }
 
 
+def task_pilot_bootstrap():
+    """
+    Pilot: bootstrap the Pilot tables.
+    """
+
+    def bootstrap(db_conn_string):
+        action = f'psql "{db_conn_string}" --file ./pilot/bootstrap_tables.sql > ./build/bootstrap_pilot.out 2>&1'
+        return action
+
+    return {
+        "actions": [
+            "mkdir -p build",
+            CmdAction(bootstrap),
+        ],
+        "verbosity": VERBOSITY_DEFAULT,
+        "file_dep": ["./build/bootstrap.out", "./pilot/bootstrap_tables.sql"],
+        "targets": ["./build/bootstrap_pilot.out"],
+        "params": [
+            {
+                "name": "db_conn_string",
+                "long": "db_conn_string",
+                "help": "Connection string to Pilot database as server.",
+                "default": DB_CONN_STRING_PILOT_DAEMON,
+            },
+        ],
+    }
+
+
+def task_pilot_daemon():
+    """
+    Pilot: run the Pilot daemon.
+    """
+
+    def run_daemon(db_conn_string):
+        action = (
+            f"python3 pilot/daemon.py "
+            # daemon.py arguments.
+            f'--db-conn-string "{db_conn_string}" '
+        )
+        # TODO(WAN): Because the Daemon is a long-running process,
+        # it locks .doit.db and prevents other client tasks
+        # from executing.
+        return f"echo 'Please run: {action}'"
+
+    return {
+        "actions": [CmdAction(run_daemon, buffering=1)],
+        "verbosity": VERBOSITY_DEFAULT,
+        "file_dep": ["./build/bootstrap_pilot.out"],
+        "params": [
+            # daemon.py parameters.
+            {
+                "name": "db_conn_string",
+                "long": "db_conn_string",
+                "help": "Connection string to Pilot database as server.",
+                "default": DB_CONN_STRING_PILOT_DAEMON,
+            },
+        ],
+    }
+
+
+def task_pilot_client():
+    """
+    Pilot: run the Pilot daemon.
+    """
+
+    def client(db_conn_string, command, args):
+        action = (
+            f"python3 pilot/client.py "
+            # client.py arguments.
+            f'--db-conn-string "{db_conn_string}" '
+            f'--command "{command}" '
+            f"{args} "
+        )
+        return action
+
+    return {
+        "actions": [CmdAction(client, buffering=1)],
+        "verbosity": VERBOSITY_DEFAULT,
+        "uptodate": [False],
+        "file_dep": ["./build/bootstrap_pilot.out"],
+        "params": [
+            # client.py parameters.
+            {
+                "name": "db_conn_string",
+                "long": "db_conn_string",
+                "help": "Connection string to Pilot database as client.",
+                "default": DB_CONN_STRING_PILOT_CLIENT,
+            },
+            {
+                "name": "command",
+                "long": "command",
+                "help": "The command to be sent.",
+                "default": "NO_COMMAND_SPECIFIED",
+            },
+            {
+                "name": "args",
+                "long": "args",
+                "help": "Arguments to pass through to client.py.",
+                "default": "",
+            },
+        ],
+    }
+
+
 def task_ci_python():
     """
     CI: this should be run and all warnings fixed before pushing commits.
     """
-    folders = ["action", "forecast"]
+    folders = ["action", "forecast", "pilot"]
 
     return {
         "actions": [
