@@ -10,10 +10,32 @@ from doit.action import CmdAction
 # 0 = nothing, 1 = stderr only, 2 = stdout and stderr.
 VERBOSITY_DEFAULT = 2
 
+DB_CONN_STRING_PILOT_DAEMON = "host=127.0.0.1 port=5432 dbname=np_pilot user=np_pilot_daemon password=np_pilot_daemon_pass sslmode=disable application_name=psql"
+DB_CONN_STRING_PILOT_CLIENT = "host=127.0.0.1 port=5432 dbname=np_pilot user=np_pilot_client password=np_pilot_client_pass sslmode=disable application_name=psql"
+DB_CONN_STRING_AS_SPIEL = "host=127.0.0.1 port=5432 dbname=np_as_spiel user=np_as_spiel_user password=np_as_spiel_user_pass sslmode=disable application_name=psql"
+
+
+def task_bootstrap():
+    """
+    All components: set up the databases and users.
+    """
+    return {
+        "actions": [
+            "mkdir -p build",
+            "echo 'Bootstrapping required databases as postgres user. You may see a sudo prompt.'",
+            f"sudo --user postgres psql --file ./bootstrap.sql > build/bootstrap.out 2>&1",
+            f"sudo --reset-timestamp",
+            "echo 'Bootstrap complete; sudo permissions reset.'",
+        ],
+        "file_dep": ["./bootstrap.sql"],
+        "targets": ["./build/bootstrap.out"],
+        "verbosity": VERBOSITY_DEFAULT,
+    }
+
 
 def task_openspiel_build():
     """
-    Invoke CMake for OpenSpiel.
+    Action selection: invoke CMake for OpenSpiel.
     """
     source_path = (
         lambda: Path(doit.get_initial_workdir()) / "action/selection/open_spiel/"
@@ -37,7 +59,7 @@ def task_openspiel_build():
 
 def task_openspiel_compile():
     """
-    Build OpenSpiel.
+    Action selection: build OpenSpiel.
     """
     build_path = lambda: Path("build/action/selection/open_spiel/build/")
     return {
@@ -61,7 +83,7 @@ def task_openspiel_compile():
 
 def task_forecast():
     """
-    Forecast the workload.
+    Forecast: forecast the workload.
     """
     return {
         "actions": [
@@ -80,7 +102,7 @@ def task_forecast():
 
 def task_action_generation():
     """
-    Generate actions to choose from.
+    Action generation: generate actions to choose from.
     """
     return {
         "actions": [
@@ -96,7 +118,7 @@ def task_action_generation():
 
 def task_action_recommendation():
     """
-    Apply recommended actions to the DBMS.
+    Action recommendation: apply recommended actions to the DBMS.
     """
 
     def index_picker(batch_size, db_conn_string):
@@ -116,6 +138,7 @@ def task_action_recommendation():
     return {
         "actions": [CmdAction(index_picker)],
         "file_dep": [
+            "./build/bootstrap.out",
             "./artifacts/database_game",
             "./artifacts/actions.sql",
             "./artifacts/forecast.csv",
@@ -126,16 +149,16 @@ def task_action_recommendation():
             # index_picker parameters.
             {
                 "name": "batch_size",
-                "long": "--batch_size",
+                "long": "batch_size",
                 "help": "The batch size to use for actions.",
                 "default": 2500,
             },
             # database_game parameters.
             {
                 "name": "db_conn_string",
-                "long": "--db_conn_string",
+                "long": "db_conn_string",
                 "help": "The database connection string to use.",
-                "default": "host=127.0.0.1 port=5432 dbname=spiel user=spiel password=spiel sslmode=disable application_name=psql",
+                "default": DB_CONN_STRING_AS_SPIEL,
             },
         ],
     }
@@ -143,7 +166,7 @@ def task_action_recommendation():
 
 def task_ci_python():
     """
-    This should be run and all warnings fixed before pushing commits.
+    CI: this should be run and all warnings fixed before pushing commits.
     """
     folders = ["action", "forecast"]
 
