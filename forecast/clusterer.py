@@ -500,11 +500,11 @@ class ClustererCLI(cli.Application):
     def main(self):
         print(f"Loading preprocessor data from {self.preprocessor_parquet}.")
         preprocessor = Preprocessor(parquet_path=self.preprocessor_parquet)
-        clustering_interval = pd.Timedelta(milliseconds=250)
-        df = preprocessor.get_grouped_dataframe_interval(clustering_interval)
+        cluster_interval = pd.Timedelta(milliseconds=250)
+        df = preprocessor.get_grouped_dataframe_interval(cluster_interval)
         df.index.rename(["query_template","log_time_s"],inplace=1)
         print("Clustering query templates.")
-        clusterer = Clusterer(df, clusterer_interval=clustering_interval)
+        clusterer = Clusterer(df, clusterer_interval=cluster_interval)
         print("Generating cluster assignments.")
         clusterer.assignment_df.to_parquet(self.output_parquet)
 
