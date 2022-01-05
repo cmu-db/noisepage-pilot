@@ -29,4 +29,4 @@ if args.diff:
 
 
 if args.train:
-    train.main(latest_experiment)
+    train.main("default")

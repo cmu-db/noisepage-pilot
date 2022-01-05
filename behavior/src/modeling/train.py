@@ -90,7 +90,7 @@ def load_data(data_dir: Path) -> dict[str, DataFrame]:
     result_paths: list[Path] = [fp for fp in data_dir.glob("*.csv") if os.stat(fp).st_size > 0]
     ou_name_to_df: dict[str, DataFrame] = {}
 
-    for ou_name in OU_NAMES:
+    for ou_name in PLAN_NODE_NAMES:
         ou_results = [fp for fp in result_paths if fp.name.startswith(ou_name)]
         if len(ou_results) > 0:
             get_logger().info("Found %s run(s) for %s", len(ou_results), ou_name)
@@ -107,10 +107,12 @@ def prep_train_data(
 ) -> tuple[list[str], list[str], NDArray[Any], NDArray[Any]]:
     cols_to_remove: list[str] = ["start_time", "end_time", "cpu_id", "query_id", "rid", "plan_node_id"]
 
+    diff_targ_cols = [f"diffed_{ou}" for ou in BASE_TARGET_COLS]
+
     if target_diff and ou_name not in LEAF_NODES:
         cols_to_remove += BASE_TARGET_COLS
     else:
-        cols_to_remove += DIFF_TARGET_COLS
+        cols_to_remove += diff_targ_cols
 
     cols_to_remove = [x for x in cols_to_remove if x in df.columns]
 
@@ -127,12 +129,12 @@ def prep_train_data(
 
     if target_diff and ou_name not in LEAF_NODES:
         print(f"using differenced targets for: {ou_name}")
-        target_cols = [col for col in df.columns if col in DIFF_TARGET_COLS]
+        target_cols = [col for col in df.columns if col in diff_targ_cols]
     else:
         target_cols = [col for col in df.columns if col in BASE_TARGET_COLS]
         print(f"using undiff targets for: {ou_name}.  target_cols: {target_cols}")
-
-    feat_cols: list[str] = [col for col in df.columns if col not in ALL_TARGET_COLS]
+    all_target_cols = BASE_TARGET_COLS + diff_targ_cols
+    feat_cols: list[str] = [col for col in df.columns if col not in all_target_cols]
 
     if not feat_diff:
         feat_cols = [col for col in feat_cols if not col.startswith("diffed")]

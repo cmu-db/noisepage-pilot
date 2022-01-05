@@ -1,6 +1,6 @@
 # Training/Evaluation Configuration
-train_bench_dbs: [tatp]
-eval_bench_dbs: [tatp, tpcc, ycsb, wikipedia, voter, twitter, smallbank, auctionmark]
+train_bench_dbs: [tpcc]
+eval_bench_dbs: [tpcc, ycsb, wikipedia, voter, twitter, smallbank, auctionmark]
 experiment_name: null
 targets_diff: True
 features_diff: True
