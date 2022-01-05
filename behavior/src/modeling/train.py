@@ -19,15 +19,13 @@ from sklearn.metrics import (
 )
 
 from src import (
-    ALL_TARGET_COLS,
     BASE_TARGET_COLS,
     BENCHDB_TO_TABLES,
-    DIFF_TARGET_COLS,
     EVAL_DATA_DIR,
     LEAF_NODES,
     MODEL_CONFIG_DIR,
     MODEL_DATA_DIR,
-    OU_NAMES,
+    PLAN_NODE_NAMES,
     TRAIN_DATA_DIR,
     get_logger,
 )

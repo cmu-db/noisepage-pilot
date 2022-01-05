@@ -154,7 +154,7 @@ def init_tscout(results_dir: Path) -> None:
     except Exception as err:
         cleanup(err, terminate=True, message="Error initializing TScout")
 
-    time.sleep(1)  # allows tscout to attach before Benchbase execution begins
+    time.sleep(10)  # allows tscout to attach before Benchbase execution begins
 
 
 def build_benchbase(benchbase_dir: Path) -> None:
@@ -250,7 +250,7 @@ def exec_benchbase(bench_db: str, results_dir: Path, benchbase_results_dir: Path
 
         # Move benchbase results to experiment results directory
         shutil.move(BENCHBASE_SNAPSHOT_DIR / "results", benchbase_results_dir)
-        time.sleep(5)  # Allow TScout Collector to finish getting results
+        time.sleep(10)  # Allow TScout Collector to finish getting results
     except Exception as err:
         cleanup(err, terminate=True, message="Error running Benchbase")
 
