@@ -145,6 +145,7 @@ def prep_train_data(
         "query_id",
         "rid",
         "plan_node_id",
+        "statement_timestamp",
     ]
 
     diff_targ_cols = [f"diffed_{ou}" for ou in BASE_TARGET_COLS]

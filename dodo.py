@@ -278,7 +278,7 @@ def task_pilot_client():
 
 
 def task_behavior():
-    def run_behavior(datagen, diff, train):
+    def run_behavior(all, datagen, diff, train):
         root = Path(__file__).parent
         if Path.cwd() != root:
             os.chdir(root)
@@ -295,12 +295,15 @@ def task_behavior():
 
         args = ["-m", "behavior"]
 
-        if datagen:
-            args.append("--datagen")
-        if diff:
-            args.append("--diff")
-        if train:
-            args.append("--train")
+        if all:
+            args += ["--datagen", "--diff", "--train"]
+        else:
+            if datagen:
+                args.append("--datagen")
+            if diff:
+                args.append("--diff")
+            if train:
+                args.append("--train")
 
         local["python"][args] & FG
 
@@ -308,6 +311,13 @@ def task_behavior():
         "actions": [run_behavior],
         # Behavior Modeling parameters
         "params": [
+            {
+                "name": "all",
+                "long": "all",
+                "type": bool,
+                "help": "Alias for running everything",
+                "default": False,
+            },
             {
                 "name": "datagen",
                 "long": "datagen",
@@ -407,9 +417,9 @@ def task_ci_python():
 
     return {
         "actions": [
-            "black dodo.py",
+            "black dodo.py setup.py",
+            *[f"black {folder}" for folder in folders],
             *[f"isort {folder}" for folder in folders],
-            *[f"black --verbose {folder}" for folder in folders],
             *[f"flake8 {folder}" for folder in folders],
             *[f"mypy {folder}" for folder in typed_folders],
             *[f"pylint {folder}" for folder in typed_folders],

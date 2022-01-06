@@ -25,4 +25,3 @@ setup(
     ],
     python_requires=">=3.9",
 )
-

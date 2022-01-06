@@ -20,7 +20,6 @@ from behavior import (
     LEAF_NODES,
     PLAN_NODE_NAMES,
 )
-from behavior.plans.plans import PlanTree, get_plan_trees
 
 COMMON_SCHEMA: list[str] = [
     "rid",
@@ -67,31 +66,6 @@ def verify_invocation_ids(unified: DataFrame) -> None:
             inv_to_node_ids[inv_id].add(node_id)
         else:
             inv_to_node_ids[inv_id] = {node_id}
-
-
-# Unifying pg_store_plans and TScout Results:
-# 1. Make sure every TScout query_id is in pg_store_plans results
-# 2. Save relevant plans
-# 3. Log and discard irrelevant plans
-
-
-# Process the tscout data
-# 1. Add invocation IDs for each query
-# 2. Find, log, and filter all malformed invocations
-def process_tscout_data(
-    diff_data_dir: Path,
-    ou_to_df: dict[str, DataFrame],
-    unified: DataFrame,
-) -> tuple[dict[str, DataFrame], DataFrame]:
-
-    print("ADD INVOCATION_IDS")
-    unified = add_invocation_ids(diff_data_dir, unified)
-
-    print("FILTER INCOMPLETE")
-    ou_to_df, unified = filter_incomplete(diff_data_dir, ou_to_df, unified)
-
-    print("FILTERING DONE")
-    return ou_to_df, unified
 
 
 def remap_cols(ou_to_df: dict[str, DataFrame]) -> dict[str, DataFrame]:
@@ -151,7 +125,11 @@ def load_tscout_data(tscout_data_dir: Path) -> tuple[dict[str, DataFrame], DataF
     diff_data_dir: Path = tscout_data_dir.parent / "differenced"
     unified.to_csv(f"{diff_data_dir}/LOG_unified_initial.csv", index=False)
 
-    ou_to_df, unified = process_tscout_data(diff_data_dir, ou_to_df, unified)
+    # Process the tscout data
+    # 1. Add invocation IDs for each query
+    # 2. Find, log, and filter all malformed invocations
+    unified = add_invocation_ids(diff_data_dir, unified)
+    ou_to_df, unified = filter_incomplete(diff_data_dir, ou_to_df, unified)
 
     # we use a few different indexes for unified, starting with query_id
     unified.set_index("query_id", drop=False, inplace=True)
@@ -297,19 +275,25 @@ def filter_by_rid(rid_idx: Index, df: DataFrame) -> DataFrame:
     return df.loc[filtered_idx]
 
 
-def diff_one_invocation(
-    plan_tree: PlanTree, invocation: DataFrame
-) -> dict[str, NDArray[np.float64]]:
+def diff_one_invocation(invocation: DataFrame) -> dict[str, NDArray[np.float64]]:
     rid_to_diffed_costs: dict[str, NDArray[np.float64]] = {}
     invocation.set_index("plan_node_id", drop=False, inplace=True)
     assert (
         invocation["plan_node_id"].value_counts().max() == 1
     ), f"An invocation can only have one plan root!  Invocation Data: {invocation}"
 
-    for parent_id, parent_row in invocation.iterrows():
+    for _, parent_row in invocation.iterrows():
         parent_rid: str = parent_row["rid"]
-        child_ids: list[int] = plan_tree.parent_id_to_child_ids[parent_id]
+        child_ids = [
+            id
+            for id in parent_row[
+                ["left_child_plan_node_id", "right_child_plan_node_id"]
+            ].values
+            if id != -1
+        ]
         diffed_costs: NDArray[np.float64] = parent_row[DIFF_COLS].values
+
+        print(f"CHILD_IDS: {child_ids}")
 
         for child_id in child_ids:
 
@@ -335,9 +319,6 @@ def diff_one_invocation(
 def diff_all_plans(diff_data_dir: Path, unified: DataFrame) -> DataFrame:
 
     all_query_ids: set[str] = set(pd.unique(unified["query_id"]))
-    query_id_to_plan_tree: dict[str, PlanTree] = get_plan_trees(
-        diff_data_dir.parent, all_query_ids
-    )
     records: list[list[Any]] = []
 
     print(f"Num query_ids: {len(all_query_ids)}")
@@ -345,44 +326,40 @@ def diff_all_plans(diff_data_dir: Path, unified: DataFrame) -> DataFrame:
     unified.to_csv(diff_data_dir / "LOG_final_unified_before_diffing.csv")
 
     for query_id in tqdm(all_query_ids):
-        plan_tree: PlanTree = query_id_to_plan_tree[query_id]
+        query_invocations = unified.loc[query_id]
+        node_ids: pd.Series = query_invocations["plan_node_id"]
+        if isinstance(query_invocations, pd.Series):
+            continue
+        assert isinstance(query_invocations, DataFrame)
 
-        if len(plan_tree.root.plans) > 0:
-            query_invocations = unified.loc[query_id]
-            node_ids: pd.Series = query_invocations["plan_node_id"]
-            if isinstance(query_invocations, pd.Series):
+        node_counts: pd.Series = node_ids.value_counts()
+        assert (
+            node_counts.min() == node_counts.max()
+        ), f"Invalid node_id set.  Node_counts: {node_counts}"
+
+        assert (
+            query_invocations["rid"].value_counts().max() == 1
+        ), f"Found duplicate rids in query_invocations: {query_invocations}"
+
+        query_invocation_ids: set[int] = set(
+            pd.unique(query_invocations["query_invocation_id"])
+        )
+
+        print(f"Query ID: {query_id}, Num invocations: {len(query_invocation_ids)}")
+        indexed_invocations = query_invocations.set_index(
+            "query_invocation_id", drop=False, inplace=False
+        )
+
+        for invocation_id in query_invocation_ids:
+            invocation = indexed_invocations.loc[invocation_id]
+            if isinstance(invocation, pd.Series):
                 continue
-            assert isinstance(query_invocations, DataFrame)
+            assert isinstance(invocation, DataFrame)
 
-            node_counts: pd.Series = node_ids.value_counts()
-            assert (
-                node_counts.min() == node_counts.max()
-            ), f"Invalid node_id set.  Node_counts: {node_counts}"
-
-            assert (
-                query_invocations["rid"].value_counts().max() == 1
-            ), f"Found duplicate rids in query_invocations: {query_invocations}"
-
-            query_invocation_ids: set[int] = set(
-                pd.unique(query_invocations["query_invocation_id"])
-            )
-            print(f"Query ID: {query_id}, Num invocations: {len(query_invocation_ids)}")
-            indexed_invocations = query_invocations.set_index(
-                "query_invocation_id", drop=False, inplace=False
-            )
-
-            for invocation_id in query_invocation_ids:
-                invocation = indexed_invocations.loc[invocation_id]
-                if isinstance(invocation, pd.Series):
-                    continue
-                assert isinstance(invocation, DataFrame)
-
-                for rid, diffed_costs in diff_one_invocation(
-                    plan_tree, invocation
-                ).items():
-                    assert isinstance(rid, str)
-                    assert isinstance(diffed_costs, np.ndarray)
-                    records.append([rid] + diffed_costs.tolist())
+            for rid, diffed_costs in diff_one_invocation(invocation).items():
+                assert isinstance(rid, str)
+                assert isinstance(diffed_costs, np.ndarray)
+                records.append([rid] + diffed_costs.tolist())
 
     diffed_cols = DataFrame(data=records, columns=["rid"] + DIFF_COLS)
     diffed_cols.to_csv(f"{diff_data_dir}/LOG_diffed_cols.csv", index=False)
