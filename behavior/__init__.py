@@ -3,7 +3,6 @@ from logging import Logger
 from pathlib import Path
 
 # Paths used throughout the behavior code
-# Pilot
 PILOT_DIR = Path(__file__).resolve().parent.parent
 
 # Third-party paths

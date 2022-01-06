@@ -3,7 +3,7 @@
 artifacts
 
 # Directory for building code.
-build
+build/
 
 # Ignore most JetBrains IDE files.
 /.idea/*
@@ -24,19 +24,19 @@ __pycache__/
 .doit.db
 .doit.db.*
 
-# Ignore mypy
+# Ignore mypy cache
 .mypy_cache/
 
 # Ignore any other temporary CSVs
 *.csv
 
-# Ignoring packaging stuff
-dist
+# Ignoring setuptools packaging data
+dist/
 *.egg-info/
 *.egg
 
 # Ignore pilot output data
-data
+data/
 
 # Ignore third-party data (postgres, sqlsmith, benchbase)
-third-party
+third-party/
