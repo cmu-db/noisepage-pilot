@@ -11,7 +11,7 @@ from typing import Any, Optional
 
 import psutil
 import yaml
-from plumbum import BG, FG, local
+from plumbum import BG, FG, ProcessExecutionError, local
 from plumbum.cmd import bash, make, pgrep, sudo  # pylint: disable=import-error
 
 from src import (
@@ -40,7 +40,7 @@ def build_pg() -> None:
         make["clean", "-s"]()
         make["-j", "world-bin", "-s"]()
         make["install-world-bin", "-j", "-s"]()
-    except Exception as err:
+    except ProcessExecutionError as err:
         cleanup(err, terminate=True, message="Error building postgres")
 
 
@@ -112,7 +112,7 @@ def init_pg(config: dict[str, Any]) -> None:
         # Turn off pager
         psql["-d", "benchbase", "-P", "pager=off", "-c", "SELECT 1;"]()
 
-    except Exception as err:
+    except ProcessExecutionError as err:
         cleanup(err, terminate=True, message="Error initializing Postgres")
 
 
@@ -123,7 +123,7 @@ def pg_analyze(bench_db: str) -> None:
         for table in BENCHDB_TO_TABLES[bench_db]:
             get_logger().info("Analyzing table: %s", table)
             local["./build/bin/psql"]["-d", "benchbase", "-c", f"ANALYZE VERBOSE {table};"]()
-    except Exception as err:
+    except ProcessExecutionError as err:
         cleanup(err, terminate=True, message="Error analyzing Postgres")
 
 
@@ -138,7 +138,7 @@ def pg_prewarm(bench_db: str) -> None:
         for table in BENCHDB_TO_TABLES[bench_db]:
             get_logger().info("Prewarming table: %s", table)
             psql["-d", "benchbase", "-c", f"SELECT * from pg_prewarm('{table}');"]()
-    except Exception as err:
+    except ProcessExecutionError as err:
         cleanup(err, terminate=True, message="Error prewarming Postgres")
 
 
@@ -151,7 +151,7 @@ def init_tscout(results_dir: Path) -> None:
         # assumes the oldest Postgres PID is the Postmaster
         postmaster_pid = pgrep["-ox", "postgres"]()
         sudo["python3"]["tscout.py", postmaster_pid, "--outdir", tscout_results_dir] & BG
-    except Exception as err:
+    except ProcessExecutionError as err:
         cleanup(err, terminate=True, message="Error initializing TScout")
 
     time.sleep(10)  # allows tscout to attach before Benchbase execution begins
@@ -165,7 +165,7 @@ def build_benchbase(benchbase_dir: Path) -> None:
         local["./mvnw"]["clean", "package"]()
         if not os.path.exists(BENCHBASE_SNAPSHOT_DIR):
             local["unzip"][BENCHBASE_SNAPSHOT_PATH]()
-    except Exception as err:
+    except ProcessExecutionError as err:
         cleanup(err, terminate=True, message="Error building benchbase")
 
 
@@ -199,7 +199,7 @@ def init_benchbase(bench_db: str, benchbase_results_dir: Path) -> None:
         ]
         local["java"][benchbase_cmd] & FG
         logger.info("Initialized Benchbase for Benchmark: %s", bench_db)
-    except Exception as err:
+    except ProcessExecutionError as err:
         cleanup(err, terminate=True, message="Error initializing Benchbase")
 
 
@@ -251,11 +251,11 @@ def exec_benchbase(bench_db: str, results_dir: Path, benchbase_results_dir: Path
         # Move benchbase results to experiment results directory
         shutil.move(BENCHBASE_SNAPSHOT_DIR / "results", benchbase_results_dir)
         time.sleep(10)  # Allow TScout Collector to finish getting results
-    except Exception as err:
+    except ProcessExecutionError as err:
         cleanup(err, terminate=True, message="Error running Benchbase")
 
 
-def cleanup(err: Optional[Exception], terminate: bool, message: str = "") -> None:
+def cleanup(err: Optional[ProcessExecutionError], terminate: bool, message: str = "") -> None:
     """Clean up the TScout and Postgres processes after either a successful or failed run"""
 
     logger = get_logger()
@@ -264,7 +264,7 @@ def cleanup(err: Optional[Exception], terminate: bool, message: str = "") -> Non
         logger.error(message)
 
     if err is not None:
-        logger.error("Error: %s", err)
+        logger.error("Error: %s, %s, args: %s", type(err), err, err.args)
 
     username = psutil.Process().username()
     sudo["python3"][CLEANUP_SCRIPT_PATH, "--username", username]()
@@ -295,7 +295,7 @@ def exec_sqlsmith(bench_db: str) -> None:
             "--max-queries=10000",
             "--exclude-catalog",
         ]()
-    except Exception as err:
+    except ProcessExecutionError as err:
         cleanup(err, terminate=True, message="Error running SQLSmith")
 
 

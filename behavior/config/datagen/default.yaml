@@ -4,8 +4,8 @@ pg_prewarm: True
 pg_stat_statements: False
 pg_store_plans: True
 auto_explain: False
-# bench_dbs: [tpcc]
-bench_dbs: [tpcc, tatp, ycsb, voter]
+bench_dbs: [tpcc]
+# bench_dbs: [tpcc, tatp, ycsb, voter]
 # bench_dbs: [tpcc, tatp, ycsb, wikipedia, voter, twitter, smallbank, auctionmark]
 sqlsmith: False # currently ignored because dataset naming gets weird
 log_level: INFO

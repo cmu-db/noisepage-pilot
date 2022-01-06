@@ -1,4 +1,5 @@
 #!/bin/bash
 
-rm -r data/training_data/*
-rm -rf data/models/*
+
+rm -r ~/noisepage-pilot/behavior/data/training_data/*
+rm -r ~/noisepage-pilot/behavior/data/models/*

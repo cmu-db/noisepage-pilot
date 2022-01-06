@@ -17,3 +17,4 @@ cmake-build-*/
 __pycache__/
 # Ignore Python doit db.
 .doit.db
+.doit.db.*

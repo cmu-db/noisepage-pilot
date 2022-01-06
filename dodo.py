@@ -268,6 +268,21 @@ def task_pilot_client():
     }
 
 
+
+
+def task_behavior_datagen():
+    """
+    Run behavior data generator
+    """
+    behavior_root = lambda: Path(doit.get_initial_workdir()) / "behavior"
+
+    return {
+        "actions": [lambda: print("hi from doit")],
+    }
+
+
+
+
 def task_ci_python():
     """
     CI: this should be run and all warnings fixed before pushing commits.
