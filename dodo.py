@@ -1,13 +1,11 @@
 import glob
+import os
 from pathlib import Path
 
 import doit
-import os
-
 from doit.action import CmdAction
 from plumbum import FG, local
-from plumbum.cmd import make, git
-
+from plumbum.cmd import git, make
 
 # doit verbosity default controls what to print.
 # 0 = nothing, 1 = stderr only, 2 = stdout and stderr.
@@ -26,8 +24,8 @@ def task_bootstrap():
         "actions": [
             "mkdir -p build",
             "echo 'Bootstrapping required databases as postgres user. You may see a sudo prompt.'",
-            f"sudo --user postgres psql --file ./bootstrap.sql > build/bootstrap.out 2>&1",
-            f"sudo --reset-timestamp",
+            "sudo --user postgres psql --file ./bootstrap.sql > build/bootstrap.out 2>&1",
+            "sudo --reset-timestamp",
             "echo 'Bootstrap complete; sudo permissions reset.'",
         ],
         "file_dep": ["./bootstrap.sql"],
@@ -84,7 +82,7 @@ def task_openspiel_compile():
             lambda: os.chdir(doit.get_initial_workdir()),
         ],
         "file_dep": [f"{build_path() / 'Makefile'}"],
-        "targets": [f"./artifacts/database_game"],
+        "targets": ["./artifacts/database_game"],
         "uptodate": [False],  # Always try to recompile.
         "verbosity": VERBOSITY_DEFAULT,
     }
@@ -117,7 +115,7 @@ def task_action_generation():
         "actions": [
             "mkdir -p artifacts",
             # Generate create index suggestions for TPC-C.
-            f"python3 ./action/generation/generate_create_index_tpcc.py --min-num-cols 1 --max-num-cols 4 --output-sql ./artifacts/actions.sql",
+            "python3 ./action/generation/generate_create_index_tpcc.py --min-num-cols 1 --max-num-cols 4 --output-sql ./artifacts/actions.sql",
         ],
         "file_dep": ["./action/generation/generate_create_index_tpcc.py"],
         "targets": ["./artifacts/actions.sql"],
@@ -132,7 +130,7 @@ def task_action_recommendation():
 
     def index_picker(batch_size, db_conn_string):
         action = (
-            f"python3 action/recommendation/index_picker.py "
+            "python3 action/recommendation/index_picker.py "
             # index_picker.py arguments.
             "--database-game-path ./artifacts/database_game "
             f"--batch-size {batch_size} "
@@ -412,6 +410,29 @@ def _build_benchbase() -> None:
     os.chdir(root)
 
 
+def task_lint():
+    """
+    Run formatting and linting locally
+    """
+    folders = ["action", "forecast", "pilot", "behavior"]
+    typed_folders = ["behavior"]
+
+    return {
+        "actions": [
+            "black dodo.py setup.py",
+            "isort dodo.py setup.py",
+            "flake8 --statistics dodo.py setup.py",
+            *[f"black {folder}" for folder in folders],
+            *[f"isort {folder}" for folder in folders],
+            *[f"flake8 --statistics {folder}" for folder in folders],
+            *[f"mypy {folder}" for folder in typed_folders],
+            *[f"pylint {folder}" for folder in typed_folders],
+        ],
+        "verbosity": VERBOSITY_DEFAULT,
+        "uptodate": [False],
+    }
+
+
 def task_ci_python():
     """
     CI: this should be run and all warnings fixed before pushing commits.
@@ -421,12 +442,14 @@ def task_ci_python():
 
     return {
         "actions": [
-            "black dodo.py setup.py",
-            *[f"black {folder}" for folder in folders],
-            *[f"isort {folder}" for folder in folders],
-            *[f"flake8 {folder}" for folder in folders],
+            "black --check --verbose dodo.py setup.py",
+            "isort --check --verbose dodo.py setup.py",
+            "flake8 --statistics dodo.py setup.py",
+            *[f"black --check --verbose {folder}" for folder in folders],
+            *[f"isort --check {folder}" for folder in folders],
+            *[f"flake8 --statistics {folder}" for folder in folders],
             *[f"mypy {folder}" for folder in typed_folders],
-            *[f"pylint {folder}" for folder in typed_folders],
+            *[f"pylint --verbose {folder}" for folder in typed_folders],
         ],
         "verbosity": VERBOSITY_DEFAULT,
         "uptodate": [False],

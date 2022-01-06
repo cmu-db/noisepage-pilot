@@ -55,7 +55,7 @@ def evaluate(
         output_dir / f"{ou_model.ou_name}_{ou_model.method}_{dataset}_{mode}_preds.csv"
     )
     with preds_path.open("w+") as preds_file:
-        temp: NDArray[Any] = np.concatenate((X, y, y_pred), axis=1)  # type: ignore
+        temp: NDArray[Any] = np.concatenate((X, y, y_pred), axis=1)  # type: ignore [no-untyped-call]
         test_result_df = pd.DataFrame(
             temp,
             columns=ou_model.features
