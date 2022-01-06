@@ -278,20 +278,24 @@ def task_pilot_client():
 
 
 def task_behavior():
-    def run_behavior(all, datagen, diff, train):
+    """
+    Behavior modeling: datagen, plan data differencing, and OU model training.
+    """
+
+    def run_behavior(all, datagen, diff, train, build_pg, build_benchbase):
         root = Path(__file__).parent
         if Path.cwd() != root:
             os.chdir(root)
 
         pg_ctl_path = root / "third-party" / "postgres" / "build" / "bin" / "pg_ctl"
-        if not pg_ctl_path.exists():
-            build_pg()
+        if not pg_ctl_path.exists() or build_pg:
+            _build_pg()
 
         benchbase_snapshot_dir = (
             root / "third-party" / "benchbase" / "benchbase-2021-SNAPSHOT"
         )
-        if not benchbase_snapshot_dir.exists():
-            build_benchbase()
+        if not benchbase_snapshot_dir.exists() or build_benchbase:
+            _build_benchbase()
 
         args = ["-m", "behavior"]
 
@@ -315,28 +319,42 @@ def task_behavior():
                 "name": "all",
                 "long": "all",
                 "type": bool,
-                "help": "Alias for running everything",
+                "help": "Alias for running datagen, differencing, and training.",
                 "default": False,
             },
             {
                 "name": "datagen",
                 "long": "datagen",
                 "type": bool,
-                "help": "Whether or not to generate training data: datagen",
+                "help": "Generate training data.",
                 "default": False,
             },
             {
                 "name": "diff",
                 "long": "diff",
                 "type": bool,
-                "help": "Whether or not to perform training data differencing: diff",
+                "help": "Perform training data differencing.",
                 "default": False,
             },
             {
                 "name": "train",
                 "long": "train",
                 "type": bool,
-                "help": "Whether or not to perform model training: train",
+                "help": "Perform model training.",
+                "default": False,
+            },
+            {
+                "name": "build_pg",
+                "long": "build_pg",
+                "type": bool,
+                "help": "Build Postgres (only needed if Postgres must be recompiled).",
+                "default": False,
+            },
+            {
+                "name": "build_benchbase",
+                "long": "build_benchbase",
+                "type": bool,
+                "help": "Build Benchbase (only needed if Benchbase must be rebuilt).",
                 "default": False,
             },
         ],
@@ -344,7 +362,7 @@ def task_behavior():
     }
 
 
-def build_pg() -> None:
+def _build_pg() -> None:
     root = Path(__file__).parent
     if Path.cwd() != root:
         os.chdir(root)
@@ -366,7 +384,7 @@ def build_pg() -> None:
     os.chdir(root)
 
 
-def build_benchbase() -> None:
+def _build_benchbase() -> None:
     root = Path(__file__).parent
     if Path.cwd() != root:
         os.chdir(root)
@@ -392,20 +410,6 @@ def build_benchbase() -> None:
         local["unzip"][benchbase_snapshot_path] & FG
 
     os.chdir(root)
-
-
-def task_build_pg():
-    return {
-        "actions": [build_pg],
-        "verbosity": VERBOSITY_DEFAULT,
-    }
-
-
-def task_build_benchbase():
-    return {
-        "actions": [build_benchbase],
-        "verbosity": VERBOSITY_DEFAULT,
-    }
 
 
 def task_ci_python():

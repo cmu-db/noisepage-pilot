@@ -64,6 +64,8 @@ def check_orphans() -> None:
 
 
 def init_pg(config: dict[str, Any]) -> None:
+    """Launch Postgres for a single benchmark run."""
+
     try:
         os.chdir(PG_DIR)
 
@@ -125,17 +127,18 @@ def init_pg(config: dict[str, Any]) -> None:
         if config["pg_stat_statements"]:
             psql["-d", "benchbase", "-c", "CREATE EXTENSION pg_stat_statements;"] & FG
 
-        # if config["pg_store_plans"]:
-        #     psql["-d", "benchbase", "-c", "CREATE EXTENSION pg_store_plans;"]()
+        if config["pg_store_plans"]:
+            psql["-d", "benchbase", "-c", "CREATE EXTENSION pg_store_plans;"]()
 
         # Turn off pager
         psql["-d", "benchbase", "-P", "pager=off", "-c", "SELECT 1;"] & FG
 
-    except (FileNotFoundError, ProcessExecutionError) as err:
+    except (KeyboardInterrupt, FileNotFoundError, ProcessExecutionError) as err:
         cleanup(err, terminate=True, message="Error initializing Postgres")
 
 
 def pg_analyze(bench_db: str) -> None:
+    """Analyze all tables in the specific benchmark database.  Updates Postgres' internal statistics for more accurate cardinality estimation and plan costing."""
     try:
         os.chdir(PG_DIR)
 
@@ -152,7 +155,7 @@ def pg_analyze(bench_db: str) -> None:
 
 
 def pg_prewarm(bench_db: str) -> None:
-    """Prewarm Postgres so the buffer pool and OS page cache has the workload data available"""
+    """Prewarm Postgres so the buffer pool and OS page cache has the workload data available."""
 
     try:
         os.chdir(PG_DIR)
@@ -162,11 +165,13 @@ def pg_prewarm(bench_db: str) -> None:
         for table in BENCHDB_TO_TABLES[bench_db]:
             get_logger().info("Prewarming table: %s", table)
             psql["-d", "benchbase", "-c", f"SELECT * from pg_prewarm('{table}');"] & FG
-    except (FileNotFoundError, ProcessExecutionError) as err:
+    except (KeyboardInterrupt, FileNotFoundError, ProcessExecutionError) as err:
         cleanup(err, terminate=True, message="Error prewarming Postgres")
 
 
 def init_tscout(results_dir: Path) -> None:
+    """Launch TScout"""
+
     try:
         os.chdir(TSCOUT_DIR)
         tscout_results_dir = results_dir / "tscout"
@@ -185,7 +190,8 @@ def init_tscout(results_dir: Path) -> None:
 
 
 def init_benchbase(bench_db: str, benchbase_results_dir: Path) -> None:
-    """Initialize Benchbase and load benchmark data"""
+    """Initialize Benchbase and load benchmark data."""
+
     logger = get_logger()
 
     try:
@@ -216,7 +222,7 @@ def init_benchbase(bench_db: str, benchbase_results_dir: Path) -> None:
         ]
         local["java"][benchbase_cmd] & FG
         logger.info("Initialized Benchbase for Benchmark: %s", bench_db)
-    except (FileNotFoundError, ProcessExecutionError) as err:
+    except (KeyboardInterrupt, FileNotFoundError, ProcessExecutionError) as err:
         cleanup(err, terminate=True, message="Error initializing Benchbase")
 
 
@@ -226,6 +232,7 @@ def exec_benchbase(
     benchbase_results_dir: Path,
     config: dict[str, Any],
 ) -> None:
+    """Run Benchbase on the specific benchmark database."""
     try:
         benchbase_snapshot_dir = BENCHBASE_DIR / "benchbase-2021-SNAPSHOT"
 
@@ -234,8 +241,9 @@ def exec_benchbase(
 
         if config["pg_stat_statements"]:
             psql["-d", "benchbase", "-c", "SELECT pg_stat_statements_reset();"] & FG
-        # if config["pg_store_plans"]:
-        #     psql["-d", "benchbase", "-c", "SELECT pg_store_plans_reset();"]()
+
+        if config["pg_store_plans"]:
+            psql["-d", "benchbase", "-c", "SELECT pg_store_plans_reset();"]()
 
         # run benchbase
         local["java"][
@@ -261,47 +269,27 @@ def exec_benchbase(
                 ]()
                 f.write(stats_result)
 
-        # if config["pg_store_plans"]:
-        #     with (results_dir / "plan_file.csv").open("w") as f:
-        #         plans_result = psql[
-        #             "-d",
-        #             "benchbase",
-        #             "--csv",
-        #             "-c",
-        #             "SELECT queryid, planid, plan FROM pg_store_plans ORDER BY queryid, planid;",
-        #         ]()
+        if config["pg_store_plans"]:
+            with (results_dir / "plan_file.csv").open("w") as f:
+                plans_result = psql[
+                    "-d",
+                    "benchbase",
+                    "--csv",
+                    "-c",
+                    "SELECT queryid, planid, plan FROM pg_store_plans ORDER BY queryid, planid;",
+                ]()
 
-        #         f.write(plans_result)
+                f.write(plans_result)
 
         # Move benchbase results to experiment results directory
         shutil.move(benchbase_snapshot_dir / "results", benchbase_results_dir)
         time.sleep(10)  # Allow TScout Collector to finish getting results
-    except (FileNotFoundError, ProcessExecutionError) as err:
+    except (KeyboardInterrupt, FileNotFoundError, ProcessExecutionError) as err:
         cleanup(err, terminate=True, message="Error running Benchbase")
 
 
-def cleanup(err: Optional[Exception], terminate: bool, message: str = "") -> None:
-    """Clean up the TScout and Postgres processes after either a successful or failed run"""
-
-    logger = get_logger()
-
-    if len(message) > 0:
-        logger.error(message)
-
-    if err is not None:
-        logger.error("Error: %s, %s", type(err), err)
-
-    cleanup_script_path = Path(__file__).parent / "cleanup.py"
-    sudo["python3"][cleanup_script_path]()
-    time.sleep(2)  # Allow TScout poison pills to propagate
-
-    # Exit the program if the caller requested it (only happens on error)
-    if terminate:
-        sys.exit(1)
-
-
 def exec_sqlsmith(bench_db: str) -> None:
-
+    """Run SQLSmith queries over the specific benchmark database."""
     try:
         os.chdir(PG_DIR)
         # Add SQLSmith user to benchbase DB with non-superuser privileges
@@ -338,8 +326,28 @@ def exec_sqlsmith(bench_db: str) -> None:
             ]
             & FG
         )
-    except ProcessExecutionError as err:
+    except (KeyboardInterrupt, FileNotFoundError, ProcessExecutionError) as err:
         cleanup(err, terminate=True, message="Error running SQLSmith")
+
+
+def cleanup(err: Optional[BaseException], terminate: bool, message: str = "") -> None:
+    """Clean up the TScout and Postgres processes after either a successful or failed run."""
+
+    logger = get_logger()
+
+    if len(message) > 0:
+        logger.error(message)
+
+    if err is not None:
+        logger.error("Error: %s, %s", type(err), err)
+
+    cleanup_script_path = Path(__file__).parent / "cleanup.py"
+    sudo["python3"][cleanup_script_path]()
+    time.sleep(2)  # Allow TScout poison pills to propagate
+
+    # Exit the program if the caller requested it (only happens on error)
+    if terminate:
+        sys.exit(1)
 
 
 def run(

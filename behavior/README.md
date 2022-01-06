@@ -6,13 +6,13 @@ This document details the core components of behavior modeling and how to use th
 
 This diagram details the general workflow.
 
-![Behavior Modeling Diagram](./docs/behavior_modeling_pipeline.svg)
+![Behavior Modeling Diagram](../docs/behavior/behavior_modeling_pipeline.svg)
 
 # Key Terms
 
 This diagram presents various key terminology relevant to the behavior modeling process.
 
-![Key Terms](./docs/behavior_modeling_keyterms.svg)
+![Key Terms](../docs/behavior/behavior_modeling_keyterms.svg)
 
 ## Data Generator (`datagen/gen.py`)
 

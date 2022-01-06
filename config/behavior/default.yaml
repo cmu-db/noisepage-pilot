@@ -2,7 +2,7 @@
 datagen: 
   pg_prewarm: True
   pg_stat_statements: False
-  pg_store_plans: False
+  pg_store_plans: False # currently not installed
   auto_explain: False
   bench_dbs: [tpcc]
   sqlsmith: False # currently ignored because it causes dataset naming conflicts
