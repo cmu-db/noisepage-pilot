@@ -11,7 +11,9 @@ NOOP_ACTION = "SELECT 1;"
 class IndexPickerCLI(cli.Application):
     database_game_path = cli.SwitchAttr("--database-game-path", str, mandatory=True)
     batch_size = cli.SwitchAttr("--batch-size", int, default=100)
-    tmp_actions_path = cli.SwitchAttr("--tmp-actions-path", str, default="/tmp/actions.csv")
+    tmp_actions_path = cli.SwitchAttr(
+        "--tmp-actions-path", str, default="/tmp/actions.csv"
+    )
 
     def main(self, *args):
         # Preprocess the arguments to reuse some of them.

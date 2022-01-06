@@ -22,7 +22,9 @@ class PlanNode:
         self.plan_node_id: int = json_plan["plan_node_id"]
         self.depth: int = json_plan["depth"]
         self.plans: list[PlanNode] = (
-            [PlanNode(child_plan) for child_plan in json_plan["Plans"]] if "Plans" in json_plan else []
+            [PlanNode(child_plan) for child_plan in json_plan["Plans"]]
+            if "Plans" in json_plan
+            else []
         )
 
     def __repr__(self) -> str:
@@ -84,7 +86,9 @@ def _set_node_ids(json_plan: dict[str, Any], next_node_id: int, depth: int) -> i
     return next_node_id
 
 
-def get_plan_trees(raw_data_dir: Path, tscout_query_ids: set[str]) -> dict[str, PlanTree]:
+def get_plan_trees(
+    raw_data_dir: Path, tscout_query_ids: set[str]
+) -> dict[str, PlanTree]:
     plan_file_path: Path = raw_data_dir / "plan_file.csv"
     cols = ["queryid", "planid", "plan"]
     dtypes: dict[str, Any] = {"queryid": np.int64, "planid": int, "plan": str}

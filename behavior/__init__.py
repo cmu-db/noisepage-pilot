@@ -150,7 +150,12 @@ PLAN_NODE_NAMES = [
     "WorkTableScan",
 ]
 
-LEAF_NODES: set[str] = {"ExecIndexScan", "ExecSeqScan", "ExecIndexOnlyScan", "ExecResult"}
+LEAF_NODES: set[str] = {
+    "ExecIndexScan",
+    "ExecSeqScan",
+    "ExecIndexOnlyScan",
+    "ExecResult",
+}
 
 BASE_TARGET_COLS = [
     "cpu_cycles",

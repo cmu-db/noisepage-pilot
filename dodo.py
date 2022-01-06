@@ -306,7 +306,12 @@ def task_build_pg():
         pg_dir = third_party_dir / "postgres"
 
         if not pg_dir.exists():
-            git["clone"]["git@github.com:cmu-db/postgres.git", "./third-party/postgres"] & FG
+            (
+                git["clone"][
+                    "git@github.com:cmu-db/postgres.git", "./third-party/postgres"
+                ]
+                & FG
+            )
 
         os.chdir(pg_dir)
         bash["./cmudb/build/configure.sh", "release"] & FG
@@ -331,10 +336,17 @@ def task_build_benchbase():
         benchbase_dir = third_party_dir / "benchbase"
 
         if not benchbase_dir.exists():
-            git["clone"]["git@github.com:cmu-db/benchbase.git", "./third-party/benchbase"] & FG
+            (
+                git["clone"][
+                    "git@github.com:cmu-db/benchbase.git", "./third-party/benchbase"
+                ]
+                & FG
+            )
 
         benchbase_snapshot_dir = benchbase_dir / "benchbase-2021-SNAPSHOT"
-        benchbase_snapshot_path = benchbase_dir / "target" / "benchbase-2021-SNAPSHOT.zip"
+        benchbase_snapshot_path = (
+            benchbase_dir / "target" / "benchbase-2021-SNAPSHOT.zip"
+        )
 
         os.chdir(benchbase_dir)
         local["./mvnw"]["clean", "package"] & FG

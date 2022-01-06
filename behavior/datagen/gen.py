@@ -34,7 +34,11 @@ def check_orphans() -> None:
     This will throw an error if it finds *any* postgres processes.
     """
 
-    tscout_process_names = ["TScout Coordinator", "TScout Processor", "TScout Collector"]
+    tscout_process_names = [
+        "TScout Coordinator",
+        "TScout Processor",
+        "TScout Collector",
+    ]
     pg_procs = []
     tscout_procs = []
 
@@ -43,11 +47,20 @@ def check_orphans() -> None:
         if "postgres" in proc_name:
             pg_procs.append(proc)
 
-        if any((tscout_process_name in proc.info["name"] for tscout_process_name in tscout_process_names)):
+        if any(
+            (
+                tscout_process_name in proc.info["name"]
+                for tscout_process_name in tscout_process_names
+            )
+        ):
             tscout_procs.append(proc)
 
-    assert len(pg_procs) == 0, f"Found active postgres processes from previous runs: {pg_procs}"
-    assert len(tscout_procs) == 0, f"Found active tscout processes from previous runs: {tscout_procs}"
+    assert (
+        len(pg_procs) == 0
+    ), f"Found active postgres processes from previous runs: {pg_procs}"
+    assert (
+        len(tscout_procs) == 0
+    ), f"Found active tscout processes from previous runs: {tscout_procs}"
 
 
 def init_pg(config: dict[str, Any]) -> None:
@@ -81,10 +94,20 @@ def init_pg(config: dict[str, Any]) -> None:
 
         # Turn on QueryID computation
         psql["-d", "test", "-c", "ALTER DATABASE test SET compute_query_id = 'ON';"]()
-        psql["-d", "benchbase", "-c", "ALTER DATABASE benchbase SET compute_query_id = 'ON';"]()
+        psql[
+            "-d",
+            "benchbase",
+            "-c",
+            "ALTER DATABASE benchbase SET compute_query_id = 'ON';",
+        ]()
 
         if config["auto_explain"]:
-            psql["-d", "benchbase", "-c", "ALTER SYSTEM SET auto_explain.log_min_duration = 0;"]()
+            psql[
+                "-d",
+                "benchbase",
+                "-c",
+                "ALTER SYSTEM SET auto_explain.log_min_duration = 0;",
+            ]()
             pg_ctl["-D", "data", "reload"]()
 
         if config["pg_stat_statements"]:
@@ -106,7 +129,9 @@ def pg_analyze(bench_db: str) -> None:
 
         for table in BENCHDB_TO_TABLES[bench_db]:
             get_logger().info("Analyzing table: %s", table)
-            local["./build/bin/psql"]["-d", "benchbase", "-c", f"ANALYZE VERBOSE {table};"]()
+            local["./build/bin/psql"][
+                "-d", "benchbase", "-c", f"ANALYZE VERBOSE {table};"
+            ]()
     except ProcessExecutionError as err:
         cleanup(err, terminate=True, message="Error analyzing Postgres")
 
@@ -134,7 +159,10 @@ def init_tscout(results_dir: Path) -> None:
 
         # assumes the oldest Postgres PID is the Postmaster
         postmaster_pid = pgrep["-ox", "postgres"]()
-        sudo["python3"]["tscout.py", postmaster_pid, "--outdir", tscout_results_dir] & BG
+        (
+            sudo["python3"]["tscout.py", postmaster_pid, "--outdir", tscout_results_dir]
+            & BG
+        )
     except (FileNotFoundError, ProcessExecutionError) as err:
         cleanup(err, terminate=True, message="Error initializing TScout")
 
@@ -153,7 +181,9 @@ def init_benchbase(bench_db: str, benchbase_results_dir: Path) -> None:
 
         # move runner config to benchbase and also save it in the output directory
         input_cfg_path = BENCHBASE_CONFIG_DIR / f"{bench_db}_config.xml"
-        benchbase_cfg_path = benchbase_snapshot_dir / f"config/postgres/{bench_db}_config.xml"
+        benchbase_cfg_path = (
+            benchbase_snapshot_dir / f"config/postgres/{bench_db}_config.xml"
+        )
         shutil.copy(input_cfg_path, benchbase_cfg_path)
         shutil.copy(input_cfg_path, benchbase_results_dir)
 
@@ -175,7 +205,12 @@ def init_benchbase(bench_db: str, benchbase_results_dir: Path) -> None:
         cleanup(err, terminate=True, message="Error initializing Benchbase")
 
 
-def exec_benchbase(bench_db: str, results_dir: Path, benchbase_results_dir: Path, config: dict[str, Any]) -> None:
+def exec_benchbase(
+    bench_db: str,
+    results_dir: Path,
+    benchbase_results_dir: Path,
+    config: dict[str, Any],
+) -> None:
     try:
         benchbase_snapshot_dir = BENCHBASE_DIR / "benchbase-2021-SNAPSHOT"
 
@@ -202,7 +237,13 @@ def exec_benchbase(bench_db: str, results_dir: Path, benchbase_results_dir: Path
 
         if config["pg_stat_statements"]:
             with (results_dir / "stat_file.csv").open("w") as f:
-                stats_result = psql["-d", "benchbase", "--csv", "-c", "SELECT * FROM pg_stat_statements;"]()
+                stats_result = psql[
+                    "-d",
+                    "benchbase",
+                    "--csv",
+                    "-c",
+                    "SELECT * FROM pg_stat_statements;",
+                ]()
                 f.write(stats_result)
 
         # if config["pg_store_plans"]:
@@ -251,11 +292,21 @@ def exec_sqlsmith(bench_db: str) -> None:
         os.chdir(PG_DIR)
         # Add SQLSmith user to benchbase DB with non-superuser privileges
         psql = local["./build/bin/psql"]
-        psql["-d", "benchbase", "-c", "CREATE ROLE sqlsmith WITH PASSWORD 'password' INHERIT LOGIN;"]()
+        psql[
+            "-d",
+            "benchbase",
+            "-c",
+            "CREATE ROLE sqlsmith WITH PASSWORD 'password' INHERIT LOGIN;",
+        ]()
 
         for table in BENCHDB_TO_TABLES[bench_db]:
             get_logger().info("Granting SQLSmith permissions on table: %s", table)
-            psql["-d", "benchbase", "-c", "GRANT SELECT, INSERT, UPDATE, DELETE ON {table} TO sqlsmith;"]()
+            psql[
+                "-d",
+                "benchbase",
+                "-c",
+                "GRANT SELECT, INSERT, UPDATE, DELETE ON {table} TO sqlsmith;",
+            ]()
 
         os.chdir(SQLSMITH_DIR)
         # TODO: verify this works
@@ -269,7 +320,12 @@ def exec_sqlsmith(bench_db: str) -> None:
         cleanup(err, terminate=True, message="Error running SQLSmith")
 
 
-def run(bench_db: str, results_dir: Path, benchbase_results_dir: Path, config: dict[str, Any]) -> None:
+def run(
+    bench_db: str,
+    results_dir: Path,
+    benchbase_results_dir: Path,
+    config: dict[str, Any],
+) -> None:
     """Run an experiment"""
     assert results_dir.exists(), f"Results directory does not exist: {results_dir}"
 
@@ -283,7 +339,9 @@ def run(bench_db: str, results_dir: Path, benchbase_results_dir: Path, config: d
     pg_ctl["stop", "-D", "data", "-m", "smart"]()
 
     # remove pre-existing logs
-    for log_path in [fp for fp in (PG_DIR / "data/log").glob("*") if fp.suffix in ["csv", "log"]]:
+    for log_path in [
+        fp for fp in (PG_DIR / "data/log").glob("*") if fp.suffix in ["csv", "log"]
+    ]:
         log_path.unlink()
 
     pg_ctl["-D", "data", "-o", "-W 2", "start"] & FG
@@ -296,11 +354,15 @@ def run(bench_db: str, results_dir: Path, benchbase_results_dir: Path, config: d
     exec_benchbase(bench_db, results_dir, benchbase_results_dir, config)
 
     log_fps = list((PG_DIR / "data/log").glob("*.log"))
-    assert len(log_fps) == 1, f"Expected 1 Postgres log file, found {len(log_fps)}, {log_fps}"
+    assert (
+        len(log_fps) == 1
+    ), f"Expected 1 Postgres log file, found {len(log_fps)}, {log_fps}"
     shutil.move(str(log_fps[0]), str(results_dir))
 
     log_fps = list(results_dir.glob("*.log"))
-    assert len(log_fps) == 1, f"Expected 1 Result log file, found {len(log_fps)}, {log_fps}"
+    assert (
+        len(log_fps) == 1
+    ), f"Expected 1 Result log file, found {len(log_fps)}, {log_fps}"
     log_fps[0].rename(results_dir / "pg_log.log")
 
     cleanup(err=None, terminate=False, message="Finished run")
@@ -338,6 +400,9 @@ def main(config_name: str) -> None:
             benchbase_results_dir = results_dir / "benchbase"
             Path(benchbase_results_dir).mkdir(exist_ok=True)
             logger.warning(
-                "Running experiment: %s with bench_db: %s and results_dir: %s", experiment_name, bench_db, results_dir
+                "Running experiment: %s with bench_db: %s and results_dir: %s",
+                experiment_name,
+                bench_db,
+                results_dir,
             )
             run(bench_db, results_dir, benchbase_results_dir, config)

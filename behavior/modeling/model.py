@@ -65,7 +65,9 @@ def get_model(method: str, config: dict[str, Any]) -> Any:
         regressor = DecisionTreeRegressor(max_depth=config["dt"]["max_depth"])
         regressor = MultiOutputRegressor(regressor)
     if method == "elastic":
-        regressor = ElasticNet(alpha=config["elastic"]["alpha"], l1_ratio=config["elastic"]["l1_ratio"])
+        regressor = ElasticNet(
+            alpha=config["elastic"]["alpha"], l1_ratio=config["elastic"]["l1_ratio"]
+        )
         regressor = MultiOutputRegressor(regressor)
     if method == "mt_elastic":
         regressor = MultiTaskElasticNet(l1_ratio=config["mt_elastic"]["l1_ratio"])
@@ -75,7 +77,13 @@ def get_model(method: str, config: dict[str, Any]) -> Any:
 
 class BehaviorModel:
     def __init__(
-        self, method: str, ou_name: str, timestamp: str, config: dict[str, Any], features: list[str], targets: list[str]
+        self,
+        method: str,
+        ou_name: str,
+        timestamp: str,
+        config: dict[str, Any],
+        features: list[str],
+        targets: list[str],
     ):
         """
         :param method: which ML method to use
