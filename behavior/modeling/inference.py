@@ -1,3 +1,5 @@
+# WIP - Inference "pseudocode" providing a vague example of what behavior model inference could look like.
+
 import argparse
 import pickle
 from pathlib import Path
