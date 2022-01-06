@@ -19,7 +19,7 @@ setup(
         "pylint",
         "mypy",
         "plumbum",
-        "doit", 
+        "doit",
         "psycopg",
     ],
     python_requires=">=3.9",

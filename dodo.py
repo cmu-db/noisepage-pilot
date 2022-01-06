@@ -274,13 +274,41 @@ def task_behavior_datagen():
     """
     Run behavior data generator
     """
-    behavior_root = lambda: Path(doit.get_initial_workdir()) / "behavior"
+    behavior_root = Path(doit.get_initial_workdir()) / "behavior"
 
     return {
-        "actions": [lambda: print("hi from doit")],
+        "actions": [            
+            lambda: os.chdir(behavior_root),
+            f"python3 -m src.run --datagen",
+        ],
+    }
+
+def task_behavior_diff():
+    """
+    Run behavior data generator
+    """
+    behavior_root = Path(doit.get_initial_workdir()) / "behavior"
+
+    return {
+        "actions": [            
+            lambda: os.chdir(behavior_root),
+            f"python3 -m src.run --diff",
+        ],
     }
 
 
+def task_behavior_train():
+    """
+    Run behavior data generator
+    """
+    behavior_root = Path(doit.get_initial_workdir()) / "behavior"
+
+    return {
+        "actions": [            
+            lambda: os.chdir(behavior_root),
+            f"python3 -m src.run --train",
+        ],
+    }
 
 
 def task_ci_python():

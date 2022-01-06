@@ -295,7 +295,8 @@ def diff_one_invocation(plan_tree: PlanTree, invocation: DataFrame) -> dict[str,
             try:
                 child_costs: NDArray[np.float64] = invocation.loc[child_id][DIFF_COLS].values
                 diffed_costs -= child_costs
-            except Exception as err:
+            # TODO: change this exception variant
+            except Exception as err:  # pylint: disable=broad-except
                 print(err)
                 print(child_costs)
                 print(f"child costshape: {child_costs.shape}")
