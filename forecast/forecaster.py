@@ -1,16 +1,13 @@
 import csv
-import datetime
-import re
 import glob
+import re
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
-
+from model import LSTM, ForecastDataset
 from plumbum import cli
 from preprocessor import Preprocessor
-from clusterer import Clusterer
-from model import ForecastDataset, ForecastModel, LSTM
 
 
 class ClusterForecaster:
@@ -26,19 +23,22 @@ class ClusterForecaster:
 
     @staticmethod
     def get_cluster_from_file(filename):
-        m = re.search(f"(?<={ClusterForecaster.MODEL_PREFIX})[^/]*(?=\.pkl)", filename)
-        if m == None:
+        m = re.search(f"(?<={ClusterForecaster.MODEL_PREFIX})[^/]*(?=\\.pkl)", filename)
+        if m is None:
             raise RuntimeError("Could not get cluster name")
         return m[0]
 
-    def __init__(self, train_df: pd.DataFrame,
-                 cluster_interval: pd.Timedelta,
-                 prediction_seqlen: int,
-                 prediction_interval: pd.Timedelta,
-                 prediction_horizon: pd.Timedelta,
-                 save_path: str,
-                 top_k = 5,
-                 override: bool = False):
+    def __init__(
+        self,
+        train_df: pd.DataFrame,
+        cluster_interval: pd.Timedelta,
+        prediction_seqlen: int,
+        prediction_interval: pd.Timedelta,
+        prediction_horizon: pd.Timedelta,
+        save_path: str,
+        top_k=5,
+        override: bool = False,
+    ):
         assert train_df.index.names[0] == "cluster"
         assert train_df.index.names[1] == "log_time_s"
 
@@ -55,22 +55,25 @@ class ClusterForecaster:
 
         print(f"Loaded {len(model_files)} models")
 
-        if (train_df is None):
+        if train_df is None:
             return
 
-        #only consider top k clusters:
-        cluster_totals = train_df.groupby(level=0).sum().sort_values(by='count', ascending=False)
+        # only consider top k clusters:
+        cluster_totals = (
+            train_df.groupby(level=0).sum().sort_values(by="count", ascending=False)
+        )
         cluster_totals = cluster_totals / cluster_totals.sum()
         top_k = min(len(cluster_totals), top_k)
-        train_df = train_df.loc[cluster_totals.index[:top_k],:]
+        train_df = train_df.loc[cluster_totals.index[:top_k], :]
 
-        print(f"Training on cluster time series..")
+        print("Training on cluster time series..")
 
         mintime = train_df.index.get_level_values(1).min()
         maxtime = train_df.index.get_level_values(1).max()
 
-        dtindex = pd.date_range(start=mintime, end=maxtime,
-                                freq=cluster_interval, name="log_time_s")
+        dtindex = pd.date_range(
+            start=mintime, end=maxtime, freq=cluster_interval, name="log_time_s"
+        )
         labels = set(train_df.index.get_level_values(0).values)
 
         for cluster in labels:
@@ -79,8 +82,11 @@ class ClusterForecaster:
                 continue
 
             print(f"training model for cluster {cluster}")
-            cluster_counts = train_df[
-                train_df.index.get_level_values(0) == cluster].droplevel(0).reindex(dtindex, fill_value=0)
+            cluster_counts = (
+                train_df[train_df.index.get_level_values(0) == cluster]
+                .droplevel(0)
+                .reindex(dtindex, fill_value=0)
+            )
 
             self._train_cluster(cluster_counts, cluster, save_path)
 
@@ -89,12 +95,13 @@ class ClusterForecaster:
             cluster_counts,
             sequence_length=self.prediction_seqlen,
             horizon=self.prediction_horizon,
-            interval=self.prediction_interval)
+            interval=self.prediction_interval,
+        )
 
         self.models[cluster] = LSTM(
             horizon=self.prediction_horizon,
             interval=self.prediction_interval,
-            sequence_length=self.prediction_seqlen
+            sequence_length=self.prediction_seqlen,
         )
 
         self.models[cluster].fit(dataset)
@@ -113,34 +120,39 @@ class ClusterForecaster:
             return None
 
         cluster_counts = cluster_df[
-            cluster_df.index.get_level_values(0) == cluster].droplevel(0)
+            cluster_df.index.get_level_values(0) == cluster
+        ].droplevel(0)
 
         # Truncate cluster_df to the time range necessary to generate
         # prediction range
-        trunc_start = start_time - self.prediction_horizon - \
-            (self.prediction_seqlen) * self.prediction_interval
+        trunc_start = (
+            start_time
+            - self.prediction_horizon
+            - (self.prediction_seqlen) * self.prediction_interval
+        )
         trunc_end = end_time - self.prediction_horizon
 
         truncated = cluster_counts[
-            (cluster_counts.index >= trunc_start) &
-            (cluster_counts.index < trunc_end)]
+            (cluster_counts.index >= trunc_start) & (cluster_counts.index < trunc_end)
+        ]
 
         dataset = ForecastDataset(
             truncated,
             sequence_length=self.prediction_seqlen,
             horizon=self.prediction_horizon,
-            interval=self.prediction_interval)
+            interval=self.prediction_interval,
+        )
 
         # generate predictions
         predictions = [self.models[cluster].predict(seq) for seq, _ in dataset]
 
         # tag with timestamps
         pred_arr = [
-            [dataset.get_y_timestamp(i), pred]
-            for i, pred in enumerate(predictions)]
+            [dataset.get_y_timestamp(i), pred] for i, pred in enumerate(predictions)
+        ]
 
-        pred_df = pd.DataFrame(pred_arr, columns=['log_time_s', 'count'])
-        pred_df.set_index('log_time_s', inplace=True)
+        pred_df = pd.DataFrame(pred_arr, columns=["log_time_s", "count"])
+        pred_df.set_index("log_time_s", inplace=True)
         return pred_df[start_time:]
 
 
@@ -149,7 +161,7 @@ class WorkloadGenerator:
     Use preprocessed query template/params and cluster to generate
     representative workload
     """
-    
+
     def __init__(self, preprocessor, assignment_df, cluster_interval):
         df = preprocessor.get_grouped_dataframe_interval(cluster_interval)
         df.index.rename(["query_template", "log_time_s"], inplace=True)
@@ -162,13 +174,16 @@ class WorkloadGenerator:
         summed = joined.groupby(["cluster", "query_template"]).sum()
         self._preprocessor = preprocessor
         self._percentages = summed / summed.groupby(level=0).sum()
-    
+
     def get_workload(self, cluster, cluster_count):
         templates = self._percentages[
-            self._percentages.index.get_level_values(0) == cluster].droplevel(0)
+            self._percentages.index.get_level_values(0) == cluster
+        ].droplevel(0)
         templates = templates * cluster_count
-        
-        
+
+        # TODO(Mike): The true sample of parameters might be too inefficient,
+        # But using the same parameters for all queries is not representative enough
+
         # True sample of parameters.
         # templates_with_param_vecs = [
         #     (template, self._preprocessor.sample_params(template, int(count)))
@@ -180,7 +195,9 @@ class WorkloadGenerator:
         templates_with_param_vecs = [
             (
                 template,
-                np.tile(self._preprocessor.sample_params(template, 1)[0], (int(count), 1)),
+                np.tile(
+                    self._preprocessor.sample_params(template, 1)[0], (int(count), 1)
+                ),
             )
             for template, count in zip(templates.index.values, templates.values)
         ]
@@ -191,19 +208,24 @@ class WorkloadGenerator:
             for param_vec in param_vecs
         ]
         workload = pd.DataFrame(workload, columns=["query"])
-        predicted_queries = workload.groupby("query").size().sort_values(ascending=False)
+        predicted_queries = (
+            workload.groupby("query").size().sort_values(ascending=False)
+        )
 
         return predicted_queries
 
 
-
 class ForecasterCLI(cli.Application):
-    preprocessor_parquet = cli.SwitchAttr(["-p","--preprocessor-parquet"], str, mandatory=True)
-    clusterer_parquet = cli.SwitchAttr(["-c","--clusterer-parquet"], str, mandatory=True)
-    model_path = cli.SwitchAttr(["-m","--model_path"], str, mandatory=True)
+    preprocessor_parquet = cli.SwitchAttr(
+        ["-p", "--preprocessor-parquet"], str, mandatory=True
+    )
+    clusterer_parquet = cli.SwitchAttr(
+        ["-c", "--clusterer-parquet"], str, mandatory=True
+    )
+    model_path = cli.SwitchAttr(["-m", "--model_path"], str, mandatory=True)
 
-    start_ts = cli.SwitchAttr(["-s","--start_time"], str, mandatory=True)
-    end_ts = cli.SwitchAttr(["-e","--end_time"], str, mandatory=True)
+    start_ts = cli.SwitchAttr(["-s", "--start_time"], str, mandatory=True)
+    end_ts = cli.SwitchAttr(["-e", "--end_time"], str, mandatory=True)
 
     output_csv = cli.SwitchAttr("--output_csv", str, mandatory=True)
 
@@ -223,8 +245,9 @@ class ForecasterCLI(cli.Application):
         joined["cluster"].fillna(-1, inplace=True)
         clustered_df = joined.groupby(["cluster", "log_time_s"]).sum()
 
-        # TODO(MIKE): check un-matched template count
-        
+        # TODO(MIKE): check how many templates are not part of known
+        # clusters (i.e. cluster = -1)
+
         pred_interval = pd.Timedelta(seconds=10)
         pred_horizon = pd.Timedelta(seconds=60)
 
@@ -234,24 +257,22 @@ class ForecasterCLI(cli.Application):
             prediction_seqlen=10,
             prediction_interval=pred_interval,
             prediction_horizon=pred_horizon,
-            save_path=self.model_path)
-        
+            save_path=self.model_path,
+        )
+
         wg = WorkloadGenerator(preprocessor, assignment_df, cluster_interval)
         clusters = set(clustered_df.index.get_level_values(0).values)
-        
+
+        cluster_predictions = []
         for cluster in clusters:
             start_time = pd.Timestamp(self.start_ts)
             end_time = pd.Timestamp(self.end_ts)
-            cluster_count = forecaster.predict(clustered_df, cluster, start_time, end_time)
+            pred_df = forecaster.predict(clustered_df, cluster, start_time, end_time)
+            prediction_count = pred_df["count"].sum()
+            cluster_predictions.append(wg.get_workload(cluster, prediction_count))
 
-
-        #predicted_queries.to_csv(self.output_csv, header=None, quoting=csv.QUOTE_ALL)
-
-
-
-        
-
-
+        predicted_queries = pd.concat(cluster_predictions)
+        predicted_queries.to_csv(self.output_csv, header=None, quoting=csv.QUOTE_ALL)
 
 
 if __name__ == "__main__":

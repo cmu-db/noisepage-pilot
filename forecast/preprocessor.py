@@ -53,7 +53,7 @@ class Preprocessor:
         "query_pos",
         "location",
         "application_name",
-        #"backend_type",
+        "backend_type",
     ]
 
     def get_dataframe(self):
@@ -83,10 +83,9 @@ class Preprocessor:
             Dataframe containing the pre-grouped query log data.
             Grouped on query template and log time.
         """
-        gb = self._df.groupby('query_template').resample(interval).size()
-        grouped_df = pd.DataFrame(gb, columns=['count'])
-        grouped_df.drop('', axis=0, level=0, inplace=True)
-        del gb
+        gb = self._df.groupby("query_template").resample(interval).size()
+        grouped_df = pd.DataFrame(gb, columns=["count"])
+        grouped_df.drop("", axis=0, level=0, inplace=True)
         return grouped_df
 
     def get_grouped_dataframe_params(self):
@@ -377,7 +376,7 @@ class Preprocessor:
         clock("Parse query")
 
         # only keep the relevant columns for storage
-        return df[["log_time","query_template", "query_params"]]
+        return df[["log_time", "query_template", "query_params"]]
 
     def __init__(self, csvlogs=None, parquet_path=None):
         """
@@ -397,7 +396,7 @@ class Preprocessor:
             assert parquet_path is not None
             df = pd.read_parquet(parquet_path)
             # convert params from array back to tuple so it is hashable
-            df['query_params'] = df['query_params'].map(lambda x: tuple(x))
+            df["query_params"] = df["query_params"].map(lambda x: tuple(x))
 
         # grouping queries by template-parameters count.
         gbp = df.groupby(["query_template", "query_params"]).size()
@@ -408,7 +407,7 @@ class Preprocessor:
         #  So we'll do this instead...
         grouped_by_params = grouped_by_params[~grouped_by_params.index.isin([("", ())])]
         self._df = df
-        self._df.set_index('log_time',inplace=True)
+        self._df.set_index("log_time", inplace=True)
         self._grouped_df_params = grouped_by_params
 
 
