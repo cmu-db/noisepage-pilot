@@ -15,12 +15,11 @@ from plumbum import BG, FG, ProcessExecutionError, local
 from plumbum.cmd import pgrep, sudo  # pylint: disable=import-error
 
 from behavior import (
+    CONFIG_DIR,
     BEHAVIOR_DATA_DIR,
     BENCHBASE_CONFIG_DIR,
     BENCHBASE_DIR,
     BENCHDB_TO_TABLES,
-    CLEANUP_SCRIPT_PATH,
-    DATAGEN_CONFIG_DIR,
     PG_CONFIG_DIR,
     PG_DIR,
     SQLSMITH_DIR,
@@ -237,6 +236,7 @@ def cleanup(err: Optional[Exception], terminate: bool, message: str = "") -> Non
         logger.error("Error: %s, %s", type(err), err)
 
     username = psutil.Process().username()
+    CLEANUP_SCRIPT_PATH = Path(__file__).parent / "cleanup.py"
     sudo["python3"][CLEANUP_SCRIPT_PATH, "--username", username]()
     time.sleep(2)  # Allow TScout poison pills to propagate
 
@@ -307,9 +307,9 @@ def run(bench_db: str, results_dir: Path, benchbase_results_dir: Path, config: d
 
 
 def main(config_name: str) -> None:
-    config_path = DATAGEN_CONFIG_DIR / f"{config_name}.yaml"
+    config_path = CONFIG_DIR / f"{config_name}.yaml"
     with config_path.open("r") as f:
-        config = yaml.load(f, Loader=yaml.FullLoader)
+        config = yaml.load(f, Loader=yaml.FullLoader)["datagen"]
     logger = get_logger()
 
     # get sudo authentication for TScout

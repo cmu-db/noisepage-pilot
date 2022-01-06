@@ -26,5 +26,3 @@ setup(
     python_requires=">=3.9",
 )
 
-# TODO: Install third-party dependencies
-

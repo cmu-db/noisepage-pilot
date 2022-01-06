@@ -15,21 +15,16 @@ BENCHBASE_DIR = THIRD_PARTY_DIR / "benchbase"
 SQLSMITH_DIR = THIRD_PARTY_DIR / "sqlsmith"
 
 # Configurations
-CONFIG_ROOT = PILOT_DIR / "config" / "behavior"
-MODEL_CONFIG_DIR = CONFIG_ROOT / "modeling"
-DATAGEN_CONFIG_DIR = CONFIG_ROOT / "datagen"
-PG_CONFIG_DIR = DATAGEN_CONFIG_DIR / "postgres"
-BENCHBASE_CONFIG_DIR = DATAGEN_CONFIG_DIR / "benchbase"
+CONFIG_DIR = PILOT_DIR / "config" / "behavior"
+PG_CONFIG_DIR = CONFIG_DIR / "postgres"
+BENCHBASE_CONFIG_DIR = CONFIG_DIR / "benchbase"
 
 # Data
-DATA_ROOT = PILOT_DIR / "data" / "behavior"
-MODEL_DATA_DIR = DATA_ROOT / "models"
-BEHAVIOR_DATA_DIR = DATA_ROOT / "training_data"
+DATA_DIR = PILOT_DIR / "data" / "behavior"
+MODEL_DATA_DIR = DATA_DIR / "models"
+BEHAVIOR_DATA_DIR = DATA_DIR / "training_data"
 TRAIN_DATA_DIR = BEHAVIOR_DATA_DIR / "train"
 EVAL_DATA_DIR = BEHAVIOR_DATA_DIR / "eval"
-
-# Misc.
-CLEANUP_SCRIPT_PATH = PILOT_DIR / "behavior" / "datagen" / "cleanup.py"
 
 BENCHDB_TO_TABLES = {
     "tpcc": [

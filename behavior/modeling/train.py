@@ -21,9 +21,9 @@ from sklearn.metrics import (
 from behavior import (
     BASE_TARGET_COLS,
     BENCHDB_TO_TABLES,
+    CONFIG_DIR,
     EVAL_DATA_DIR,
     LEAF_NODES,
-    MODEL_CONFIG_DIR,
     MODEL_DATA_DIR,
     PLAN_NODE_NAMES,
     TRAIN_DATA_DIR,
@@ -156,12 +156,12 @@ def prep_eval_data(
 
 def main(config_name: str) -> None:
     # load config
-    config_path: Path = MODEL_CONFIG_DIR / f"{config_name}.yaml"
+    config_path: Path = CONFIG_DIR / f"{config_name}.yaml"
     if not config_path.exists():
         raise ValueError(f"Config file: {config_name} does not exist")
 
     with config_path.open("r") as f:
-        config = yaml.load(f, Loader=yaml.FullLoader)
+        config = yaml.load(f, Loader=yaml.FullLoader)["modeling"]
 
     training_timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     train_bench_dbs = config["train_bench_dbs"]
