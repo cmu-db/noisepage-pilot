@@ -309,7 +309,7 @@ def exec_sqlsmith(bench_db: str) -> None:
             ]()
 
         os.chdir(SQLSMITH_DIR)
-        # TODO: verify this works
+        # TODO(Garrison): verify this is lexed properly
         local["./sqlsmith"][
             '''--target="host=localhost port=5432 dbname=benchbase connect_timeout=10"''',
             "--seed=42",

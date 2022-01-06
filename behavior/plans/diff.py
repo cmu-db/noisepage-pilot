@@ -318,7 +318,7 @@ def diff_one_invocation(
                     DIFF_COLS
                 ].values
                 diffed_costs -= child_costs
-            # TODO: change this exception variant
+            # TODO(Garrison): change this exception variant
             except Exception as err:  # pylint: disable=broad-except
                 print(err)
                 print(child_costs)

@@ -6,7 +6,7 @@ import os
 
 from doit.action import CmdAction
 from plumbum import FG, local
-from plumbum.cmd import bash, make, git
+from plumbum.cmd import make, git
 
 
 # doit verbosity default controls what to print.
@@ -278,48 +278,113 @@ def task_pilot_client():
 
 
 def task_behavior():
+    def run_behavior(datagen, diff, train):
+        root = Path(__file__).parent
+        if Path.cwd() != root:
+            os.chdir(root)
+
+        pg_ctl_path = root / "third-party" / "postgres" / "build" / "bin" / "pg_ctl"
+        if not pg_ctl_path.exists():
+            build_pg()
+
+        benchbase_snapshot_dir = (
+            root / "third-party" / "benchbase" / "benchbase-2021-SNAPSHOT"
+        )
+        if not benchbase_snapshot_dir.exists():
+            build_benchbase()
+
+        args = ["-m", "behavior"]
+
+        if datagen:
+            args.append("--datagen")
+        if diff:
+            args.append("--diff")
+        if train:
+            args.append("--train")
+
+        local["python"][args] & FG
+
     return {
-        "actions": [
-            "python -m behavior %(flag)s",
-        ],
+        "actions": [run_behavior],
+        # Behavior Modeling parameters
         "params": [
-            # Behavior Modeling parameters
             {
-                "name": "flag",
-                "short": "f",
-                "long": "flag",
-                "help": "Behavior modeling input arguments: --datagen, --diff, --train",
-                "default": "",
+                "name": "datagen",
+                "long": "datagen",
+                "type": bool,
+                "help": "Whether or not to generate training data: datagen",
+                "default": False,
+            },
+            {
+                "name": "diff",
+                "long": "diff",
+                "type": bool,
+                "help": "Whether or not to perform training data differencing: diff",
+                "default": False,
+            },
+            {
+                "name": "train",
+                "long": "train",
+                "type": bool,
+                "help": "Whether or not to perform model training: train",
+                "default": False,
             },
         ],
         "verbosity": VERBOSITY_DEFAULT,
     }
 
 
-def task_build_pg():
-    def build_pg() -> None:
-        root = Path(__file__).parent
-        if Path.cwd() != root:
-            os.chdir(root)
-
-        third_party_dir = root / "third-party"
-        pg_dir = third_party_dir / "postgres"
-
-        if not pg_dir.exists():
-            (
-                git["clone"][
-                    "git@github.com:cmu-db/postgres.git", "./third-party/postgres"
-                ]
-                & FG
-            )
-
-        os.chdir(pg_dir)
-        bash["./cmudb/build/configure.sh", "release"] & FG
-        make["clean"] & FG
-        make["-j4", "world-bin"] & FG
-        make["install-world-bin", "-j4"] & FG
+def build_pg() -> None:
+    root = Path(__file__).parent
+    if Path.cwd() != root:
         os.chdir(root)
 
+    third_party_dir = root / "third-party"
+    pg_dir = third_party_dir / "postgres"
+
+    if not pg_dir.exists():
+        (
+            git["clone"]["git@github.com:cmu-db/postgres.git", "./third-party/postgres"]
+            & FG
+        )
+
+    os.chdir(pg_dir)
+    local["./cmudb/build/configure.sh"]["release"] & FG
+    make["clean"] & FG
+    make["-j4", "world-bin"] & FG
+    make["install-world-bin", "-j4"] & FG
+    os.chdir(root)
+
+
+def build_benchbase() -> None:
+    root = Path(__file__).parent
+    if Path.cwd() != root:
+        os.chdir(root)
+
+    third_party_dir = root / "third-party"
+    benchbase_dir = third_party_dir / "benchbase"
+
+    if not benchbase_dir.exists():
+        (
+            git["clone"][
+                "git@github.com:cmu-db/benchbase.git", "./third-party/benchbase"
+            ]
+            & FG
+        )
+
+    benchbase_snapshot_dir = benchbase_dir / "benchbase-2021-SNAPSHOT"
+    benchbase_snapshot_path = benchbase_dir / "target" / "benchbase-2021-SNAPSHOT.zip"
+
+    os.chdir(benchbase_dir)
+    local["./mvnw"]["clean", "package"] & FG
+
+    if not os.path.exists(benchbase_snapshot_dir):
+        local["unzip"][benchbase_snapshot_path] & FG
+
+    os.chdir(root)
+
+
+def task_build_pg():
     return {
         "actions": [build_pg],
         "verbosity": VERBOSITY_DEFAULT,
@@ -327,35 +392,6 @@ def task_build_pg():
 
 
 def task_build_benchbase():
-    def build_benchbase() -> None:
-        root = Path(__file__).parent
-        if Path.cwd() != root:
-            os.chdir(root)
-
-        third_party_dir = root / "third-party"
-        benchbase_dir = third_party_dir / "benchbase"
-
-        if not benchbase_dir.exists():
-            (
-                git["clone"][
-                    "git@github.com:cmu-db/benchbase.git", "./third-party/benchbase"
-                ]
-                & FG
-            )
-
-        benchbase_snapshot_dir = benchbase_dir / "benchbase-2021-SNAPSHOT"
-        benchbase_snapshot_path = (
-            benchbase_dir / "target" / "benchbase-2021-SNAPSHOT.zip"
-        )
-
-        os.chdir(benchbase_dir)
-        local["./mvnw"]["clean", "package"] & FG
-
-        if not os.path.exists(benchbase_snapshot_dir):
-            local["unzip"][benchbase_snapshot_path] & FG
-
-        os.chdir(root)
-
     return {
         "actions": [build_benchbase],
         "verbosity": VERBOSITY_DEFAULT,

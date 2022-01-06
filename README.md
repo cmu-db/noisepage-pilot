@@ -11,6 +11,12 @@ This repository contains the pilot components for the [NoisePage DBMS](https://n
 3. Task dependencies are executed automatically.  
    The following command will start picking indexes.
     - `doit action_recommendation`
+4. Run behavior modeling using: 
+    - `doit behavior --datagen --diff --train`
+    - This will generate TScout data, perform plan differencing, and train/evaluate/save models.
+    - Any of these arguments can be removed.
+    - Behavior modeling currently defaults to the latest experimental data for plan differencing and model training.
+    - You can configure data generation, model training, Benchbase, and Postgres in `noisepage-pilot/config/behavior`
 
 ## Background
 
