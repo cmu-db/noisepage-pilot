@@ -21,6 +21,7 @@ setup(
         "plumbum",
         "doit",
         "psycopg",
+        "toml",
     ],
     python_requires=">=3.9",
 )

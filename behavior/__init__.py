@@ -2,6 +2,7 @@ import logging
 from logging import Logger
 from pathlib import Path
 
+# Paths used throughout the behavior code
 # Pilot
 PILOT_DIR = Path(__file__).resolve().parent.parent
 
@@ -11,8 +12,6 @@ PG_DIR = THIRD_PARTY_DIR / "postgres"
 CMUDB_DIR = PG_DIR / "cmudb"
 TSCOUT_DIR = CMUDB_DIR / "tscout"
 BENCHBASE_DIR = THIRD_PARTY_DIR / "benchbase"
-BENCHBASE_SNAPSHOT_DIR = BENCHBASE_DIR / "benchbase-2021-SNAPSHOT"
-BENCHBASE_SNAPSHOT_PATH = BENCHBASE_DIR / "target" / "benchbase-2021-SNAPSHOT.zip"
 SQLSMITH_DIR = THIRD_PARTY_DIR / "sqlsmith"
 
 # Configurations
@@ -156,24 +155,7 @@ PLAN_NODE_NAMES = [
     "WorkTableScan",
 ]
 
-METHODS = [
-    "lr",
-    "huber",
-    "svr",
-    "kr",
-    "rf",
-    "gbm",
-    "mlp",
-    "mt_lasso",
-    "lasso",
-    "dt",
-    "mt_elastic",
-    "elastic",
-]
-
-
 LEAF_NODES: set[str] = {"ExecIndexScan", "ExecSeqScan", "ExecIndexOnlyScan", "ExecResult"}
-
 
 BASE_TARGET_COLS = [
     "cpu_cycles",

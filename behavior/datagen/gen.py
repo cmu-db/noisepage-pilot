@@ -12,14 +12,12 @@ from typing import Any, Optional
 import psutil
 import yaml
 from plumbum import BG, FG, ProcessExecutionError, local
-from plumbum.cmd import bash, make, pgrep, sudo  # pylint: disable=import-error
+from plumbum.cmd import pgrep, sudo  # pylint: disable=import-error
 
 from behavior import (
     BEHAVIOR_DATA_DIR,
     BENCHBASE_CONFIG_DIR,
     BENCHBASE_DIR,
-    BENCHBASE_SNAPSHOT_DIR,
-    BENCHBASE_SNAPSHOT_PATH,
     BENCHDB_TO_TABLES,
     CLEANUP_SCRIPT_PATH,
     DATAGEN_CONFIG_DIR,
@@ -29,19 +27,6 @@ from behavior import (
     TSCOUT_DIR,
     get_logger,
 )
-
-
-def build_pg() -> None:
-    """Build Postgres (and extensions)"""
-
-    try:
-        os.chdir(PG_DIR)
-        bash["./cmudb/build/configure.sh", "release"]()
-        make["clean", "-s"]()
-        make["-j", "world-bin", "-s"]()
-        make["install-world-bin", "-j", "-s"]()
-    except (FileNotFoundError, ProcessExecutionError) as err:
-        cleanup(err, terminate=True, message="Error building postgres")
 
 
 def check_orphans() -> None:
@@ -157,31 +142,19 @@ def init_tscout(results_dir: Path) -> None:
     time.sleep(10)  # allows tscout to attach before Benchbase execution begins
 
 
-def build_benchbase(benchbase_dir: Path) -> None:
-    get_logger().info("Building Benchbase")
-
-    try:
-        os.chdir(benchbase_dir)
-        local["./mvnw"]["clean", "package"]()
-        if not os.path.exists(BENCHBASE_SNAPSHOT_DIR):
-            local["unzip"][BENCHBASE_SNAPSHOT_PATH]()
-    except (FileNotFoundError, ProcessExecutionError) as err:
-        cleanup(err, terminate=True, message="Error building benchbase")
-
-
 def init_benchbase(bench_db: str, benchbase_results_dir: Path) -> None:
     """Initialize Benchbase and load benchmark data"""
     logger = get_logger()
 
     try:
-        os.chdir(BENCHBASE_DIR)
-        if not os.path.exists(BENCHBASE_SNAPSHOT_DIR):
-            build_benchbase(BENCHBASE_DIR)
-        os.chdir(BENCHBASE_SNAPSHOT_DIR)
+
+        benchbase_snapshot_dir = BENCHBASE_DIR / "benchbase-2021-SNAPSHOT"
+
+        os.chdir(benchbase_snapshot_dir)
 
         # move runner config to benchbase and also save it in the output directory
         input_cfg_path = BENCHBASE_CONFIG_DIR / f"{bench_db}_config.xml"
-        benchbase_cfg_path = BENCHBASE_SNAPSHOT_DIR / f"config/postgres/{bench_db}_config.xml"
+        benchbase_cfg_path = benchbase_snapshot_dir / f"config/postgres/{bench_db}_config.xml"
         shutil.copy(input_cfg_path, benchbase_cfg_path)
         shutil.copy(input_cfg_path, benchbase_results_dir)
 
@@ -205,12 +178,9 @@ def init_benchbase(bench_db: str, benchbase_results_dir: Path) -> None:
 
 def exec_benchbase(bench_db: str, results_dir: Path, benchbase_results_dir: Path, config: dict[str, Any]) -> None:
     try:
-        os.chdir(BENCHBASE_DIR)
-        if not os.path.exists(BENCHBASE_SNAPSHOT_DIR):
-            build_benchbase(BENCHBASE_DIR)
+        benchbase_snapshot_dir = BENCHBASE_DIR / "benchbase-2021-SNAPSHOT"
 
-        os.chdir(BENCHBASE_SNAPSHOT_DIR)
-
+        os.chdir(benchbase_snapshot_dir)
         psql = local[str(PG_DIR / "./build/bin/psql")]
 
         if config["pg_stat_statements"]:
@@ -249,7 +219,7 @@ def exec_benchbase(bench_db: str, results_dir: Path, benchbase_results_dir: Path
         #         f.write(plans_result)
 
         # Move benchbase results to experiment results directory
-        shutil.move(BENCHBASE_SNAPSHOT_DIR / "results", benchbase_results_dir)
+        shutil.move(benchbase_snapshot_dir / "results", benchbase_results_dir)
         time.sleep(10)  # Allow TScout Collector to finish getting results
     except (FileNotFoundError, ProcessExecutionError) as err:
         cleanup(err, terminate=True, message="Error running Benchbase")
@@ -350,12 +320,6 @@ def main(config_name: str) -> None:
     for bench_db in bench_dbs:
         if bench_db not in BENCHDB_TO_TABLES:
             raise ValueError(f"Invalid benchmark database: {bench_db}")
-
-    if config["build_pg"]:
-        build_pg()
-
-    if config["build_bbase"]:
-        build_benchbase(BENCHBASE_DIR)
 
     # Setup experiment directory
     experiment_name = f"experiment-{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"

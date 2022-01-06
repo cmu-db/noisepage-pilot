@@ -1,7 +1,7 @@
 import argparse
 
 from behavior import TRAIN_DATA_DIR
-from behavior.datagen import generator
+from behavior.datagen import gen
 from behavior.modeling import train
 from behavior.plans import diff
 
@@ -14,7 +14,7 @@ args = parser.parse_args()
 config_name = args.config
 
 if args.datagen:
-    generator.main(config_name)
+    gen.main(config_name)
 
 # get latest experiment and run differencing
 experiment_list: list[str] = sorted([exp_path.name for exp_path in TRAIN_DATA_DIR.glob("*")])

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+# Note: This script needs root permissions to work
 import argparse
 import shutil
 from pathlib import Path
@@ -31,12 +32,12 @@ def kill_tscout_and_postgres() -> None:
 
 def chown_results(username: str) -> None:
     # change the tscout results ownership to the user who ran the benchmark
-    results_dir = f"/home/{username}/noisepage-pilot/data/behavior/training_data/"
+    results_dir = Path(f"/home/{username}/noisepage-pilot/data/behavior/training_data/")
 
-    if results_dir.exists(): 
+    if results_dir.exists():
         print(f"Changing ownership of TScout results from root to user: {username}")
-        shutil.chown(results_dir, user=username)
-        for file in Path(results_dir).glob("**/*"):
+        shutil.chown(str(results_dir), user=username)
+        for file in results_dir.glob("**/*"):
             shutil.chown(file, user=username)
         print("Cleanup Complete")
 

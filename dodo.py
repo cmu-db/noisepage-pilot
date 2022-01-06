@@ -5,6 +5,9 @@ import doit
 import os
 
 from doit.action import CmdAction
+from plumbum import FG, local
+from plumbum.cmd import bash, make, git
+
 
 # doit verbosity default controls what to print.
 # 0 = nothing, 1 = stderr only, 2 = stdout and stderr.
@@ -37,8 +40,13 @@ def task_openspiel_build():
     """
     Action selection: invoke CMake for OpenSpiel.
     """
-    source_path = lambda: Path(doit.get_initial_workdir()) / "action/selection/open_spiel/"
-    build_path = lambda: Path("build/action/selection/open_spiel/build/")
+
+    def source_path():
+        return Path(doit.get_initial_workdir()) / "action/selection/open_spiel/"
+
+    def build_path():
+        return Path("build/action/selection/open_spiel/build/")
+
     return {
         "actions": [
             # Set up directories.
@@ -59,7 +67,10 @@ def task_openspiel_compile():
     """
     Action selection: build OpenSpiel.
     """
-    build_path = lambda: Path("build/action/selection/open_spiel/build/")
+
+    def build_path():
+        return Path("build/action/selection/open_spiel/build/")
+
     return {
         "actions": [
             "mkdir -p artifacts",
@@ -287,6 +298,58 @@ def task_behavior_train():
         "actions": [
             "python -m behavior --datagen",
         ],
+    }
+
+
+def task_build_pg():
+    def build_pg() -> None:
+        root = Path(__file__).parent
+        if Path.cwd() != root:
+            os.chdir(root)
+
+        third_party_dir = root / "third-party"
+        pg_dir = third_party_dir / "postgres"
+
+        if not pg_dir.exists():
+            git["clone"]["git@github.com:cmu-db/postgres.git", "./third-party/postgres"] & FG
+
+        os.chdir(pg_dir)
+        bash["./cmudb/build/configure.sh", "release"] & FG
+        make["clean"] & FG
+        make["-j4", "world-bin"] & FG
+        make["install-world-bin", "-j4"] & FG
+        os.chdir(root)
+
+    return {
+        "actions": [build_pg],
+    }
+
+
+def task_build_benchbase():
+    def build_benchbase() -> None:
+        root = Path(__file__).parent
+        if Path.cwd() != root:
+            os.chdir(root)
+
+        third_party_dir = root / "third-party"
+        benchbase_dir = third_party_dir / "benchbase"
+
+        if not benchbase_dir.exists():
+            git["clone"]["git@github.com:cmu-db/benchbase.git", "./third-party/benchbase"] & FG
+
+        benchbase_snapshot_dir = benchbase_dir / "benchbase-2021-SNAPSHOT"
+        benchbase_snapshot_path = benchbase_dir / "target" / "benchbase-2021-SNAPSHOT.zip"
+
+        os.chdir(benchbase_dir)
+        local["./mvnw"]["clean", "package"] & FG
+
+        if not os.path.exists(benchbase_snapshot_dir):
+            local["unzip"][benchbase_snapshot_path] & FG
+
+        os.chdir(root)
+
+    return {
+        "actions": [build_benchbase],
     }
 
 
