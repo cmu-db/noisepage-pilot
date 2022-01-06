@@ -81,43 +81,55 @@ def init_pg(config: dict[str, Any]) -> None:
         pg_ctl["-D", "data", "-o", "-W 2", "start"] & FG
 
         # Initialize the DB and create an admin user for Benchbase to use
-        local["./build/bin/createdb"]["test"]()
+        local["./build/bin/createdb"]["test"] & FG
         psql = local["./build/bin/psql"]
-        psql[
-            "-d",
-            "test",
-            "-c",
-            "CREATE ROLE admin WITH PASSWORD 'password' SUPERUSER CREATEDB CREATEROLE INHERIT LOGIN;",
-        ]()
+        (
+            psql[
+                "-d",
+                "test",
+                "-c",
+                "CREATE ROLE admin WITH PASSWORD 'password' SUPERUSER CREATEDB CREATEROLE INHERIT LOGIN;",
+            ]
+            & FG
+        )
 
-        local["./build/bin/createdb"]["-O", "admin", "benchbase"]()
+        local["./build/bin/createdb"]["-O", "admin", "benchbase"] & FG
 
         # Turn on QueryID computation
-        psql["-d", "test", "-c", "ALTER DATABASE test SET compute_query_id = 'ON';"]()
-        psql[
-            "-d",
-            "benchbase",
-            "-c",
-            "ALTER DATABASE benchbase SET compute_query_id = 'ON';",
-        ]()
-
-        if config["auto_explain"]:
+        (
+            psql["-d", "test", "-c", "ALTER DATABASE test SET compute_query_id = 'ON';"]
+            & FG
+        )
+        (
             psql[
                 "-d",
                 "benchbase",
                 "-c",
-                "ALTER SYSTEM SET auto_explain.log_min_duration = 0;",
-            ]()
-            pg_ctl["-D", "data", "reload"]()
+                "ALTER DATABASE benchbase SET compute_query_id = 'ON';",
+            ]
+            & FG
+        )
+
+        if config["auto_explain"]:
+            (
+                psql[
+                    "-d",
+                    "benchbase",
+                    "-c",
+                    "ALTER SYSTEM SET auto_explain.log_min_duration = 0;",
+                ]
+                & FG
+            )
+            pg_ctl["-D", "data", "reload"] & FG
 
         if config["pg_stat_statements"]:
-            psql["-d", "benchbase", "-c", "CREATE EXTENSION pg_stat_statements;"]()
+            psql["-d", "benchbase", "-c", "CREATE EXTENSION pg_stat_statements;"] & FG
 
         # if config["pg_store_plans"]:
         #     psql["-d", "benchbase", "-c", "CREATE EXTENSION pg_store_plans;"]()
 
         # Turn off pager
-        psql["-d", "benchbase", "-P", "pager=off", "-c", "SELECT 1;"]()
+        psql["-d", "benchbase", "-P", "pager=off", "-c", "SELECT 1;"] & FG
 
     except (FileNotFoundError, ProcessExecutionError) as err:
         cleanup(err, terminate=True, message="Error initializing Postgres")
@@ -129,9 +141,12 @@ def pg_analyze(bench_db: str) -> None:
 
         for table in BENCHDB_TO_TABLES[bench_db]:
             get_logger().info("Analyzing table: %s", table)
-            local["./build/bin/psql"][
-                "-d", "benchbase", "-c", f"ANALYZE VERBOSE {table};"
-            ]()
+            (
+                local["./build/bin/psql"][
+                    "-d", "benchbase", "-c", f"ANALYZE VERBOSE {table};"
+                ]
+                & FG
+            )
     except ProcessExecutionError as err:
         cleanup(err, terminate=True, message="Error analyzing Postgres")
 
@@ -142,11 +157,11 @@ def pg_prewarm(bench_db: str) -> None:
     try:
         os.chdir(PG_DIR)
         psql = local["./build/bin/psql"]
-        psql["-d", "benchbase", "-c", "CREATE EXTENSION pg_prewarm"]()
+        psql["-d", "benchbase", "-c", "CREATE EXTENSION pg_prewarm"] & FG
 
         for table in BENCHDB_TO_TABLES[bench_db]:
             get_logger().info("Prewarming table: %s", table)
-            psql["-d", "benchbase", "-c", f"SELECT * from pg_prewarm('{table}');"]()
+            psql["-d", "benchbase", "-c", f"SELECT * from pg_prewarm('{table}');"] & FG
     except (FileNotFoundError, ProcessExecutionError) as err:
         cleanup(err, terminate=True, message="Error prewarming Postgres")
 
@@ -276,9 +291,8 @@ def cleanup(err: Optional[Exception], terminate: bool, message: str = "") -> Non
     if err is not None:
         logger.error("Error: %s, %s", type(err), err)
 
-    username = psutil.Process().username()
     cleanup_script_path = Path(__file__).parent / "cleanup.py"
-    sudo["python3"][cleanup_script_path, "--username", username]()
+    sudo["python3"][cleanup_script_path]()
     time.sleep(2)  # Allow TScout poison pills to propagate
 
     # Exit the program if the caller requested it (only happens on error)
@@ -292,30 +306,38 @@ def exec_sqlsmith(bench_db: str) -> None:
         os.chdir(PG_DIR)
         # Add SQLSmith user to benchbase DB with non-superuser privileges
         psql = local["./build/bin/psql"]
-        psql[
-            "-d",
-            "benchbase",
-            "-c",
-            "CREATE ROLE sqlsmith WITH PASSWORD 'password' INHERIT LOGIN;",
-        ]()
-
-        for table in BENCHDB_TO_TABLES[bench_db]:
-            get_logger().info("Granting SQLSmith permissions on table: %s", table)
+        (
             psql[
                 "-d",
                 "benchbase",
                 "-c",
-                "GRANT SELECT, INSERT, UPDATE, DELETE ON {table} TO sqlsmith;",
-            ]()
+                "CREATE ROLE sqlsmith WITH PASSWORD 'password' INHERIT LOGIN;",
+            ]
+            & FG
+        )
+
+        for table in BENCHDB_TO_TABLES[bench_db]:
+            get_logger().info("Granting SQLSmith permissions on table: %s", table)
+            (
+                psql[
+                    "-d",
+                    "benchbase",
+                    "-c",
+                    "GRANT SELECT, INSERT, UPDATE, DELETE ON {table} TO sqlsmith;",
+                ]
+                & FG
+            )
 
         os.chdir(SQLSMITH_DIR)
-        # TODO(Garrison): verify this is lexed properly
-        local["./sqlsmith"][
-            '''--target="host=localhost port=5432 dbname=benchbase connect_timeout=10"''',
-            "--seed=42",
-            "--max-queries=10000",
-            "--exclude-catalog",
-        ]()
+        (
+            local["./sqlsmith"][
+                '''--target="host=localhost port=5432 dbname=benchbase connect_timeout=10"''',
+                "--seed=42",
+                "--max-queries=10000",
+                "--exclude-catalog",
+            ]
+            & FG
+        )
     except ProcessExecutionError as err:
         cleanup(err, terminate=True, message="Error running SQLSmith")
 

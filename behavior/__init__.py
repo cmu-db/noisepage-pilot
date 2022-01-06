@@ -150,10 +150,10 @@ PLAN_NODE_NAMES = [
 ]
 
 LEAF_NODES: set[str] = {
-    "ExecIndexScan",
-    "ExecSeqScan",
-    "ExecIndexOnlyScan",
-    "ExecResult",
+    "IndexScan",
+    "SeqScan",
+    "IndexOnlyScan",
+    "Result",
 }
 
 BASE_TARGET_COLS = [

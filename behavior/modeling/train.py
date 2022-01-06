@@ -146,16 +146,18 @@ def prep_train_data(
         "rid",
         "plan_node_id",
         "statement_timestamp",
+        "left_child_plan_node_id",
+        "right_child_plan_node_id",
     ]
 
-    diff_targ_cols = [f"diffed_{ou}" for ou in BASE_TARGET_COLS]
+    diff_targ_cols = [f"diffed_{col}" for col in BASE_TARGET_COLS]
 
     if target_diff and ou_name not in LEAF_NODES:
         cols_to_remove += BASE_TARGET_COLS
     else:
         cols_to_remove += diff_targ_cols
 
-    cols_to_remove = [x for x in cols_to_remove if x in df.columns]
+    cols_to_remove = [col for col in cols_to_remove if col in df.columns]
 
     for col in df.columns:
         if df[col].nunique() == 1:
@@ -181,6 +183,8 @@ def prep_train_data(
 
     if not feat_diff:
         feat_cols = [col for col in feat_cols if not col.startswith("diffed")]
+
+    print(f"Using features: {feat_cols}")
 
     X = df[feat_cols].values
     y = df[target_cols].values
@@ -277,7 +281,11 @@ def main(config_name: str) -> None:
             evaluate(
                 ou_model, x_train, y_train, full_outdir, train_bench_db, mode="train"
             )
-            x_eval, y_eval = prep_eval_data(
-                eval_ou_to_df[ou_name], feat_cols, target_cols
-            )
-            evaluate(ou_model, x_eval, y_eval, full_outdir, eval_bench_db, mode="eval")
+
+            if ou_name in eval_ou_to_df:
+                x_eval, y_eval = prep_eval_data(
+                    eval_ou_to_df[ou_name], feat_cols, target_cols
+                )
+                evaluate(
+                    ou_model, x_eval, y_eval, full_outdir, eval_bench_db, mode="eval"
+                )

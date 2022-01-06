@@ -293,8 +293,6 @@ def diff_one_invocation(invocation: DataFrame) -> dict[str, NDArray[np.float64]]
         ]
         diffed_costs: NDArray[np.float64] = parent_row[DIFF_COLS].values
 
-        print(f"CHILD_IDS: {child_ids}")
-
         for child_id in child_ids:
 
             try:
