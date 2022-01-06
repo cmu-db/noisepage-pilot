@@ -1,9 +1,9 @@
 import argparse
 
-from src import TRAIN_DATA_DIR
-from src.datagen import datagen
-from src.modeling import train
-from src.plans import diff
+from behavior import TRAIN_DATA_DIR
+from behavior.datagen import datagen
+from behavior.modeling import train
+from behavior.plans import diff
 
 parser = argparse.ArgumentParser(description="Run an experiment with Postgres, Benchbase, and TScout")
 parser.add_argument("--config", type=str, default="default")

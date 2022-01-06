@@ -14,7 +14,7 @@ import yaml
 from plumbum import BG, FG, ProcessExecutionError, local
 from plumbum.cmd import bash, make, pgrep, sudo  # pylint: disable=import-error
 
-from src import (
+from behavior import (
     BEHAVIOR_DATA_DIR,
     BENCHBASE_CONFIG_DIR,
     BENCHBASE_DIR,

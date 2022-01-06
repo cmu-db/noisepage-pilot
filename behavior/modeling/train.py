@@ -18,7 +18,7 @@ from sklearn.metrics import (
     r2_score,
 )
 
-from src import (
+from behavior import (
     BASE_TARGET_COLS,
     BENCHDB_TO_TABLES,
     EVAL_DATA_DIR,
@@ -29,7 +29,7 @@ from src import (
     TRAIN_DATA_DIR,
     get_logger,
 )
-from src.modeling.model import BehaviorModel
+from behavior.modeling.model import BehaviorModel
 
 
 def evaluate(

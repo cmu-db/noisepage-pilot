@@ -12,7 +12,7 @@ from numpy.typing import NDArray
 from pandas import DataFrame, Index
 from tqdm import tqdm
 
-from src import (
+from behavior import (
     BASE_TARGET_COLS,
     BEHAVIOR_DATA_DIR,
     BENCHDB_TO_TABLES,
@@ -20,7 +20,7 @@ from src import (
     LEAF_NODES,
     PLAN_NODE_NAMES,
 )
-from src.plans.plans import PlanTree, get_plan_trees
+from behavior.plans.plans import PlanTree, get_plan_trees
 
 COMMON_SCHEMA: list[str] = [
     "rid",
