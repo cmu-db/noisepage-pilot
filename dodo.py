@@ -277,27 +277,22 @@ def task_pilot_client():
     }
 
 
-def task_behavior_datagen():
+def task_behavior():
     return {
         "actions": [
-            "python -m behavior --datagen",
+            "python -m behavior %(flag)s",
         ],
-    }
-
-
-def task_behavior_diff():
-    return {
-        "actions": [
-            "python -m behavior --diff",
+        "params": [
+            # Behavior Modeling parameters
+            {
+                "name": "flag",
+                "short": "f",
+                "long": "flag",
+                "help": "Behavior modeling input arguments: --datagen, --diff, --train",
+                "default": "",
+            },
         ],
-    }
-
-
-def task_behavior_train():
-    return {
-        "actions": [
-            "python -m behavior --datagen",
-        ],
+        "verbosity": VERBOSITY_DEFAULT,
     }
 
 
@@ -322,6 +317,7 @@ def task_build_pg():
 
     return {
         "actions": [build_pg],
+        "verbosity": VERBOSITY_DEFAULT,
     }
 
 
@@ -350,6 +346,7 @@ def task_build_benchbase():
 
     return {
         "actions": [build_benchbase],
+        "verbosity": VERBOSITY_DEFAULT,
     }
 
 

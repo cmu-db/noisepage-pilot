@@ -15,11 +15,11 @@ from plumbum import BG, FG, ProcessExecutionError, local
 from plumbum.cmd import pgrep, sudo  # pylint: disable=import-error
 
 from behavior import (
-    CONFIG_DIR,
     BEHAVIOR_DATA_DIR,
     BENCHBASE_CONFIG_DIR,
     BENCHBASE_DIR,
     BENCHDB_TO_TABLES,
+    CONFIG_DIR,
     PG_CONFIG_DIR,
     PG_DIR,
     SQLSMITH_DIR,
@@ -236,8 +236,8 @@ def cleanup(err: Optional[Exception], terminate: bool, message: str = "") -> Non
         logger.error("Error: %s, %s", type(err), err)
 
     username = psutil.Process().username()
-    CLEANUP_SCRIPT_PATH = Path(__file__).parent / "cleanup.py"
-    sudo["python3"][CLEANUP_SCRIPT_PATH, "--username", username]()
+    cleanup_script_path = Path(__file__).parent / "cleanup.py"
+    sudo["python3"][cleanup_script_path, "--username", username]()
     time.sleep(2)  # Allow TScout poison pills to propagate
 
     # Exit the program if the caller requested it (only happens on error)
