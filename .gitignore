@@ -1,20 +1,39 @@
 # By convention, we ignore the following folders.
 # Build artifacts.
 artifacts
+
 # Directory for building code.
 build
 
 # Ignore most JetBrains IDE files.
 /.idea/*
+
 # Share the default run configuration for CLion.
 !/.idea/runConfigurations
+
 # Share the default CMake configuration for CLion.
 !/.idea/cmake.xml
+
 # Ignore temporary CLion CMake directories.
 cmake-build-*/
 
 # Ignore Python bytecode cache files.
 __pycache__/
+
 # Ignore Python doit db.
 .doit.db
 .doit.db.*
+
+# Ignore mypy
+.mypy_cache/
+
+# Ignore any other temporary CSVs
+*.csv
+
+# Ignoring packaging stuff
+dist
+*.egg-info/
+*.egg
+
+# Ignore pilot output data
+data

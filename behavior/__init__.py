@@ -14,17 +14,16 @@ BENCHBASE_SNAPSHOT_PATH = BENCHBASE_DIR / "target" / "benchbase-2021-SNAPSHOT.zi
 
 # pilot paths
 PILOT_DIR = Path.home() / "noisepage-pilot"
-BEHAVIOR_DIR = PILOT_DIR / "behavior"
 
 # config paths
-CONFIG_ROOT = BEHAVIOR_DIR / "config"
+CONFIG_ROOT = PILOT_DIR / "config" / "behavior"
 MODEL_CONFIG_DIR = CONFIG_ROOT / "modeling"
 DATAGEN_CONFIG_DIR = CONFIG_ROOT / "datagen"
 PG_CONFIG_DIR = DATAGEN_CONFIG_DIR / "postgres"
 BENCHBASE_CONFIG_DIR = DATAGEN_CONFIG_DIR / "benchbase"
 
 # data paths
-DATA_ROOT = BEHAVIOR_DIR / "data"
+DATA_ROOT = PILOT_DIR / "data" / "behavior"
 MODEL_DATA_DIR = DATA_ROOT / "models"
 BEHAVIOR_DATA_DIR = DATA_ROOT / "training_data"
 TRAIN_DATA_DIR = BEHAVIOR_DATA_DIR / "train"
@@ -32,7 +31,7 @@ EVAL_DATA_DIR = BEHAVIOR_DATA_DIR / "eval"
 
 # other paths
 SQLSMITH_DIR = Path.home() / "sqlsmith"
-CLEANUP_SCRIPT_PATH = BEHAVIOR_DIR / "src/datagen/cleanup.py"
+CLEANUP_SCRIPT_PATH = PILOT_DIR / "behavior" / "datagen" / "cleanup.py"
 
 BENCHDB_TO_TABLES = {
     "tpcc": [
