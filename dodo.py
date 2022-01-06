@@ -37,9 +37,7 @@ def task_openspiel_build():
     """
     Action selection: invoke CMake for OpenSpiel.
     """
-    source_path = (
-        lambda: Path(doit.get_initial_workdir()) / "action/selection/open_spiel/"
-    )
+    source_path = lambda: Path(doit.get_initial_workdir()) / "action/selection/open_spiel/"
     build_path = lambda: Path("build/action/selection/open_spiel/build/")
     return {
         "actions": [
@@ -268,45 +266,26 @@ def task_pilot_client():
     }
 
 
-
-
 def task_behavior_datagen():
-    """
-    Run behavior data generator
-    """
-    behavior_root = Path(doit.get_initial_workdir()) / "behavior"
-
     return {
-        "actions": [            
-            lambda: os.chdir(behavior_root),
-            f"python3 -m src.run --datagen",
+        "actions": [
+            "python -m behavior --datagen",
         ],
     }
 
-def task_behavior_diff():
-    """
-    Run behavior data generator
-    """
-    behavior_root = Path(doit.get_initial_workdir()) / "behavior"
 
+def task_behavior_diff():
     return {
-        "actions": [            
-            lambda: os.chdir(behavior_root),
-            f"python3 -m src.run --diff",
+        "actions": [
+            "python -m behavior --diff",
         ],
     }
 
 
 def task_behavior_train():
-    """
-    Run behavior data generator
-    """
-    behavior_root = Path(doit.get_initial_workdir()) / "behavior"
-
     return {
-        "actions": [            
-            lambda: os.chdir(behavior_root),
-            f"python3 -m src.run --train",
+        "actions": [
+            "python -m behavior --datagen",
         ],
     }
 
@@ -315,7 +294,8 @@ def task_ci_python():
     """
     CI: this should be run and all warnings fixed before pushing commits.
     """
-    folders = ["action", "forecast", "pilot"]
+    folders = ["action", "forecast", "pilot", "behavior"]
+    typed_folders = ["behavior"]
 
     return {
         "actions": [
@@ -323,6 +303,8 @@ def task_ci_python():
             *[f"isort {folder}" for folder in folders],
             *[f"black --verbose {folder}" for folder in folders],
             *[f"flake8 {folder}" for folder in folders],
+            *[f"mypy {folder}" for folder in typed_folders],
+            *[f"pylint {folder}" for folder in typed_folders],
         ],
         "verbosity": VERBOSITY_DEFAULT,
         "uptodate": [False],

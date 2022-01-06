@@ -1,5 +1,86 @@
-# https://black.readthedocs.io/en/stable/guides/using_black_with_other_tools.html
+[build-system]
+requires = ["setuptools", "wheel"]
 
-# isort compatibility.
+[tool.black]
+line-length = 120
+target_version = ["py39"]
+
 [tool.isort]
 profile = "black"
+include_trailing_comma = true
+combine_as_imports = true
+
+[tool.mypy]
+# Basic mypy configuration.
+check_untyped_defs = true
+explicit_package_bases = true
+follow_imports = "silent"
+ignore_missing_imports = true
+namespace_packages = true
+pretty = true
+python_version = "3.9"
+show_error_codes = true
+strict_optional = true
+plugins = "numpy.typing.mypy_plugin"
+
+# Lint rules.
+allow_redefinition = false
+disallow_any_generics = true
+disallow_incomplete_defs = true
+disallow_subclassing_any = true
+disallow_untyped_calls = true
+disallow_untyped_decorators = true
+disallow_untyped_defs = true
+no_implicit_reexport = true
+no_implicit_optional = true
+strict_equality = true
+warn_redundant_casts = true
+warn_return_any = true
+warn_unused_ignores = true
+warn_unused_configs = true
+warn_unreachable = true
+
+[tool.pylint.master]
+jobs = 4
+good-names = ["i", "j", "k", "v", "e", "df", "f", "fp", "X", "x", "y"]
+
+[tool.pylint.format]
+max-line-length=120
+
+# disable list taken from https://github.com/PyCQA/pylint/issues/617
+[tool.pylint.messages_control]
+disable = [
+    # For Black Compatibility
+    "bad-continuation", 
+    "bad-whitespace", 
+
+    # Disable too many and too few checks.
+    "too-many-ancestors",
+    "too-many-arguments",
+    "too-many-boolean-expressions",
+    "too-many-branches",
+    "too-many-function-args",
+    "too-many-instance-attributes",
+    "too-many-lines",
+    "too-many-locals",
+    "too-many-nested-blocks",
+    "too-many-public-methods",
+    "too-many-return-statements",
+    "too-many-statements",
+    "too-few-public-methods",
+
+    # Let the black handle this.  Note black single long string line 
+    # splitting is experimental so it's disabled.
+    "line-too-long",
+
+    # Disable failure for TODO items in the codebase (code will always have TODOs).
+    "fixme",
+
+    # Disable docstrings checks as we don't require excessive documentation.
+    "missing-docstring"
+]
+
+
+
+
+

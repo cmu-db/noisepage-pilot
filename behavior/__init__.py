@@ -2,35 +2,34 @@ import logging
 from logging import Logger
 from pathlib import Path
 
-# postgres paths
-PG_DIR = Path.home() / "postgres"
+# Pilot
+PILOT_DIR = Path(__file__).resolve().parent.parent
+
+# Third-party paths
+THIRD_PARTY_DIR = PILOT_DIR / "third-party"
+PG_DIR = THIRD_PARTY_DIR / "postgres"
 CMUDB_DIR = PG_DIR / "cmudb"
 TSCOUT_DIR = CMUDB_DIR / "tscout"
-
-# benchbase paths
-BENCHBASE_DIR = Path.home() / "benchbase"
+BENCHBASE_DIR = THIRD_PARTY_DIR / "benchbase"
 BENCHBASE_SNAPSHOT_DIR = BENCHBASE_DIR / "benchbase-2021-SNAPSHOT"
 BENCHBASE_SNAPSHOT_PATH = BENCHBASE_DIR / "target" / "benchbase-2021-SNAPSHOT.zip"
+SQLSMITH_DIR = THIRD_PARTY_DIR / "sqlsmith"
 
-# pilot paths
-PILOT_DIR = Path.home() / "noisepage-pilot"
-
-# config paths
+# Configurations
 CONFIG_ROOT = PILOT_DIR / "config" / "behavior"
 MODEL_CONFIG_DIR = CONFIG_ROOT / "modeling"
 DATAGEN_CONFIG_DIR = CONFIG_ROOT / "datagen"
 PG_CONFIG_DIR = DATAGEN_CONFIG_DIR / "postgres"
 BENCHBASE_CONFIG_DIR = DATAGEN_CONFIG_DIR / "benchbase"
 
-# data paths
+# Data
 DATA_ROOT = PILOT_DIR / "data" / "behavior"
 MODEL_DATA_DIR = DATA_ROOT / "models"
 BEHAVIOR_DATA_DIR = DATA_ROOT / "training_data"
 TRAIN_DATA_DIR = BEHAVIOR_DATA_DIR / "train"
 EVAL_DATA_DIR = BEHAVIOR_DATA_DIR / "eval"
 
-# other paths
-SQLSMITH_DIR = Path.home() / "sqlsmith"
+# Misc.
 CLEANUP_SCRIPT_PATH = PILOT_DIR / "behavior" / "datagen" / "cleanup.py"
 
 BENCHDB_TO_TABLES = {

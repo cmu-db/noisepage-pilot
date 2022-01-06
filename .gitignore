@@ -37,3 +37,6 @@ dist
 
 # Ignore pilot output data
 data
+
+# Ignore third-party data (postgres, sqlsmith, benchbase)
+third-party

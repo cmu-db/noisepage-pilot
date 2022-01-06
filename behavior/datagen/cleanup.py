@@ -31,13 +31,14 @@ def kill_tscout_and_postgres() -> None:
 
 def chown_results(username: str) -> None:
     # change the tscout results ownership to the user who ran the benchmark
-    results_dir = f"/home/{username}/noisepage-pilot/behavior/data/training_data/"
+    results_dir = f"/home/{username}/noisepage-pilot/data/behavior/training_data/"
 
-    print(f"Changing ownership of TScout results from root to user: {username}")
-    shutil.chown(results_dir, user=username)
-    for file in Path(results_dir).glob("**/*"):
-        shutil.chown(file, user=username)
-    print("Cleanup Complete")
+    if results_dir.exists(): 
+        print(f"Changing ownership of TScout results from root to user: {username}")
+        shutil.chown(results_dir, user=username)
+        for file in Path(results_dir).glob("**/*"):
+            shutil.chown(file, user=username)
+        print("Cleanup Complete")
 
 
 if __name__ == "__main__":

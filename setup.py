@@ -1,7 +1,7 @@
 from setuptools import find_packages, setup
 
 setup(
-    name="behavior_modeling",
+    name="noisepage_pilot",
     version="0.0.1",
     packages=find_packages(),
     install_requires=[
@@ -24,3 +24,6 @@ setup(
     ],
     python_requires=">=3.9",
 )
+
+# TODO: Install third-party dependencies
+

@@ -40,7 +40,7 @@ def build_pg() -> None:
         make["clean", "-s"]()
         make["-j", "world-bin", "-s"]()
         make["install-world-bin", "-j", "-s"]()
-    except ProcessExecutionError as err:
+    except (FileNotFoundError, ProcessExecutionError) as err:
         cleanup(err, terminate=True, message="Error building postgres")
 
 
@@ -77,7 +77,7 @@ def init_pg(config: dict[str, Any]) -> None:
             print(f"removing: {pg_data_dir}")
             shutil.rmtree(pg_data_dir)
 
-        pg_data_dir.mkdir(exist_ok=True)
+        pg_data_dir.mkdir(parents=True, exist_ok=True)
         pg_ctl = local["./build/bin/pg_ctl"]
         pg_ctl["initdb", "-D", "data"] & FG
         shutil.copy(PG_CONFIG_DIR / "postgresql.conf", pg_data_dir / "postgresql.conf")
@@ -106,13 +106,13 @@ def init_pg(config: dict[str, Any]) -> None:
         if config["pg_stat_statements"]:
             psql["-d", "benchbase", "-c", "CREATE EXTENSION pg_stat_statements;"]()
 
-        if config["pg_store_plans"]:
-            psql["-d", "benchbase", "-c", "CREATE EXTENSION pg_store_plans;"]()
+        # if config["pg_store_plans"]:
+        #     psql["-d", "benchbase", "-c", "CREATE EXTENSION pg_store_plans;"]()
 
         # Turn off pager
         psql["-d", "benchbase", "-P", "pager=off", "-c", "SELECT 1;"]()
 
-    except ProcessExecutionError as err:
+    except (FileNotFoundError, ProcessExecutionError) as err:
         cleanup(err, terminate=True, message="Error initializing Postgres")
 
 
@@ -138,7 +138,7 @@ def pg_prewarm(bench_db: str) -> None:
         for table in BENCHDB_TO_TABLES[bench_db]:
             get_logger().info("Prewarming table: %s", table)
             psql["-d", "benchbase", "-c", f"SELECT * from pg_prewarm('{table}');"]()
-    except ProcessExecutionError as err:
+    except (FileNotFoundError, ProcessExecutionError) as err:
         cleanup(err, terminate=True, message="Error prewarming Postgres")
 
 
@@ -151,7 +151,7 @@ def init_tscout(results_dir: Path) -> None:
         # assumes the oldest Postgres PID is the Postmaster
         postmaster_pid = pgrep["-ox", "postgres"]()
         sudo["python3"]["tscout.py", postmaster_pid, "--outdir", tscout_results_dir] & BG
-    except ProcessExecutionError as err:
+    except (FileNotFoundError, ProcessExecutionError) as err:
         cleanup(err, terminate=True, message="Error initializing TScout")
 
     time.sleep(10)  # allows tscout to attach before Benchbase execution begins
@@ -165,7 +165,7 @@ def build_benchbase(benchbase_dir: Path) -> None:
         local["./mvnw"]["clean", "package"]()
         if not os.path.exists(BENCHBASE_SNAPSHOT_DIR):
             local["unzip"][BENCHBASE_SNAPSHOT_PATH]()
-    except ProcessExecutionError as err:
+    except (FileNotFoundError, ProcessExecutionError) as err:
         cleanup(err, terminate=True, message="Error building benchbase")
 
 
@@ -199,7 +199,7 @@ def init_benchbase(bench_db: str, benchbase_results_dir: Path) -> None:
         ]
         local["java"][benchbase_cmd] & FG
         logger.info("Initialized Benchbase for Benchmark: %s", bench_db)
-    except ProcessExecutionError as err:
+    except (FileNotFoundError, ProcessExecutionError) as err:
         cleanup(err, terminate=True, message="Error initializing Benchbase")
 
 
@@ -215,8 +215,8 @@ def exec_benchbase(bench_db: str, results_dir: Path, benchbase_results_dir: Path
 
         if config["pg_stat_statements"]:
             psql["-d", "benchbase", "-c", "SELECT pg_stat_statements_reset();"] & FG
-        if config["pg_store_plans"]:
-            psql["-d", "benchbase", "-c", "SELECT pg_store_plans_reset();"]()
+        # if config["pg_store_plans"]:
+        #     psql["-d", "benchbase", "-c", "SELECT pg_store_plans_reset();"]()
 
         # run benchbase
         local["java"][
@@ -236,26 +236,26 @@ def exec_benchbase(bench_db: str, results_dir: Path, benchbase_results_dir: Path
                 stats_result = psql["-d", "benchbase", "--csv", "-c", "SELECT * FROM pg_stat_statements;"]()
                 f.write(stats_result)
 
-        if config["pg_store_plans"]:
-            with (results_dir / "plan_file.csv").open("w") as f:
-                plans_result = psql[
-                    "-d",
-                    "benchbase",
-                    "--csv",
-                    "-c",
-                    "SELECT queryid, planid, plan FROM pg_store_plans ORDER BY queryid, planid;",
-                ]()
+        # if config["pg_store_plans"]:
+        #     with (results_dir / "plan_file.csv").open("w") as f:
+        #         plans_result = psql[
+        #             "-d",
+        #             "benchbase",
+        #             "--csv",
+        #             "-c",
+        #             "SELECT queryid, planid, plan FROM pg_store_plans ORDER BY queryid, planid;",
+        #         ]()
 
-                f.write(plans_result)
+        #         f.write(plans_result)
 
         # Move benchbase results to experiment results directory
         shutil.move(BENCHBASE_SNAPSHOT_DIR / "results", benchbase_results_dir)
         time.sleep(10)  # Allow TScout Collector to finish getting results
-    except ProcessExecutionError as err:
+    except (FileNotFoundError, ProcessExecutionError) as err:
         cleanup(err, terminate=True, message="Error running Benchbase")
 
 
-def cleanup(err: Optional[ProcessExecutionError], terminate: bool, message: str = "") -> None:
+def cleanup(err: Optional[Exception], terminate: bool, message: str = "") -> None:
     """Clean up the TScout and Postgres processes after either a successful or failed run"""
 
     logger = get_logger()
@@ -264,7 +264,7 @@ def cleanup(err: Optional[ProcessExecutionError], terminate: bool, message: str 
         logger.error(message)
 
     if err is not None:
-        logger.error("Error: %s, %s, args: %s", type(err), err, err.args)
+        logger.error("Error: %s, %s", type(err), err)
 
     username = psutil.Process().username()
     sudo["python3"][CLEANUP_SCRIPT_PATH, "--username", username]()

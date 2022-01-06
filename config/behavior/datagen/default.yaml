@@ -1,0 +1,10 @@
+build_pg: True
+build_bbase: True
+pg_prewarm: True
+pg_stat_statements: False
+pg_store_plans: False
+auto_explain: False
+bench_dbs: [tpcc]
+sqlsmith: False # currently ignored because it causes dataset naming conflicts
+log_level: INFO
+debug: False
