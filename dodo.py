@@ -370,7 +370,7 @@ def _build_pg() -> None:
 
     if not pg_dir.exists():
         (
-            git["clone"]["git@github.com:cmu-db/postgres.git", "./third-party/postgres"]
+            git["clone"]["https://github.com/cmu-db/postgres", "./third-party/postgres"]
             & FG
         )
 
@@ -393,7 +393,7 @@ def _build_benchbase() -> None:
     if not benchbase_dir.exists():
         (
             git["clone"][
-                "git@github.com:cmu-db/benchbase.git", "./third-party/benchbase"
+                "https://github.com/cmu-db/benchbase", "./third-party/benchbase"
             ]
             & FG
         )
