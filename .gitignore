@@ -5,6 +5,12 @@ artifacts
 # Directory for building code.
 build/
 
+# Ignore logs
+log/
+
+# Ignore pilot output data
+data/
+
 # Ignore most JetBrains IDE files.
 /.idea/*
 
@@ -34,9 +40,6 @@ __pycache__/
 dist/
 *.egg-info/
 *.egg
-
-# Ignore pilot output data
-data/
 
 # Ignore third-party data (postgres, sqlsmith, benchbase)
 third-party/

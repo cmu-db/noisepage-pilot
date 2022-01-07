@@ -1,11 +1,11 @@
-import logging
-from logging import Logger
+from __future__ import annotations
+
 from pathlib import Path
 
 # Paths used throughout the behavior code
 PILOT_DIR = Path(__file__).resolve().parent.parent
 
-# Third-party paths
+# Third-party
 THIRD_PARTY_DIR = PILOT_DIR / "third-party"
 PG_DIR = THIRD_PARTY_DIR / "postgres"
 CMUDB_DIR = PG_DIR / "cmudb"
@@ -24,6 +24,9 @@ MODEL_DATA_DIR = DATA_DIR / "models"
 BEHAVIOR_DATA_DIR = DATA_DIR / "training_data"
 TRAIN_DATA_DIR = BEHAVIOR_DATA_DIR / "train"
 EVAL_DATA_DIR = BEHAVIOR_DATA_DIR / "eval"
+
+# Logging
+BEHAVIOR_LOG_DIR = PILOT_DIR / "log" / "behavior"
 
 BENCHDB_TO_TABLES = {
     "tpcc": [
@@ -172,11 +175,3 @@ BASE_TARGET_COLS = [
 
 
 DIFF_COLS: list[str] = ["startup_cost", "total_cost"] + BASE_TARGET_COLS
-
-
-def get_logger() -> Logger:
-
-    logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
-
-    return logger

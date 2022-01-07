@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import itertools
+import logging
 import os
 from datetime import datetime
 from pathlib import Path
@@ -27,9 +30,9 @@ from behavior import (
     MODEL_DATA_DIR,
     PLAN_NODE_NAMES,
     TRAIN_DATA_DIR,
-    get_logger,
 )
 from behavior.modeling.model import BehaviorModel
+from behavior.util import init_logging
 
 
 def evaluate(
@@ -126,7 +129,7 @@ def load_data(data_dir: Path) -> dict[str, DataFrame]:
     for ou_name in PLAN_NODE_NAMES:
         ou_results = [fp for fp in result_paths if fp.name.startswith(ou_name)]
         if len(ou_results) > 0:
-            get_logger().info("Found %s run(s) for %s", len(ou_results), ou_name)
+            logging.info("Found %s run(s) for %s", len(ou_results), ou_name)
             ou_name_to_df[ou_name] = pd.concat(map(pd.read_csv, ou_results))
 
     if len(ou_name_to_df) == 0:
@@ -166,25 +169,28 @@ def prep_train_data(
     df = df.drop(cols_to_remove, axis=1).sort_index(axis=1)
 
     if len(cols_to_remove) > 0:
-        logger = get_logger()
-        logger.info("Dropped zero-variance columns: %s", cols_to_remove)
-        logger.info(
-            "Num Remaining: %s, Num Removed: %s", len(df.columns), len(cols_to_remove)
+        logging.debug(
+            "Dropped zero-variance columns: %s | Num Remaining: %s, Num Removed: %s",
+            cols_to_remove,
+            len(df.columns),
+            len(cols_to_remove),
         )
 
     if target_diff and ou_name not in LEAF_NODES:
-        print(f"using differenced targets for: {ou_name}")
+        logging.debug("using differenced targets for: %s", ou_name)
         target_cols = [col for col in df.columns if col in diff_targ_cols]
     else:
         target_cols = [col for col in df.columns if col in BASE_TARGET_COLS]
-        print(f"using undiff targets for: {ou_name}.  target_cols: {target_cols}")
+        logging.debug(
+            "using undiff targets for: %s.  target_cols: %s", ou_name, target_cols
+        )
     all_target_cols = BASE_TARGET_COLS + diff_targ_cols
     feat_cols: list[str] = [col for col in df.columns if col not in all_target_cols]
 
     if not feat_diff:
         feat_cols = [col for col in feat_cols if not col.startswith("diffed")]
 
-    print(f"Using features: {feat_cols}")
+    logging.debug("Using features: %s", feat_cols)
 
     X = df[feat_cols].values
     y = df[target_cols].values
@@ -202,6 +208,7 @@ def prep_eval_data(
 
 
 def main(config_name: str) -> None:
+
     # load config
     config_path: Path = CONFIG_DIR / f"{config_name}.yaml"
     if not config_path.exists():
@@ -210,6 +217,7 @@ def main(config_name: str) -> None:
     with config_path.open("r") as f:
         config = yaml.load(f, Loader=yaml.FullLoader)["modeling"]
 
+    init_logging(config["log_level"])
     training_timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     train_bench_dbs = config["train_bench_dbs"]
     train_bench_db = train_bench_dbs[0]
@@ -217,7 +225,6 @@ def main(config_name: str) -> None:
     eval_bench_db = eval_bench_dbs[0]
     feat_diff = config["features_diff"]
     target_diff = config["targets_diff"]
-    logger = get_logger()
 
     for train_bench_db in train_bench_dbs:
         if train_bench_db not in BENCHDB_TO_TABLES:
@@ -228,10 +235,10 @@ def main(config_name: str) -> None:
         experiment_list = sorted(
             [exp_path.name for exp_path in TRAIN_DATA_DIR.glob("*")]
         )
-        logger.warning("%s experiments: %s", train_bench_db, experiment_list)
+        logging.info("%s experiments: %s", train_bench_db, experiment_list)
         assert len(experiment_list) > 0, "No experiments found"
         experiment_name = experiment_list[-1]
-        logger.warning(
+        logging.info(
             "Experiment name was not provided, using experiment: %s", experiment_name
         )
 
@@ -240,7 +247,7 @@ def main(config_name: str) -> None:
     )
     eval_data_dir = EVAL_DATA_DIR / experiment_name / eval_bench_db / "differenced"
 
-    logger.warning("eval data dir: %s", eval_data_dir)
+    logging.info("eval data dir: %s", eval_data_dir)
     if not training_data_dir.exists():
         raise ValueError(
             f"Train Benchmark DB {train_bench_db} not found in experiment: {experiment_name}"
@@ -256,23 +263,23 @@ def main(config_name: str) -> None:
     output_dir = MODEL_DATA_DIR / base_model_name
 
     for ou_name, train_df in train_ou_to_df.items():
-        logger.warning("Begin Training OU: %s", ou_name)
+        logging.info("Begin Training OU: %s", ou_name)
         feat_cols, target_cols, x_train, y_train = prep_train_data(
             ou_name, train_df, feat_diff, target_diff
         )
 
         if x_train.shape[1] == 0 or y_train.shape[1] == 0:
-            print(feat_cols)
-            print(target_cols)
-            print(x_train.shape)
-            print(y_train.shape)
-            logger.warning("%s has no valid training data, skipping", ou_name)
+            logging.warning(feat_cols)
+            logging.warning(target_cols)
+            logging.warning(x_train.shape)
+            logging.warning(y_train.shape)
+            logging.warning("%s has no valid training data, skipping", ou_name)
             continue
 
         for method in config["methods"]:
             full_outdir = output_dir / method / ou_name
             full_outdir.mkdir(parents=True, exist_ok=True)
-            logger.warning("Training OU: %s with model: %s", ou_name, method)
+            logging.info("Training OU: %s with model: %s", ou_name, method)
             ou_model = BehaviorModel(
                 method, ou_name, base_model_name, config, feat_cols, target_cols
             )

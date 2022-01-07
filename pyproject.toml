@@ -3,7 +3,7 @@ requires = ["setuptools", "wheel"]
 
 [tool.black]
 line-length = 88
-target_version = ["py39"]
+target_version = ["py38"]
 exclude = '\.ipynb'
 
 [tool.isort]
@@ -19,7 +19,7 @@ follow_imports = "silent"
 ignore_missing_imports = true
 namespace_packages = true
 pretty = true
-python_version = "3.9"
+python_version = "3.8"
 show_error_codes = true
 strict = true
 plugins = "numpy.typing.mypy_plugin"
@@ -44,7 +44,7 @@ warn_unreachable = true
 
 [tool.pylint.master]
 jobs = 4
-good-names = ["i", "j", "k", "v", "e", "df", "f", "fp", "X", "x", "y"]
+good-names = ["i", "j", "k", "v", "e", "df", "f", "fp", "X", "x", "y", "db"]
 
 [tool.pylint.format]
 max-line-length=88
@@ -55,6 +55,9 @@ disable = [
     # For Black Compatibility
     "bad-continuation", 
     "bad-whitespace", 
+
+    # 
+
 
     # Disable too many and too few checks.
     "too-many-ancestors",
@@ -81,3 +84,16 @@ disable = [
     # Disable docstrings checks as we don't require excessive documentation.
     "missing-docstring"
 ]
+
+[tool.pylint.similarities]
+# Minimum lines number of a similarity.
+min-similarity-lines = 4
+
+# Ignore comments when computing similarities.
+ignore-comments = true
+
+# Ignore docstrings when computing similarities.
+ignore-docstrings = true
+
+# Ignore imports when computing similarities.
+ignore-imports = true

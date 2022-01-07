@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -49,16 +52,16 @@ def _build_id_map(node: PlanNode, node_map: dict[int, list[int]]) -> None:
 
 
 def show_plan_tree(plan_tree: PlanTree) -> None:
-    print(f"\n===== QueryID: {plan_tree.query_id} =====")
-    print(f"Parent ID to Child IDs: {plan_tree.parent_id_to_child_ids}")
-    print(plan_tree.root)
+    logging.info("\n===== QueryID: %s =====", plan_tree.query_id)
+    logging.info("Parent ID to Child IDs: %s", plan_tree.parent_id_to_child_ids)
+    logging.info("%s", plan_tree.root)
 
     for child in plan_tree.root.plans:
         show_plan_node(child)
 
 
 def show_plan_node(plan_node: PlanNode) -> None:
-    print(plan_node)
+    logging.info("%s", plan_node)
 
     for child in plan_node.plans:
         show_plan_node(child)

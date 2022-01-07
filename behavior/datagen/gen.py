@@ -1,6 +1,8 @@
 # allow plumbum FG statements
 # pylint: disable=pointless-statement
+from __future__ import annotations
 
+import logging
 import os
 import shutil
 import sys
@@ -12,7 +14,7 @@ from typing import Any, Optional
 import psutil
 import yaml
 from plumbum import BG, FG, ProcessExecutionError, local
-from plumbum.cmd import pgrep, sudo  # pylint: disable=import-error
+from plumbum.cmd import sudo  # pylint: disable=import-error
 
 from behavior import (
     BEHAVIOR_DATA_DIR,
@@ -24,8 +26,8 @@ from behavior import (
     PG_DIR,
     SQLSMITH_DIR,
     TSCOUT_DIR,
-    get_logger,
 )
+from behavior.util import init_logging
 
 
 def check_orphans() -> None:
@@ -63,75 +65,57 @@ def check_orphans() -> None:
     ), f"Found active tscout processes from previous runs: {tscout_procs}"
 
 
+def query(db: str, _query: str, args: Optional[list[str]] = None) -> None:
+    psql_path = str(PG_DIR / "build" / "bin" / "psql")
+    psql = local[psql_path]
+
+    if args is not None:
+        psql["-d", db, "-c", _query, args]()
+    else:
+        psql["-d", db, "-c", _query]()
+
+
 def init_pg(config: dict[str, Any]) -> None:
     """Launch Postgres for a single benchmark run."""
 
     try:
         os.chdir(PG_DIR)
 
-        print("init pg")
         # initialize postgres for benchbase execution
         pg_data_dir = PG_DIR / "data"
         if pg_data_dir.exists():
-            print(f"removing: {pg_data_dir}")
+            logging.debug("Removing existing Postgres data directory: %s", pg_data_dir)
             shutil.rmtree(pg_data_dir)
 
         pg_data_dir.mkdir(parents=True, exist_ok=True)
         pg_ctl = local["./build/bin/pg_ctl"]
-        pg_ctl["initdb", "-D", "data"] & FG
+        pg_ctl["initdb", "-D", "data"]()
         shutil.copy(PG_CONFIG_DIR / "postgresql.conf", pg_data_dir / "postgresql.conf")
         pg_ctl["-D", "data", "-o", "-W 2", "start"] & FG
 
         # Initialize the DB and create an admin user for Benchbase to use
-        local["./build/bin/createdb"]["test"] & FG
-        psql = local["./build/bin/psql"]
-        (
-            psql[
-                "-d",
-                "test",
-                "-c",
-                "CREATE ROLE admin WITH PASSWORD 'password' SUPERUSER CREATEDB CREATEROLE INHERIT LOGIN;",
-            ]
-            & FG
+        createdb = local["./build/bin/createdb"]
+        createdb["test"]()
+        query(
+            "test",
+            "CREATE ROLE admin WITH PASSWORD 'password' SUPERUSER CREATEDB CREATEROLE INHERIT LOGIN;",
         )
-
-        local["./build/bin/createdb"]["-O", "admin", "benchbase"] & FG
-
-        # Turn on QueryID computation
-        (
-            psql["-d", "test", "-c", "ALTER DATABASE test SET compute_query_id = 'ON';"]
-            & FG
-        )
-        (
-            psql[
-                "-d",
-                "benchbase",
-                "-c",
-                "ALTER DATABASE benchbase SET compute_query_id = 'ON';",
-            ]
-            & FG
-        )
+        createdb["-O", "admin", "benchbase"]()
+        query("test", "ALTER DATABASE test SET compute_query_id = 'ON';")
+        query("benchbase", "ALTER DATABASE benchbase SET compute_query_id = 'ON';")
 
         if config["auto_explain"]:
-            (
-                psql[
-                    "-d",
-                    "benchbase",
-                    "-c",
-                    "ALTER SYSTEM SET auto_explain.log_min_duration = 0;",
-                ]
-                & FG
-            )
+            query("benchbase", "ALTER SYSTEM SET auto_explain.log_min_duration = 0;")
             pg_ctl["-D", "data", "reload"] & FG
 
         if config["pg_stat_statements"]:
-            psql["-d", "benchbase", "-c", "CREATE EXTENSION pg_stat_statements;"] & FG
+            query("benchbase", "CREATE EXTENSION pg_stat_statements;")
 
         if config["pg_store_plans"]:
-            psql["-d", "benchbase", "-c", "CREATE EXTENSION pg_store_plans;"]()
+            query("benchbase", "CREATE EXTENSION pg_store_plans;")
 
-        # Turn off pager
-        psql["-d", "benchbase", "-P", "pager=off", "-c", "SELECT 1;"] & FG
+        # Turn off pager to avoid needing tty interaction
+        query("benchbase", "SELECT 1;", ["-P", "pager=off"])
 
     except (KeyboardInterrupt, FileNotFoundError, ProcessExecutionError) as err:
         cleanup(err, terminate=True, message="Error initializing Postgres")
@@ -140,16 +124,9 @@ def init_pg(config: dict[str, Any]) -> None:
 def pg_analyze(bench_db: str) -> None:
     """Analyze all tables in the specific benchmark database.  Updates Postgres' internal statistics for more accurate cardinality estimation and plan costing."""
     try:
-        os.chdir(PG_DIR)
-
+        logging.info("Analyzing tables")
         for table in BENCHDB_TO_TABLES[bench_db]:
-            get_logger().info("Analyzing table: %s", table)
-            (
-                local["./build/bin/psql"][
-                    "-d", "benchbase", "-c", f"ANALYZE VERBOSE {table};"
-                ]
-                & FG
-            )
+            query("benchbase", f"ANALYZE VERBOSE {table};")
     except ProcessExecutionError as err:
         cleanup(err, terminate=True, message="Error analyzing Postgres")
 
@@ -158,13 +135,10 @@ def pg_prewarm(bench_db: str) -> None:
     """Prewarm Postgres so the buffer pool and OS page cache has the workload data available."""
 
     try:
-        os.chdir(PG_DIR)
-        psql = local["./build/bin/psql"]
-        psql["-d", "benchbase", "-c", "CREATE EXTENSION pg_prewarm"] & FG
-
+        logging.info("Prewarming tables")
+        query("benchbase", "CREATE EXTENSION pg_prewarm;")
         for table in BENCHDB_TO_TABLES[bench_db]:
-            get_logger().info("Prewarming table: %s", table)
-            psql["-d", "benchbase", "-c", f"SELECT * from pg_prewarm('{table}');"] & FG
+            query("benchbase", f"SELECT * from pg_prewarm('{table}');")
     except (KeyboardInterrupt, FileNotFoundError, ProcessExecutionError) as err:
         cleanup(err, terminate=True, message="Error prewarming Postgres")
 
@@ -178,7 +152,7 @@ def init_tscout(results_dir: Path) -> None:
         tscout_results_dir.mkdir(exist_ok=True)
 
         # assumes the oldest Postgres PID is the Postmaster
-        postmaster_pid = pgrep["-ox", "postgres"]()
+        postmaster_pid = local["pgrep"]["-ox", "postgres"]()
         (
             sudo["python3"]["tscout.py", postmaster_pid, "--outdir", tscout_results_dir]
             & BG
@@ -186,18 +160,14 @@ def init_tscout(results_dir: Path) -> None:
     except (FileNotFoundError, ProcessExecutionError) as err:
         cleanup(err, terminate=True, message="Error initializing TScout")
 
-    time.sleep(10)  # allows tscout to attach before Benchbase execution begins
+    time.sleep(5)  # allows tscout to attach before Benchbase execution begins
 
 
 def init_benchbase(bench_db: str, benchbase_results_dir: Path) -> None:
     """Initialize Benchbase and load benchmark data."""
 
-    logger = get_logger()
-
     try:
-
         benchbase_snapshot_dir = BENCHBASE_DIR / "benchbase-2021-SNAPSHOT"
-
         os.chdir(benchbase_snapshot_dir)
 
         # move runner config to benchbase and also save it in the output directory
@@ -208,7 +178,7 @@ def init_benchbase(bench_db: str, benchbase_results_dir: Path) -> None:
         shutil.copy(input_cfg_path, benchbase_cfg_path)
         shutil.copy(input_cfg_path, benchbase_results_dir)
 
-        logger.warning("Initializing Benchbase for DB: %s", bench_db)
+        logging.info("Initializing Benchbase for DB: %s", bench_db)
         benchbase_cmd = [
             "-jar",
             "benchbase.jar",
@@ -220,8 +190,8 @@ def init_benchbase(bench_db: str, benchbase_results_dir: Path) -> None:
             "--load=true",
             "--execute=false",
         ]
-        local["java"][benchbase_cmd] & FG
-        logger.info("Initialized Benchbase for Benchmark: %s", bench_db)
+        local["java"][benchbase_cmd]()
+        logging.info("Initialized Benchbase for Benchmark: %s", bench_db)
     except (KeyboardInterrupt, FileNotFoundError, ProcessExecutionError) as err:
         cleanup(err, terminate=True, message="Error initializing Benchbase")
 
@@ -234,19 +204,16 @@ def exec_benchbase(
 ) -> None:
     """Run Benchbase on the specific benchmark database."""
     try:
-        benchbase_snapshot_dir = BENCHBASE_DIR / "benchbase-2021-SNAPSHOT"
-
-        os.chdir(benchbase_snapshot_dir)
-        psql = local[str(PG_DIR / "./build/bin/psql")]
-
         if config["pg_stat_statements"]:
-            psql["-d", "benchbase", "-c", "SELECT pg_stat_statements_reset();"] & FG
+            query("benchbase", "SELECT pg_stat_statements_reset();")
 
         if config["pg_store_plans"]:
-            psql["-d", "benchbase", "-c", "SELECT pg_store_plans_reset();"]()
+            query("benchbase", "SELECT pg_store_plans_reset();")
 
-        # run benchbase
-        local["java"][
+        benchbase_snapshot_dir = BENCHBASE_DIR / "benchbase-2021-SNAPSHOT"
+        os.chdir(benchbase_snapshot_dir)
+        logging.info("Begin Benchbase execution for benchmark: %s", bench_db)
+        args = [
             "-jar",
             "benchbase.jar",
             "-b",
@@ -256,7 +223,10 @@ def exec_benchbase(
             "--create=false",
             "--load=false",
             "--execute=true",
-        ]()
+        ]
+        local["java"][args]()
+
+        psql = local[str(PG_DIR / "./build/bin/psql")]
 
         if config["pg_stat_statements"]:
             with (results_dir / "stat_file.csv").open("w") as f:
@@ -282,7 +252,7 @@ def exec_benchbase(
                 f.write(plans_result)
 
         # Move benchbase results to experiment results directory
-        shutil.move(benchbase_snapshot_dir / "results", benchbase_results_dir)
+        shutil.move(str(benchbase_snapshot_dir / "results"), benchbase_results_dir)
         time.sleep(10)  # Allow TScout Collector to finish getting results
     except (KeyboardInterrupt, FileNotFoundError, ProcessExecutionError) as err:
         cleanup(err, terminate=True, message="Error running Benchbase")
@@ -291,31 +261,23 @@ def exec_benchbase(
 def exec_sqlsmith(bench_db: str) -> None:
     """Run SQLSmith queries over the specific benchmark database."""
     try:
-        os.chdir(PG_DIR)
         # Add SQLSmith user to benchbase DB with non-superuser privileges
-        psql = local["./build/bin/psql"]
-        (
-            psql[
-                "-d",
-                "benchbase",
-                "-c",
-                "CREATE ROLE sqlsmith WITH PASSWORD 'password' INHERIT LOGIN;",
-            ]
-            & FG
+        query(
+            "benchbase", "CREATE ROLE sqlsmith WITH PASSWORD 'password' INHERIT LOGIN;"
         )
 
         for table in BENCHDB_TO_TABLES[bench_db]:
-            get_logger().info("Granting SQLSmith permissions on table: %s", table)
-            (
-                psql[
-                    "-d",
-                    "benchbase",
-                    "-c",
-                    "GRANT SELECT, INSERT, UPDATE, DELETE ON {table} TO sqlsmith;",
-                ]
-                & FG
+            logging.info("Granting SQLSmith permissions on table: %s", table)
+            query(
+                "benchbase",
+                "CREATE ROLE sqlsmith WITH PASSWORD 'password' INHERIT LOGIN;",
+            )
+            query(
+                "benchbase",
+                f"GRANT SELECT, INSERT, UPDATE, DELETE ON {table} TO sqlsmith;",
             )
 
+        logging.info("Begin SQLSmith Execution")
         os.chdir(SQLSMITH_DIR)
         (
             local["./sqlsmith"][
@@ -323,8 +285,7 @@ def exec_sqlsmith(bench_db: str) -> None:
                 "--seed=42",
                 "--max-queries=10000",
                 "--exclude-catalog",
-            ]
-            & FG
+            ]()
         )
     except (KeyboardInterrupt, FileNotFoundError, ProcessExecutionError) as err:
         cleanup(err, terminate=True, message="Error running SQLSmith")
@@ -333,13 +294,11 @@ def exec_sqlsmith(bench_db: str) -> None:
 def cleanup(err: Optional[BaseException], terminate: bool, message: str = "") -> None:
     """Clean up the TScout and Postgres processes after either a successful or failed run."""
 
-    logger = get_logger()
-
     if len(message) > 0:
-        logger.error(message)
+        logging.error(message)
 
     if err is not None:
-        logger.error("Error: %s, %s", type(err), err)
+        logging.error("Error: %s, %s", type(err), err)
 
     cleanup_script_path = Path(__file__).parent / "cleanup.py"
     sudo["python3"][cleanup_script_path]()
@@ -377,8 +336,10 @@ def run(
     pg_ctl["-D", "data", "-o", "-W 2", "start"] & FG
 
     if config["pg_prewarm"]:
-        pg_analyze(bench_db)
         pg_prewarm(bench_db)
+
+    if config["pg_analyze"]:
+        pg_analyze(bench_db)
 
     init_tscout(results_dir)
     exec_benchbase(bench_db, results_dir, benchbase_results_dir, config)
@@ -395,14 +356,16 @@ def run(
     ), f"Expected 1 Result log file, found {len(log_fps)}, {log_fps}"
     log_fps[0].rename(results_dir / "pg_log.log")
 
-    cleanup(err=None, terminate=False, message="Finished run")
+    logging.info("Finished benchmark run for %s", bench_db)
+
+    cleanup(err=None, terminate=False, message="")
 
 
 def main(config_name: str) -> None:
     config_path = CONFIG_DIR / f"{config_name}.yaml"
     with config_path.open("r") as f:
         config = yaml.load(f, Loader=yaml.FullLoader)["datagen"]
-    logger = get_logger()
+    init_logging(config["log_level"])
 
     # get sudo authentication for TScout
     sudo["pwd"]()
@@ -429,7 +392,7 @@ def main(config_name: str) -> None:
             Path(results_dir).mkdir()
             benchbase_results_dir = results_dir / "benchbase"
             Path(benchbase_results_dir).mkdir(exist_ok=True)
-            logger.warning(
+            logging.info(
                 "Running experiment: %s with bench_db: %s and results_dir: %s",
                 experiment_name,
                 bench_db,

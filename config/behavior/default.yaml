@@ -1,6 +1,7 @@
 # Datagen Configuration
 datagen: 
   pg_prewarm: True
+  pg_analyze: True
   pg_stat_statements: False
   pg_store_plans: False # currently not installed
   auto_explain: False

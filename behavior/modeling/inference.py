@@ -1,6 +1,7 @@
 # WIP - Inference "pseudocode" providing a vague example of what behavior model inference could look like.
 
 import argparse
+import logging
 import pickle
 from pathlib import Path
 from typing import Any
@@ -31,7 +32,7 @@ def load_models() -> Any:
         first_model: Path = model_pickle[0]
 
         with first_model.open("r") as f:
-            print(f"loading model pickle: {first_model}")
+            logging.info("loading model pickle: %s", first_model)
             ou_to_model[ou_name] = pickle.load(f)  # type: ignore
 
     return ou_to_model

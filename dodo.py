@@ -307,7 +307,7 @@ def task_behavior():
             if train:
                 args.append("--train")
 
-        local["python"][args] & FG
+        local["python3"][args] & FG
 
     return {
         "actions": [run_behavior],

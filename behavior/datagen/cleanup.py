@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 # Note: This script needs root permissions to work
+import logging
 import shutil
 from pathlib import Path
 
@@ -8,8 +9,14 @@ import psutil
 
 
 def main() -> None:
+    logging.basicConfig(
+        format="%(asctime)s | %(name)s | %(levelname)s | %(message)s",
+        level=logging.INFO,
+    )
+
     # First kill TScout and Postgres then claim ownership of any result files
-    print("Shutting down TScout and Postgres")
+
+    logging.info("Shutting down TScout and Postgres")
     tscout_process_names = [
         "TScout Coordinator",
         "TScout Processor",
@@ -34,9 +41,9 @@ def main() -> None:
                     proc.kill()
                 except (psutil.NoSuchProcess, psutil.ZombieProcess):
                     pass
-        print("Shutdown TScout and Postgres successfully")
+        logging.info("Shutdown TScout and Postgres successfully")
     except RuntimeError as err:
-        print(f"Error shutting down TScout and Postgres: {err}")
+        logging.error("Error shutting down TScout and Postgres: %s, %s", err, err.args)
 
     # change the tscout results ownership from root to the correct user
     owner = Path(__file__).owner()
@@ -44,11 +51,13 @@ def main() -> None:
         f"/home/{owner}/noisepage-pilot/data/behavior/training_data"
     )
     if training_data_dir.exists():
-        print(f"Changing ownership of TScout results from root to user: {owner}")
+        logging.info(
+            "Changing ownership of TScout results from root to user: %s", owner
+        )
         shutil.chown(training_data_dir, user=owner)
         for file in training_data_dir.glob("**/*"):
             shutil.chown(file, user=owner)
-        print("Cleanup Complete")
+        logging.info("Cleanup Complete")
 
 
 if __name__ == "__main__":
