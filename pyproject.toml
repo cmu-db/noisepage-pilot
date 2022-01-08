@@ -12,7 +12,6 @@ include_trailing_comma = true
 combine_as_imports = true
 
 [tool.mypy]
-# Basic mypy configuration.
 check_untyped_defs = true
 explicit_package_bases = true
 follow_imports = "silent"
@@ -55,9 +54,6 @@ disable = [
     # For Black Compatibility
     "bad-continuation", 
     "bad-whitespace", 
-
-    # 
-
 
     # Disable too many and too few checks.
     "too-many-ancestors",

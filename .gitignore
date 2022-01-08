@@ -33,9 +33,6 @@ __pycache__/
 # Ignore mypy cache
 .mypy_cache/
 
-# Ignore any other temporary CSVs
-*.csv
-
 # Ignoring setuptools packaging data
 dist/
 *.egg-info/
