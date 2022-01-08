@@ -1,8 +1,6 @@
 import glob
-import logging
 import re
 import time
-import warnings
 from pathlib import Path
 from typing import List
 
@@ -238,7 +236,7 @@ class Preprocessor:
             idx = detail.find(prefix)
             if idx == -1:
                 return {}
-            parameter_list = detail[idx + len(prefix):]
+            parameter_list = detail[idx + len(prefix) :]
             params = {}
             for pstr in parameter_list.split(", "):
                 pnum, pval = pstr.split(" = ")
@@ -297,7 +295,7 @@ class Preprocessor:
         def parse(sql):
             new_sql, params, last_end = [], [], 0
             for token in pglast.parser.scan(sql):
-                token_str = str(sql[token.start: token.end + 1])
+                token_str = str(sql[token.start : token.end + 1])
                 if token.start > last_end:
                     new_sql.append(" ")
                 if token.name in ["ICONST", "FCONST", "SCONST"]:
@@ -444,9 +442,11 @@ class PreprocessorCLI(cli.Application):
         ), f"No PostgreSQL query log files found in: {self.query_log_folder}"
 
         # Resolve CSV log columns.
-        assert (
-            self.log_type in ["pg14", "pg12", "tiramisu"]
-        ), f"--log-type {self.log_type} is invalid."
+        assert self.log_type in [
+            "pg14",
+            "pg12",
+            "tiramisu",
+        ], f"--log-type {self.log_type} is invalid."
 
         log_columns = self._PG_LOG_COLUMNS
         if self.log_type == "pg12":

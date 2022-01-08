@@ -81,20 +81,71 @@ def task_openspiel_compile():
     }
 
 
-def task_forecast():
+#####################
+# FORECASTING TASKS #
+#####################
+
+FORECAST_ARTIFACTS_DIR = Path("artifacts")
+FORECAST_PREPROCESSOR_ARTIFACT = FORECAST_ARTIFACTS_DIR.joinpath(
+    "preprocessed.parquet.gzip"
+)
+FORECAST_CLUSTER_ARTIFACT = FORECAST_ARTIFACTS_DIR.joinpath("clustered.parquet")
+FORECAST_MODEL_DIR = FORECAST_ARTIFACTS_DIR.joinpath("models")
+FORECAST_PREDICTION_CSV = FORECAST_ARTIFACTS_DIR.joinpath("forecast.csv")
+
+
+def task_forecast_preprocess():
+    """
+    Forecast Preprocess: create templatized queries data for ingest into
+    forecaster training or prediction
+    """
+
+    return {
+        "actions": [
+            f"mkdir -p {FORECAST_ARTIFACTS_DIR.absolute()}",
+            # Preprocess the PostgreSQL query logs.
+            "python3 ./forecast/preprocessor.py --query-log-folder ./forecast/data/extracted/extended/ "
+            f"--output-parquet {FORECAST_PREPROCESSOR_ARTIFACT.absolute()}",
+        ],
+        "targets": [FORECAST_PREPROCESSOR_ARTIFACT.absolute()],
+        "uptodate": [False],  # TODO(WAN): Always recompute?
+        "verbosity": VERBOSITY_DEFAULT,
+    }
+
+
+def task_forecast_predict():
     """
     Forecast: forecast the workload.
     """
+
+    cluster_action = (
+        "python3 ./forecast/clusterer.py"
+        f" --preprocessor-parquet {FORECAST_PREPROCESSOR_ARTIFACT.absolute()}"
+        f" --output-parquet {FORECAST_CLUSTER_ARTIFACT.absolute()}"
+    )
+
+    forecast_action = (
+        "python3 ./forecast/forecaster.py"
+        f" -p {FORECAST_PREPROCESSOR_ARTIFACT.absolute()}"
+        f" -c {FORECAST_CLUSTER_ARTIFACT.absolute()}"
+        " --override_models"
+        f" -m {FORECAST_MODEL_DIR.absolute()}"
+        f' -s "2021-12-06 14:24:32 EST"'
+        f' -e "2021-12-06 14:24:33 EST"'
+        f" --output_csv {FORECAST_PREDICTION_CSV.absolute()}"
+    )
+
     return {
         "actions": [
-            "mkdir -p artifacts",
-            # Preprocess the PostgreSQL query logs.
-            "python3 ./forecast/preprocessor.py --query-log-folder ./forecast/data/extracted/extended/ --output-hdf ./artifacts/preprocessor.hdf",
-            # Cluster the processed query logs.
-            # TODO(WAN): clusterer shouldn't go directly to the predictions, plug in Mike's part.
-            "python3 ./forecast/clusterer.py --preprocessor-hdf ./artifacts/preprocessor.hdf --output-csv ./artifacts/forecast.csv",
+            cluster_action,  # Cluster the processed query logs.
+            f"mkdir -p {FORECAST_MODEL_DIR.absolute()}",
+            forecast_action,
         ],
-        "targets": ["./artifacts/preprocessor.hdf", "./artifacts/forecast.csv"],
+        "file_dep": [FORECAST_PREPROCESSOR_ARTIFACT.absolute()],
+        "targets": [
+            FORECAST_CLUSTER_ARTIFACT.absolute(),
+            FORECAST_PREDICTION_CSV.absolute(),
+        ],
         "uptodate": [False],  # TODO(WAN): Always recompute?
         "verbosity": VERBOSITY_DEFAULT,
     }
