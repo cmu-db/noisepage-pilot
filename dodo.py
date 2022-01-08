@@ -85,6 +85,8 @@ def task_openspiel_compile():
 # FORECASTING TASKS #
 #####################
 
+FORECAST_QUERY_LOG_DIR = Path("./forecast/data/extracted/extended/")
+
 FORECAST_ARTIFACTS_DIR = Path("artifacts")
 FORECAST_PREPROCESSOR_ARTIFACT = FORECAST_ARTIFACTS_DIR.joinpath(
     "preprocessed.parquet.gzip"
@@ -93,6 +95,9 @@ FORECAST_CLUSTER_ARTIFACT = FORECAST_ARTIFACTS_DIR.joinpath("clustered.parquet")
 FORECAST_MODEL_DIR = FORECAST_ARTIFACTS_DIR.joinpath("models")
 FORECAST_PREDICTION_CSV = FORECAST_ARTIFACTS_DIR.joinpath("forecast.csv")
 
+FORECAST_PREDICTION_START = "2021-12-06 14:24:32 EST"
+FORECAST_PREDICTION_END = "2021-12-06 14:24:36 EST"
+
 
 def task_forecast_preprocess():
     """
@@ -100,12 +105,17 @@ def task_forecast_preprocess():
     forecaster training or prediction
     """
 
+    preprocessor_action = (
+        "python3 ./forecast/preprocessor.py"
+        f" --query-log-folder {FORECAST_QUERY_LOG_DIR.absolute()} "
+        f"--output-parquet {FORECAST_PREPROCESSOR_ARTIFACT.absolute()}"
+    )
+
     return {
         "actions": [
             f"mkdir -p {FORECAST_ARTIFACTS_DIR.absolute()}",
             # Preprocess the PostgreSQL query logs.
-            "python3 ./forecast/preprocessor.py --query-log-folder ./forecast/data/extracted/extended/ "
-            f"--output-parquet {FORECAST_PREPROCESSOR_ARTIFACT.absolute()}",
+            preprocessor_action,
         ],
         "targets": [FORECAST_PREPROCESSOR_ARTIFACT.absolute()],
         "uptodate": [False],  # TODO(WAN): Always recompute?
@@ -128,11 +138,11 @@ def task_forecast_predict():
         "python3 ./forecast/forecaster.py"
         f" -p {FORECAST_PREPROCESSOR_ARTIFACT.absolute()}"
         f" -c {FORECAST_CLUSTER_ARTIFACT.absolute()}"
-        " --override_models"
         f" -m {FORECAST_MODEL_DIR.absolute()}"
-        f' -s "2021-12-06 14:24:32 EST"'
-        f' -e "2021-12-06 14:24:33 EST"'
+        f' -s "{FORECAST_PREDICTION_START}"'
+        f' -e "{FORECAST_PREDICTION_END}"'
         f" --output_csv {FORECAST_PREDICTION_CSV.absolute()}"
+        " --override_models"
     )
 
     return {
