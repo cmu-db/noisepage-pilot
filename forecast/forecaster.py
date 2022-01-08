@@ -84,6 +84,8 @@ class ClusterForecaster:
             cluster_counts = (
                 train_df[train_df.index.get_level_values(0) == cluster]
                 .droplevel(0)
+                .resample(prediction_interval)
+                .sum()
                 .reindex(dtindex, fill_value=0)
             )
 
