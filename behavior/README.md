@@ -5,26 +5,95 @@ This document details the core components of behavior modeling and how to use th
 ## Pipeline
 
 This diagram details the general workflow.
+TODO(GH): add plan differencing workflow to diagram.
 
 ![Behavior Modeling Diagram](../docs/behavior/behavior_modeling_pipeline.svg)
 
-## Key Terms
+## Postgres Plan Nodes
 
-This diagram presents various key terminology relevant to the behavior modeling process.
+The following is a list of Postgres query plan nodes, each of which are profiled by TScout.
 
-![Key Terms](../docs/behavior/behavior_modeling_keyterms.svg)
+- Agg
+- Append
+- CteScan
+- CustomScan
+- ForeignScan
+- FunctionScan
+- Gather
+- GatherMerge
+- Group
+- HashJoinImpl
+- IncrementalSort
+- IndexOnlyScan
+- IndexScan
+- Limit
+- LockRows
+- Material
+- MergeAppend
+- MergeJoin
+- ModifyTable
+- NamedTuplestoreScan
+- NestLoop
+- ProjectSet
+- RecursiveUnion
+- Result
+- SampleScan
+- SeqScan
+- SetOp
+- Sort
+- SubPlan
+- SubqueryScan
+- TableFuncScan
+- TidScan
+- Unique
+- ValuesScan
+- WindowAgg
+- WorkTableScan
 
-## Data Generator (`datagen/gen.py`)
+## BenchBase Benchmark Databases
 
-Run this from the repo root using `doit behavior --datagen`
+This list includes several BenchBase benchmarks that have been run through behavior modeling.  TODO(GH): denote which do/don't work with plan differencing.
 
-## Plan Differencing
+- AuctionMark
+- SmallBank
+- TATP
+- TPC-C - primary focus
+- TPC-H - pending dataloader
+- Twitter
+- Voter
+- Wikipedia
+- YCSB
 
-Run this from the repo root using `doit behavior --diff`
+## Resource Consumption Metrics
 
-## OU Model Training
+The following is a list of resource consumption metrics that TScout collects and the operating unit models predict.
 
-Run this from the repo root using `doit behavior --train`
+- cpu_cycles
+- instructions
+- cache_references
+- cache_misses
+- ref_cpu_cycles
+- network_bytes_read
+- network_bytes_written
+- disk_bytes_read
+- disk_bytes_written
+- memory_bytes
+- elapsed_us
+
+## Operating Unit (OU) Model Variants
+
+- lr - good baseline
+- huber
+- svr
+- kr
+- rf - good performance
+- gbm - good performance
+- mlp
+- mt_lasso
+- lasso
+- dt
+- mt_elastic
+- elastic
 
 ## Training Data
 
@@ -43,3 +112,19 @@ Trains, evaluates, and serializes models, saving all results to `noisepage-pilot
 
 Inference runs on unlabeled data and serializes results.
 Wan and Garrison are working on the API for this.
+
+## References
+
+See [^mb2] for more details.
+
+[^mb2]: MB2: Decomposed Behavior Modeling for Self-Driving Database Management Systems
+
+    ```
+    @article{ma21,
+    author = {Ma, Lin and Zhang, William and Jiao, Jie and Wang, Wuwen and Butrovich, Matthew and Lim, Wan Shen and Menon, Prashanth and Pavlo, Andrew},
+    title = {MB2: Decomposed Behavior Modeling for Self-Driving Database Management Systems},
+    journal = {SIGMOD},
+    year = {2021},
+    url = {https://www.cs.cmu.edu/~malin199/publications/2021.mb2.sigmod.pdf},
+    }
+    ```
