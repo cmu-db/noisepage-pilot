@@ -18,11 +18,24 @@ from torch.utils.data import Dataset
 
 
 class ForecastDataset(Dataset):
-    """Data loader for time-series forecasting
+    """Data loader for time-series forecasting. Inherits torch.utils.data.Dataset
 
-    horizon : how far into the future to predict (the y label)
-    interval : the time interval to aggregate the original timeseries into
-    sequence_length : number of data points to use for prediction
+    Attributes
+    ----------
+    raw_df : pd.Dataframe
+        A time-indexed dataframe of the sequence of counts, aggregated by
+        the interval.
+    horizon : pd.Timedelta
+        How far into the future to predict (the y label).
+    interval : pd.Timedelta
+        The time interval to aggregate the original timeseries into.
+    sequence_length : int
+        The number of data points to use for prediction.
+    X : torch.FloatTensor
+        The (optionally transformed) tensors representing the training sequence
+    y : torch.FloatTensor.
+        The (optionally transformed) tensors expecting the expected value at the
+        specified horizon.
     """
 
     def __init__(
@@ -54,9 +67,28 @@ class ForecastDataset(Dataset):
         return x, self.y[i].reshape((1, -1))
 
     def get_y_timestamp(self, ind):
+        """For a (seq,label) pair in the dataset, return the
+        corresponding timestamp for the label.
+
+        Parameters
+        ----------
+        ind : int
+            Index into the dataset of the label in question.
+
+        Returns
+        -------
+        pd.Timestamp : The timestamp of the corresponding label.
+        """
         return self.raw_df.index[ind] + self.horizon
 
     def set_transformers(self, transformers):
+        """Transform the X and y tensors according to the supplied transformers.
+        Currently, both transformers are MinMaxScalers
+
+        Parameters
+        ----------
+        transformers : (None, None) or Tuple of scikit.preprocessing data transformers
+        """
         x_transformer, y_transformer = transformers
         shifted = (
             self.raw_df.shift(freq=-self.horizon).reindex_like(self.raw_df).ffill()
@@ -207,17 +239,17 @@ class LSTM(nn.Module, ForecastModel):
         Parameters
         ----------
         input_size :
-            Dimension of data point that is fed into the LSTM each time
+            Dimension of data point that is fed into the LSTM each time.
         hidden_layer_size :
-            How many cells in one layer of the LSTM
+            How many cells in one layer of the LSTM.
         num_hidden_layers :
-            How many layers in the stacked LSTM
+            How many layers in the stacked LSTM.
         output_size :
-            Dimension of prediction output
+            Dimension of prediction output.
         lr :
-            learning rate while fitting
+            Learning rate while fitting.
         epochs :
-            number of epochs for fitting
+            Number of epochs for fitting.
         """
         nn.Module.__init__(self)
         ForecastModel.__init__(self, horizon, interval, sequence_length)
@@ -242,8 +274,7 @@ class LSTM(nn.Module, ForecastModel):
         self._lr = lr
 
     def forward(self, input_seq: torch.FloatTensor) -> float:
-        """Forward propogation
-        implements nn.Module.forward()
+        """Forward propagation Implements nn.Module.forward().
 
         Parameters
         ----------
@@ -270,7 +301,7 @@ class LSTM(nn.Module, ForecastModel):
             List of training sequences and the expected output label in a
             certain horizon.
             Normalization has been done in ForecastModel.fit() with
-            x and y transformers
+            x and y transformers.
         """
         epochs = self._epochs
         lr = self._lr
@@ -309,15 +340,15 @@ class LSTM(nn.Module, ForecastModel):
         print(f"[LSTM FIT]epoch: {epochs:3} loss: {single_loss.item():10.10f}")
 
     def _do_predict(self, seq: np.ndarray) -> float:
-        """Use LSTM to predict based on input sequence
+        """Use LSTM to predict based on input sequence.
         Parameters
         ----------
         test_seq
-            1D Test sequence
+            1D Test sequence.
 
         Returns
         -------
-        Predicted value at certain horizon
+        Predicted value at certain horizon.
         """
         # To tensor
         seq = torch.FloatTensor(seq).view(-1)
@@ -333,7 +364,8 @@ class LSTM(nn.Module, ForecastModel):
 
     def _get_transformers(self, data: np.ndarray) -> Tuple:
         """
-        Get the transformers
+        Get the transformers. In the case of the LSTM, it uses the same
+        MinMaxScaler for both X and Y.
         Parameters
         ----------
         data :
