@@ -61,19 +61,14 @@ class ClusterForecaster:
         cluster_totals = (
             train_df.groupby(level=0).sum().sort_values(by="count", ascending=False)
         )
-        cluster_totals = cluster_totals / cluster_totals.sum()
-        top_k = min(len(cluster_totals), top_k)
-        train_df = train_df.loc[cluster_totals.index[:top_k], :]
+        labels = cluster_totals.index[:top_k]
 
         print("Training on cluster time series..")
 
         mintime = train_df.index.get_level_values(1).min()
         maxtime = train_df.index.get_level_values(1).max()
 
-        dtindex = pd.date_range(
-            start=mintime, end=maxtime, freq=prediction_interval, name="log_time_s"
-        )
-        labels = set(train_df.index.get_level_values(0).values)
+        dtindex = pd.DatetimeIndex([mintime, maxtime])
 
         for cluster in labels:
             if cluster in self.models and not override:
@@ -81,14 +76,15 @@ class ClusterForecaster:
                 continue
 
             print(f"training model for cluster {cluster}")
-            cluster_counts = (
-                train_df[train_df.index.get_level_values(0) == cluster]
-                .droplevel(0)
-                .resample(prediction_interval)
-                .sum()
-                .reindex(dtindex, fill_value=0)
-            )
+            cluster_counts = train_df[
+                train_df.index.get_level_values(0) == cluster
+            ].droplevel(0)
 
+            # This zero-fills the start and ends of the cluster time series
+            cluster_counts = cluster_counts.reindex(
+                cluster_counts.index.append(dtindex), fill_value=0
+            )
+            cluster_counts = cluster_counts.resample(prediction_interval).sum()
             self._train_cluster(cluster_counts, cluster, save_path)
 
     def _train_cluster(self, cluster_counts, cluster, save_path):
@@ -255,7 +251,6 @@ class ForecasterCLI(cli.Application):
 
         # TODO(MIKE): check how many templates are not part of known
         # clusters (i.e. cluster = -1)
-        print(self.override)
         forecaster = ClusterForecaster(
             clustered_df,
             prediction_seqlen=pred_seqlen,
