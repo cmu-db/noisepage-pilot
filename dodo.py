@@ -281,8 +281,10 @@ def task_behavior():
     """
 
     def run_behavior(all, datagen, diff, train, build_pg, build_benchbase):
+        # Change directory in case caller doesn't invoke doit from the project root
         root = Path(__file__).parent
-        if Path.cwd() != root:
+        init_dir = Path.cwd()
+        if init_dir != root:
             os.chdir(root)
 
         pg_ctl_path = root / "third-party" / "postgres" / "build" / "bin" / "pg_ctl"
@@ -308,6 +310,9 @@ def task_behavior():
                 args.append("--train")
 
         local["python3"][args] & FG
+
+        if Path.cwd() != init_dir:
+            os.chdir(init_dir)
 
     return {
         "actions": [run_behavior],
@@ -352,7 +357,7 @@ def task_behavior():
                 "name": "build_benchbase",
                 "long": "build_benchbase",
                 "type": bool,
-                "help": "Build Benchbase (only needed if Benchbase must be rebuilt).",
+                "help": "Build BenchBase (only needed if BenchBase must be rebuilt).",
                 "default": False,
             },
         ],
@@ -370,7 +375,13 @@ def _build_pg() -> None:
 
     if not pg_dir.exists():
         (
-            git["clone"]["https://github.com/cmu-db/postgres", "./third-party/postgres"]
+            git["clone"][
+                "https://github.com/cmu-db/postgres",
+                "./third-party/postgres",
+                "--depth=1",
+                "--branch=pg14",
+                "--single-branch",
+            ]
             & FG
         )
 
@@ -393,7 +404,11 @@ def _build_benchbase() -> None:
     if not benchbase_dir.exists():
         (
             git["clone"][
-                "https://github.com/cmu-db/benchbase", "./third-party/benchbase"
+                "https://github.com/cmu-db/benchbase",
+                "./third-party/benchbase",
+                "--depth=1",
+                "--branch=main",
+                "--single-branch",
             ]
             & FG
         )

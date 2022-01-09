@@ -87,12 +87,6 @@ class BehaviorModel:
         features: list[str],
         targets: list[str],
     ):
-        """
-        :param method: which ML method to use
-        :param normalize: whether to perform standard normalization on data (both x and y)
-        :param log_transform: whether to perform log transformation on data (both x and y)
-        """
-
         self.method = method
         self.timestamp = timestamp
         self.ou_name = ou_name

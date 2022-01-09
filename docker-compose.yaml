@@ -1,0 +1,4 @@
+services:
+  test:
+    entrypoint: /bin/bash
+    build: .
