@@ -1,0 +1,7 @@
+version: '3'
+
+services:
+  test:
+    entrypoint: /bin/bash
+    build: .
+
