@@ -1,9 +1,8 @@
 import glob
+import os
 from pathlib import Path
 
 import doit
-import os
-
 from doit.action import CmdAction
 
 # doit verbosity default controls what to print.
@@ -81,20 +80,82 @@ def task_openspiel_compile():
     }
 
 
-def task_forecast():
+#####################
+# FORECASTING TASKS #
+#####################
+
+FORECAST_QUERY_LOG_DIR = Path("./forecast/data/extracted/extended/").absolute()
+
+
+FORECAST_ARTIFACTS_DIR = Path("artifacts").absolute()
+FORECAST_PREPROCESSOR_ARTIFACT = f"{FORECAST_ARTIFACTS_DIR}/preprocessed.parquet.gzip"
+
+FORECAST_CLUSTER_ARTIFACT = f"{FORECAST_ARTIFACTS_DIR}/clustered.parquet"
+FORECAST_MODEL_DIR = f"{FORECAST_ARTIFACTS_DIR}/models"
+FORECAST_PREDICTION_CSV = f"{FORECAST_ARTIFACTS_DIR}/forecast.csv"
+
+FORECAST_PREDICTION_START = "2021-12-06 14:24:32 EST"
+FORECAST_PREDICTION_END = "2021-12-06 14:24:36 EST"
+
+
+def task_forecast_preprocess():
     """
-    Forecast: forecast the workload.
+    Forecast: Preprocess by creating templatized queries data for ingest into
+    forecaster training or prediction.
     """
+
+    preprocessor_action = (
+        "python3 ./forecast/preprocessor.py "
+        f"--query-log-folder {FORECAST_QUERY_LOG_DIR} "
+        f"--output-parquet {FORECAST_PREPROCESSOR_ARTIFACT} "
+    )
+
     return {
         "actions": [
-            "mkdir -p artifacts",
+            f"mkdir -p {FORECAST_ARTIFACTS_DIR}",
             # Preprocess the PostgreSQL query logs.
-            "python3 ./forecast/preprocessor.py --query-log-folder ./forecast/data/extracted/extended/ --output-hdf ./artifacts/preprocessor.hdf",
-            # Cluster the processed query logs.
-            # TODO(WAN): clusterer shouldn't go directly to the predictions, plug in Mike's part.
-            "python3 ./forecast/clusterer.py --preprocessor-hdf ./artifacts/preprocessor.hdf --output-csv ./artifacts/forecast.csv",
+            preprocessor_action,
         ],
-        "targets": ["./artifacts/preprocessor.hdf", "./artifacts/forecast.csv"],
+        "targets": [FORECAST_PREPROCESSOR_ARTIFACT],
+        "uptodate": [False],  # TODO(WAN): Always recompute?
+        "verbosity": VERBOSITY_DEFAULT,
+    }
+
+
+def task_forecast_predict():
+    """
+    Forecast: Cluster the preprocessed queries for training, and use model to
+    predict the future workload.
+    """
+
+    cluster_action = (
+        "python3 ./forecast/clusterer.py "
+        f"--preprocessor-parquet {FORECAST_PREPROCESSOR_ARTIFACT} "
+        f"--output-parquet {FORECAST_CLUSTER_ARTIFACT} "
+    )
+
+    forecast_action = (
+        "python3 ./forecast/forecaster.py "
+        f"--preprocessor-parquet {FORECAST_PREPROCESSOR_ARTIFACT} "
+        f"--clusterer-parquet {FORECAST_CLUSTER_ARTIFACT} "
+        f"--model-path {FORECAST_MODEL_DIR} "
+        f'--start-time "{FORECAST_PREDICTION_START}" '
+        f'--end-time "{FORECAST_PREDICTION_END}" '
+        f"--output-csv {FORECAST_PREDICTION_CSV} "
+        "--override-models "  # TODO(Mike): Always override models?
+    )
+
+    return {
+        "actions": [
+            cluster_action,  # Cluster the processed query logs.
+            f"mkdir -p {FORECAST_MODEL_DIR}",
+            forecast_action,
+        ],
+        "file_dep": [FORECAST_PREPROCESSOR_ARTIFACT],
+        "targets": [
+            FORECAST_CLUSTER_ARTIFACT,
+            FORECAST_PREDICTION_CSV,
+        ],
         "uptodate": [False],  # TODO(WAN): Always recompute?
         "verbosity": VERBOSITY_DEFAULT,
     }
