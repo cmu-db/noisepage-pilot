@@ -44,15 +44,15 @@ class ClusterForecaster:
 
     def __init__(
         self,
-        train_df: pd.DataFrame,
-        prediction_seqlen: int,
-        prediction_interval: pd.Timedelta,
-        prediction_horizon: pd.Timedelta,
-        save_path: str,
+        train_df,
+        prediction_seqlen,
+        prediction_interval,
+        prediction_horizon,
+        save_path,
         top_k=5,
-        override: bool = False,
+        override=False,
     ):
-        """Construct the ClusterForecaster Object
+        """Construct the ClusterForecaster object.
         Parameters
         ----------
         train_df : pd.DataFrame
@@ -84,7 +84,7 @@ class ClusterForecaster:
         if train_df is None:
             return
 
-        # only consider top k clusters.
+        # Only consider top k clusters.
         cluster_totals = (
             train_df.groupby(level=0).sum().sort_values(by="count", ascending=False)
         )
@@ -265,13 +265,13 @@ class ForecasterCLI(cli.Application):
     clusterer_parquet = cli.SwitchAttr(
         ["-c", "--clusterer-parquet"], str, mandatory=True
     )
-    model_path = cli.SwitchAttr(["-m", "--model_path"], str, mandatory=True)
-    override = cli.Flag("--override_models")
+    model_path = cli.SwitchAttr(["-m", "--model-path"], str, mandatory=True)
+    override = cli.Flag("--override-models")
 
-    start_ts = cli.SwitchAttr(["-s", "--start_time"], str, mandatory=True)
-    end_ts = cli.SwitchAttr(["-e", "--end_time"], str, mandatory=True)
+    start_ts = cli.SwitchAttr(["-s", "--start-time"], str, mandatory=True)
+    end_ts = cli.SwitchAttr(["-e", "--end-time"], str, mandatory=True)
 
-    output_csv = cli.SwitchAttr("--output_csv", str, mandatory=True)
+    output_csv = cli.SwitchAttr("--output-csv", str, mandatory=True)
 
     def main(self):
         pred_interval = pd.Timedelta(seconds=1)

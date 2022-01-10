@@ -1,9 +1,8 @@
 import glob
+import os
 from pathlib import Path
 
 import doit
-import os
-
 from doit.action import CmdAction
 
 # doit verbosity default controls what to print.
@@ -85,15 +84,15 @@ def task_openspiel_compile():
 # FORECASTING TASKS #
 #####################
 
-FORECAST_QUERY_LOG_DIR = Path("./forecast/data/extracted/extended/")
+FORECAST_QUERY_LOG_DIR = Path("./forecast/data/extracted/extended/").absolute()
 
-FORECAST_ARTIFACTS_DIR = Path("artifacts")
-FORECAST_PREPROCESSOR_ARTIFACT = FORECAST_ARTIFACTS_DIR.joinpath(
-    "preprocessed.parquet.gzip"
-)
-FORECAST_CLUSTER_ARTIFACT = FORECAST_ARTIFACTS_DIR.joinpath("clustered.parquet")
-FORECAST_MODEL_DIR = FORECAST_ARTIFACTS_DIR.joinpath("models")
-FORECAST_PREDICTION_CSV = FORECAST_ARTIFACTS_DIR.joinpath("forecast.csv")
+
+FORECAST_ARTIFACTS_DIR = Path("artifacts").absolute()
+FORECAST_PREPROCESSOR_ARTIFACT = f"{FORECAST_ARTIFACTS_DIR}/preprocessed.parquet.gzip"
+
+FORECAST_CLUSTER_ARTIFACT = f"{FORECAST_ARTIFACTS_DIR}/clustered.parquet"
+FORECAST_MODEL_DIR = f"{FORECAST_ARTIFACTS_DIR}/models"
+FORECAST_PREDICTION_CSV = f"{FORECAST_ARTIFACTS_DIR}/forecast.csv"
 
 FORECAST_PREDICTION_START = "2021-12-06 14:24:32 EST"
 FORECAST_PREDICTION_END = "2021-12-06 14:24:36 EST"
@@ -101,23 +100,23 @@ FORECAST_PREDICTION_END = "2021-12-06 14:24:36 EST"
 
 def task_forecast_preprocess():
     """
-    Forecast Preprocess: create templatized queries data for ingest into
-    forecaster training or prediction
+    Forecast: Preprocess by creating templatized queries data for ingest into
+    forecaster training or prediction.
     """
 
     preprocessor_action = (
-        "python3 ./forecast/preprocessor.py"
-        f" --query-log-folder {FORECAST_QUERY_LOG_DIR.absolute()} "
-        f"--output-parquet {FORECAST_PREPROCESSOR_ARTIFACT.absolute()}"
+        "python3 ./forecast/preprocessor.py "
+        f"--query-log-folder {FORECAST_QUERY_LOG_DIR} "
+        f"--output-parquet {FORECAST_PREPROCESSOR_ARTIFACT} "
     )
 
     return {
         "actions": [
-            f"mkdir -p {FORECAST_ARTIFACTS_DIR.absolute()}",
+            f"mkdir -p {FORECAST_ARTIFACTS_DIR}",
             # Preprocess the PostgreSQL query logs.
             preprocessor_action,
         ],
-        "targets": [FORECAST_PREPROCESSOR_ARTIFACT.absolute()],
+        "targets": [FORECAST_PREPROCESSOR_ARTIFACT],
         "uptodate": [False],  # TODO(WAN): Always recompute?
         "verbosity": VERBOSITY_DEFAULT,
     }
@@ -125,36 +124,37 @@ def task_forecast_preprocess():
 
 def task_forecast_predict():
     """
-    Forecast: forecast the workload.
+    Forecast: Cluster the preprocessed queries for training, and use model to
+    predict the future workload.
     """
 
     cluster_action = (
-        "python3 ./forecast/clusterer.py"
-        f" --preprocessor-parquet {FORECAST_PREPROCESSOR_ARTIFACT.absolute()}"
-        f" --output-parquet {FORECAST_CLUSTER_ARTIFACT.absolute()}"
+        "python3 ./forecast/clusterer.py "
+        f"--preprocessor-parquet {FORECAST_PREPROCESSOR_ARTIFACT} "
+        f"--output-parquet {FORECAST_CLUSTER_ARTIFACT} "
     )
 
     forecast_action = (
-        "python3 ./forecast/forecaster.py"
-        f" -p {FORECAST_PREPROCESSOR_ARTIFACT.absolute()}"
-        f" -c {FORECAST_CLUSTER_ARTIFACT.absolute()}"
-        f" -m {FORECAST_MODEL_DIR.absolute()}"
-        f' -s "{FORECAST_PREDICTION_START}"'
-        f' -e "{FORECAST_PREDICTION_END}"'
-        f" --output_csv {FORECAST_PREDICTION_CSV.absolute()}"
-        " --override_models"
+        "python3 ./forecast/forecaster.py "
+        f"--preprocessor-parquet {FORECAST_PREPROCESSOR_ARTIFACT} "
+        f"--clusterer-parquet {FORECAST_CLUSTER_ARTIFACT} "
+        f"--model-path {FORECAST_MODEL_DIR} "
+        f'--start-time "{FORECAST_PREDICTION_START}" '
+        f'--end-time "{FORECAST_PREDICTION_END}" '
+        f"--output-csv {FORECAST_PREDICTION_CSV} "
+        "--override-models "  # TODO(Mike): Always override models?
     )
 
     return {
         "actions": [
             cluster_action,  # Cluster the processed query logs.
-            f"mkdir -p {FORECAST_MODEL_DIR.absolute()}",
+            f"mkdir -p {FORECAST_MODEL_DIR}",
             forecast_action,
         ],
-        "file_dep": [FORECAST_PREPROCESSOR_ARTIFACT.absolute()],
+        "file_dep": [FORECAST_PREPROCESSOR_ARTIFACT],
         "targets": [
-            FORECAST_CLUSTER_ARTIFACT.absolute(),
-            FORECAST_PREDICTION_CSV.absolute(),
+            FORECAST_CLUSTER_ARTIFACT,
+            FORECAST_PREDICTION_CSV,
         ],
         "uptodate": [False],  # TODO(WAN): Always recompute?
         "verbosity": VERBOSITY_DEFAULT,
