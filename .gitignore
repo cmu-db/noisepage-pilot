@@ -1,15 +1,9 @@
 # By convention, we ignore the following folders.
 # Build artifacts.
-artifacts
+artifacts/
 
 # Directory for building code.
 build/
-
-# Ignore logs
-log/
-
-# Ignore pilot output data
-data/
 
 # Ignore most JetBrains IDE files.
 /.idea/*
@@ -30,13 +24,7 @@ __pycache__/
 .doit.db
 .doit.db.*
 
-# Ignore mypy cache
-.mypy_cache/
-
 # Ignoring setuptools packaging data
 dist/
 *.egg-info/
 *.egg
-
-# Ignore third-party data (postgres, sqlsmith, benchbase)
-third-party/

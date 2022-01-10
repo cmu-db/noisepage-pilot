@@ -1,33 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
-
-# Paths used throughout the behavior code
-PILOT_DIR = Path(__file__).resolve().parent.parent
-
-# Third-party
-THIRD_PARTY_DIR = PILOT_DIR / "third-party"
-PG_DIR = THIRD_PARTY_DIR / "postgres"
-CMUDB_DIR = PG_DIR / "cmudb"
-TSCOUT_DIR = CMUDB_DIR / "tscout"
-BENCHBASE_DIR = THIRD_PARTY_DIR / "benchbase"
-SQLSMITH_DIR = THIRD_PARTY_DIR / "sqlsmith"
-
-# Configurations
-CONFIG_DIR = PILOT_DIR / "config" / "behavior"
-PG_CONFIG_DIR = CONFIG_DIR / "postgres"
-BENCHBASE_CONFIG_DIR = CONFIG_DIR / "benchbase"
-
-# Data
-DATA_DIR = PILOT_DIR / "data" / "behavior"
-MODEL_DATA_DIR = DATA_DIR / "models"
-BEHAVIOR_DATA_DIR = DATA_DIR / "training_data"
-TRAIN_DATA_DIR = BEHAVIOR_DATA_DIR / "train"
-EVAL_DATA_DIR = BEHAVIOR_DATA_DIR / "eval"
-
-# Logging
-BEHAVIOR_LOG_DIR = PILOT_DIR / "log" / "behavior"
-
 BENCHDB_TO_TABLES = {
     "tpcc": [
         "warehouse",

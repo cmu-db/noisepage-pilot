@@ -13,6 +13,7 @@ import pydotplus
 import yaml
 from numpy.typing import NDArray
 from pandas import DataFrame
+from plumbum import cli
 from sklearn import tree
 from sklearn.metrics import (
     mean_absolute_error,
@@ -21,16 +22,7 @@ from sklearn.metrics import (
     r2_score,
 )
 
-from behavior import (
-    BASE_TARGET_COLS,
-    BENCHDB_TO_TABLES,
-    CONFIG_DIR,
-    EVAL_DATA_DIR,
-    LEAF_NODES,
-    MODEL_DATA_DIR,
-    PLAN_NODE_NAMES,
-    TRAIN_DATA_DIR,
-)
+from behavior import BASE_TARGET_COLS, BENCHDB_TO_TABLES, LEAF_NODES, PLAN_NODE_NAMES
 from behavior.modeling.model import BehaviorModel
 from behavior.util import init_logging
 
@@ -207,14 +199,13 @@ def prep_eval_data(
     return X, y
 
 
-def main(config_name: str) -> None:
+def main(config_file, dir_data_train, dir_data_eval, dir_output) -> None:
 
     # load config
-    config_path: Path = CONFIG_DIR / f"{config_name}.yaml"
-    if not config_path.exists():
-        raise ValueError(f"Config file: {config_name} does not exist")
+    if not config_file.exists():
+        raise ValueError(f"Config file: {config_file} does not exist")
 
-    with config_path.open("r") as f:
+    with config_file.open("r") as f:
         config = yaml.load(f, Loader=yaml.FullLoader)["modeling"]
 
     init_logging(config["log_level"])
@@ -233,7 +224,7 @@ def main(config_name: str) -> None:
     # if no experiment name is provided, try to find one
     if config["experiment_name"] is None:
         experiment_list = sorted(
-            [exp_path.name for exp_path in TRAIN_DATA_DIR.glob("*")]
+            [exp_path.name for exp_path in dir_data_train.glob("*")]
         )
         logging.info("%s experiments: %s", train_bench_db, experiment_list)
         assert len(experiment_list) > 0, "No experiments found"
@@ -241,11 +232,11 @@ def main(config_name: str) -> None:
         logging.info(
             "Experiment name was not provided, using experiment: %s", experiment_name
         )
+    else:
+        experiment_name = config["experiment_name"]
 
-    training_data_dir = (
-        TRAIN_DATA_DIR / experiment_name / train_bench_db / "differenced"
-    )
-    eval_data_dir = EVAL_DATA_DIR / experiment_name / eval_bench_db / "differenced"
+    training_data_dir = dir_data_train / experiment_name
+    eval_data_dir = dir_data_eval / experiment_name
 
     logging.info("eval data dir: %s", eval_data_dir)
     if not training_data_dir.exists():
@@ -259,8 +250,8 @@ def main(config_name: str) -> None:
 
     train_ou_to_df = load_data(training_data_dir)
     eval_ou_to_df = load_data(eval_data_dir)
-    base_model_name = f"{config_name}_{training_timestamp}"
-    output_dir = MODEL_DATA_DIR / base_model_name
+    base_model_name = f"{config_file.name}_{training_timestamp}"
+    output_dir = dir_output / base_model_name
 
     for ou_name, train_df in train_ou_to_df.items():
         logging.info("Begin Training OU: %s", ou_name)
@@ -281,7 +272,13 @@ def main(config_name: str) -> None:
             full_outdir.mkdir(parents=True, exist_ok=True)
             logging.info("Training OU: %s with model: %s", ou_name, method)
             ou_model = BehaviorModel(
-                method, ou_name, base_model_name, config, feat_cols, target_cols
+                dir_output,
+                method,
+                ou_name,
+                base_model_name,
+                config,
+                feat_cols,
+                target_cols,
             )
             ou_model.train(x_train, y_train)
             ou_model.save()
@@ -296,3 +293,37 @@ def main(config_name: str) -> None:
                 evaluate(
                     ou_model, x_eval, y_eval, full_outdir, eval_bench_db, mode="eval"
                 )
+
+
+class TrainCLI(cli.Application):
+    config_file = cli.SwitchAttr(
+        "--config-file",
+        Path,
+        mandatory=True,
+        help="Path to configuration YAML containing modeling parameters.",
+    )
+    dir_data_train = cli.SwitchAttr(
+        "--dir-data-train",
+        Path,
+        mandatory=True,
+        help="Folder containing training data.",
+    )
+    dir_data_eval = cli.SwitchAttr(
+        "--dir-data-eval",
+        Path,
+        mandatory=True,
+        help="Folder containing evaluation data.",
+    )
+    dir_output = cli.SwitchAttr(
+        "--dir-output",
+        Path,
+        mandatory=True,
+        help="Folder to output models to.",
+    )
+
+    def main(self):
+        main(self.config_file, self.dir_data_train, self.dir_data_eval, self.dir_output)
+
+
+if __name__ == "__main__":
+    TrainCLI.run()

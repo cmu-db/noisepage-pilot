@@ -4,8 +4,6 @@ from pathlib import Path
 
 import doit
 from doit.action import CmdAction
-from plumbum import FG, local
-from plumbum.cmd import git, make
 
 # doit verbosity default controls what to print.
 # 0 = nothing, 1 = stderr only, 2 = stdout and stderr.
@@ -34,9 +32,85 @@ def task_bootstrap():
     }
 
 
+##############################################################################
+# Third-party dependencies.
+##############################################################################
+
+
+def task_noisepage_build():
+    """
+    Build NoisePage.
+    """
+
+    def build_path():
+        return Path("build/noisepage/")
+
+    return {
+        "actions": [
+            # Set up directories.
+            f"mkdir -p {build_path()}",
+            # Clone NoisePage.
+            f"git clone https://github.com/cmu-db/postgres.git --branch pg14 --single-branch --depth 1 {build_path()}",
+            lambda: os.chdir(build_path()),
+            # Configure NoisePage.
+            "./cmudb/build/configure.sh release",
+            # Compile NoisePage.
+            "make -j world-bin",
+            "make install-world-bin",
+            # Move artifacts out.
+            lambda: os.chdir(doit.get_initial_workdir()),
+            "mkdir -p artifacts/noisepage/",
+            f"mv {build_path()}/build/bin/* artifacts/noisepage/",
+            "sudo apt-get install --yes bpfcc-tools linux-headers-$(uname -r)",
+            f"sudo pip3 install -r {build_path()}/cmudb/tscout/requirements.txt",
+            # Reset working directory.
+            lambda: os.chdir(doit.get_initial_workdir()),
+        ],
+        "targets": ["./artifacts/noisepage/postgres"],
+        "uptodate": [True],
+        "verbosity": VERBOSITY_DEFAULT,
+    }
+
+
+def task_benchbase_build():
+    """
+    Build BenchBase.
+    """
+
+    def build_path():
+        return Path("build/benchbase/")
+
+    return {
+        "actions": [
+            # Set up directories.
+            f"mkdir -p {build_path()}",
+            # Clone BenchBase.
+            f"git clone https://github.com/cmu-db/benchbase.git --branch main --single-branch --depth 1 {build_path()}",
+            lambda: os.chdir(build_path()),
+            # Compile BenchBase.
+            "./mvnw clean package -Dmaven.test.skip=true",
+            lambda: os.chdir("target"),
+            "tar xvzf benchbase-2021-SNAPSHOT.tgz",
+            # Move artifacts out.
+            lambda: os.chdir(doit.get_initial_workdir()),
+            "mkdir -p artifacts/benchbase/",
+            f"mv {build_path()}/target/benchbase-2021-SNAPSHOT/* artifacts/benchbase/",
+            # Reset working directory.
+            lambda: os.chdir(doit.get_initial_workdir()),
+        ],
+        "targets": ["./artifacts/benchbase/benchbase.jar"],
+        "uptodate": [True],
+        "verbosity": VERBOSITY_DEFAULT,
+    }
+
+
 def task_openspiel_build():
     """
     Action selection: invoke CMake for OpenSpiel.
+
+    The build and compile steps are separated for OpenSpiel because this
+    repository contains modifications to the OpenSpiel code in the form of the
+    database_game.
     """
 
     def source_path():
@@ -275,176 +349,71 @@ def task_pilot_client():
     }
 
 
-def task_behavior():
+def task_behavior_datagen():
     """
-    Behavior modeling: datagen, plan data differencing, and OU model training.
+    Behavior modeling: generate training data and perform plan differencing.
     """
+    # There should be no scenario in which you do NOT want plan differencing.
+    # So it doesn't make sense to expose a separate task just for that.
+    training_data_folder = "./artifacts/behavior/datagen/training_data"
+    diff_data_folder = "./artifacts/behavior/datagen/differenced_data"
 
-    def run_behavior(all, datagen, diff, train, build_pg, build_benchbase):
-        # Change directory in case caller doesn't invoke doit from the project root
-        root = Path(__file__).parent
-        init_dir = Path.cwd()
-        if init_dir != root:
-            os.chdir(root)
-
-        pg_ctl_path = root / "third-party" / "postgres" / "build" / "bin" / "pg_ctl"
-        if not pg_ctl_path.exists() or build_pg:
-            _build_pg()
-
-        benchbase_snapshot_dir = (
-            root / "third-party" / "benchbase" / "benchbase-2021-SNAPSHOT"
-        )
-        if not benchbase_snapshot_dir.exists() or build_benchbase:
-            _build_benchbase()
-
-        args = ["-m", "behavior"]
-
-        if all:
-            args += ["--datagen", "--diff", "--train"]
-        else:
-            if datagen:
-                args.append("--datagen")
-            if diff:
-                args.append("--diff")
-            if train:
-                args.append("--train")
-
-        local["python3"][args] & FG
-
-        if Path.cwd() != init_dir:
-            os.chdir(init_dir)
+    datagen_args = (
+        "--benchbase-user admin "
+        "--benchbase-pass password "
+        "--config-file ./config/behavior/default.yaml "
+        "--dir-benchbase ./artifacts/benchbase/ "
+        "--dir-benchbase-config ./config/behavior/benchbase "
+        "--dir-noisepage-bin ./artifacts/noisepage "
+        "--dir-tscout ./build/noisepage/cmudb/tscout/ "
+        f"--dir-output {training_data_folder} "
+        "--dir-tmp ./build/behavior/datagen/ "
+        "--path-noisepage-conf ./config/behavior/postgres/postgresql.conf "
+        "--tscout-wait-sec 2 "
+    )
+    datadiff_args = (
+        f"--dir-datagen-data {training_data_folder} --dir-output {diff_data_folder} "
+    )
 
     return {
-        "actions": [run_behavior],
-        # Behavior Modeling parameters
-        "params": [
-            {
-                "name": "all",
-                "long": "all",
-                "type": bool,
-                "help": "Alias for running datagen, differencing, and training.",
-                "default": False,
-            },
-            {
-                "name": "datagen",
-                "long": "datagen",
-                "type": bool,
-                "help": "Generate training data.",
-                "default": False,
-            },
-            {
-                "name": "diff",
-                "long": "diff",
-                "type": bool,
-                "help": "Perform training data differencing.",
-                "default": False,
-            },
-            {
-                "name": "train",
-                "long": "train",
-                "type": bool,
-                "help": "Perform model training.",
-                "default": False,
-            },
-            {
-                "name": "build_pg",
-                "long": "build_pg",
-                "type": bool,
-                "help": "Build Postgres (only needed if Postgres must be recompiled).",
-                "default": False,
-            },
-            {
-                "name": "build_benchbase",
-                "long": "build_benchbase",
-                "type": bool,
-                "help": "Build BenchBase (only needed if BenchBase must be rebuilt).",
-                "default": False,
-            },
+        "actions": [
+            # "sudo --validate",
+            f"mkdir -p {training_data_folder}",
+            f"mkdir -p {diff_data_folder}",
+            "mkdir -p build/behavior/datagen/",
+            f"python3 -m behavior datagen {datagen_args}",
+            "sudo --reset-timestamp",
+            # Immediately perform plan differencing here since the models
+            # suck without differencing anyway.
+            f"python3 -m behavior datadiff {datadiff_args}",
         ],
+        "file_dep": [
+            "./artifacts/benchbase/benchbase.jar",
+            "./artifacts/noisepage/postgres",
+        ],
+        "uptodate": [False],
         "verbosity": VERBOSITY_DEFAULT,
     }
 
 
-def _build_pg() -> None:
-    root = Path(__file__).parent
-    if Path.cwd() != root:
-        os.chdir(root)
-
-    third_party_dir = root / "third-party"
-    pg_dir = third_party_dir / "postgres"
-
-    if not pg_dir.exists():
-        (
-            git["clone"][
-                "https://github.com/cmu-db/postgres",
-                "./third-party/postgres",
-                "--depth=1",
-                "--branch=pg14",
-                "--single-branch",
-            ]
-            & FG
-        )
-
-    os.chdir(pg_dir)
-    local["./cmudb/build/configure.sh"]["release"] & FG
-    make["clean"] & FG
-    make["-j4", "world-bin"] & FG
-    make["install-world-bin", "-j4"] & FG
-    os.chdir(root)
-
-
-def _build_benchbase() -> None:
-    root = Path(__file__).parent
-    if Path.cwd() != root:
-        os.chdir(root)
-
-    third_party_dir = root / "third-party"
-    benchbase_dir = third_party_dir / "benchbase"
-
-    if not benchbase_dir.exists():
-        (
-            git["clone"][
-                "https://github.com/cmu-db/benchbase",
-                "./third-party/benchbase",
-                "--depth=1",
-                "--branch=main",
-                "--single-branch",
-            ]
-            & FG
-        )
-
-    benchbase_snapshot_dir = benchbase_dir / "benchbase-2021-SNAPSHOT"
-    benchbase_snapshot_path = benchbase_dir / "target" / "benchbase-2021-SNAPSHOT.zip"
-
-    os.chdir(benchbase_dir)
-    local["./mvnw"]["clean", "package"] & FG
-
-    if not os.path.exists(benchbase_snapshot_dir):
-        local["unzip"][benchbase_snapshot_path] & FG
-
-    os.chdir(root)
-
-
-def task_lint():
+def task_behavior_train():
     """
-    Run formatting and linting locally
+    Behavior modeling: train OU models.
     """
-    folders = ["action", "forecast", "pilot", "behavior"]
-    typed_folders = ["behavior"]
+    output_folder = "./artifacts/behavior/models"
+    train_args = (
+        "--config-file ./config/behavior/default.yaml "
+        "--dir-data-train ./artifacts/behavior/datagen/differenced_data/diff/train/ "
+        "--dir-data-eval ./artifacts/behavior/datagen/differenced_data/diff/eval/ "
+        f"--dir-output {output_folder} "
+    )
 
     return {
         "actions": [
-            "black dodo.py setup.py",
-            "isort dodo.py setup.py",
-            "flake8 --statistics dodo.py setup.py",
-            *[f"black {folder}" for folder in folders],
-            *[f"isort {folder}" for folder in folders],
-            *[f"flake8 --statistics {folder}" for folder in folders],
-            *[f"mypy {folder}" for folder in typed_folders],
-            *[f"pylint {folder}" for folder in typed_folders],
+            f"mkdir -p {output_folder}",
+            f"python3 -m behavior train {train_args}",
         ],
         "verbosity": VERBOSITY_DEFAULT,
-        "uptodate": [False],
     }
 
 
@@ -452,19 +421,18 @@ def task_ci_python():
     """
     CI: this should be run and all warnings fixed before pushing commits.
     """
-    folders = ["action", "forecast", "pilot", "behavior"]
-    typed_folders = ["behavior"]
+    folders = ["action", "behavior", "forecast", "pilot"]
 
     return {
         "actions": [
-            "black --check --verbose dodo.py setup.py",
-            "isort --check --verbose dodo.py setup.py",
+            "black --verbose dodo.py setup.py",
+            "isort --verbose dodo.py setup.py",
             "flake8 --statistics dodo.py setup.py",
-            *[f"black --check --verbose {folder}" for folder in folders],
-            *[f"isort --check {folder}" for folder in folders],
+            *[f"black --verbose {folder}" for folder in folders],
+            *[f"isort {folder}" for folder in folders],
             *[f"flake8 --statistics {folder}" for folder in folders],
-            *[f"mypy {folder}" for folder in typed_folders],
-            *[f"pylint --verbose {folder}" for folder in typed_folders],
+            # TODO(WAN): Only run pylint on behavior for now.
+            *[f"pylint --verbose {folder}" for folder in ["behavior"]],
         ],
         "verbosity": VERBOSITY_DEFAULT,
         "uptodate": [False],

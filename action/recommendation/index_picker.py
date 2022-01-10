@@ -27,7 +27,7 @@ class IndexPickerCLI(cli.Application):
         args = tuple(args)
 
         # Read the original actions path.
-        with open(actions_path, "r") as all_actions:
+        with open(actions_path, "r", encoding="utf-8") as all_actions:
             actions = all_actions.readlines()
             actions = [sql.strip() for sql in actions]
 
@@ -71,7 +71,7 @@ class IndexPickerCLI(cli.Application):
                 This exists because currently, the input interface to the
                 action selection binary is a .CSV file of actions.
             """
-            with open(self.tmp_actions_path, "w") as actions_file:
+            with open(self.tmp_actions_path, "w", encoding="utf-8") as actions_file:
                 for action in batch:
                     print(action.strip(), file=actions_file)
 
@@ -99,6 +99,7 @@ class IndexPickerCLI(cli.Application):
                     while True:
                         # Pick the next action.
                         (retcode, stdout, stderr) = db.run()
+                        assert retcode == 0, f"Got return code: {retcode}"
 
                         # Get the recommended action.
                         # TODO(WAN): Hack. Better interface?
@@ -133,22 +134,21 @@ class IndexPickerCLI(cli.Application):
                             # The recommended action is not an improvement.
                             # Start a new batch.
                             break
-                        else:
-                            # The recommended action is an improvement.
-                            # Apply the recommended action.
-                            assert action not in actions_taken
-                            cursor.execute(action)
-                            conn.commit()
-                            # Log the action taken.
-                            actions_taken.append(action)
-                            print(
-                                f"{datetime.datetime.now()} "
-                                f"Applied action due to improved returns "
-                                f"(previous {previous_returns} -> "
-                                f"current {current_returns}): {action}",
-                                flush=True,
-                            )
-                            previous_returns = current_returns
+                        # The recommended action is an improvement.
+                        # Apply the recommended action.
+                        assert action not in actions_taken
+                        cursor.execute(action)
+                        conn.commit()
+                        # Log the action taken.
+                        actions_taken.append(action)
+                        print(
+                            f"{datetime.datetime.now()} "
+                            f"Applied action due to improved returns "
+                            f"(previous {previous_returns} -> "
+                            f"current {current_returns}): {action}",
+                            flush=True,
+                        )
+                        previous_returns = current_returns
 
 
 if __name__ == "__main__":

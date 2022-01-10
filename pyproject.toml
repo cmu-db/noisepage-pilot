@@ -11,36 +11,6 @@ profile = "black"
 include_trailing_comma = true
 combine_as_imports = true
 
-[tool.mypy]
-check_untyped_defs = true
-explicit_package_bases = true
-follow_imports = "silent"
-ignore_missing_imports = true
-namespace_packages = true
-pretty = true
-python_version = "3.8"
-show_error_codes = true
-strict = true
-plugins = "numpy.typing.mypy_plugin"
-
-# Lint rules.
-allow_redefinition = false
-disallow_any_generics = true
-disallow_incomplete_defs = true
-disallow_subclassing_any = true
-disallow_untyped_calls = true
-disallow_untyped_decorators = true
-disallow_untyped_defs = true
-no_implicit_reexport = true
-no_implicit_optional = true
-strict_equality = true
-strict_optional = true
-warn_redundant_casts = true
-warn_return_any = true
-warn_unused_ignores = false
-warn_unused_configs = true
-warn_unreachable = true
-
 [tool.pylint.master]
 jobs = 4
 good-names = ["i", "j", "k", "v", "e", "df", "f", "fp", "X", "x", "y", "db"]
@@ -78,7 +48,16 @@ disable = [
     "fixme",
 
     # Disable docstrings checks as we don't require excessive documentation.
-    "missing-docstring"
+    "missing-docstring",
+
+    # Disable arguments-differ which conflicts with the common pattern
+    # of not exposing all knobs to the method being overridden.
+    "arguments-differ",
+
+    # Because plumbum CLI is used extensively and plumbum __init__
+    # has some magic that Wan can't replicate, it is easier to allow
+    # defining self.members outside of init. A fix would be welcome.
+    "attribute-defined-outside-init",
 ]
 
 [tool.pylint.similarities]

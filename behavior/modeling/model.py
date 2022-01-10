@@ -20,7 +20,6 @@ from sklearn.neural_network import MLPRegressor
 from sklearn.preprocessing import RobustScaler, StandardScaler
 from sklearn.tree import DecisionTreeRegressor
 
-from behavior import MODEL_DATA_DIR
 from behavior.modeling import METHODS
 
 
@@ -80,6 +79,7 @@ def get_model(method: str, config: dict[str, Any]) -> Any:
 class BehaviorModel:
     def __init__(
         self,
+        output_dir,
         method: str,
         ou_name: str,
         timestamp: str,
@@ -87,6 +87,7 @@ class BehaviorModel:
         features: list[str],
         targets: list[str],
     ):
+        self.output_dir = output_dir
         self.method = method
         self.timestamp = timestamp
         self.ou_name = ou_name
@@ -130,6 +131,6 @@ class BehaviorModel:
         return y
 
     def save(self) -> None:
-        model_dir = MODEL_DATA_DIR / self.timestamp / self.method / self.ou_name
+        model_dir = self.output_dir / self.timestamp / self.method / self.ou_name
         with open(model_dir / f"{self.method}_{self.ou_name}.pkl", "wb") as f:
             pickle.dump(self.model, f)

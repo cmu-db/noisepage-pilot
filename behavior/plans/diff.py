@@ -13,11 +13,10 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 from pandas import DataFrame, Index
+from plumbum import cli
 
 from behavior import (
     BASE_TARGET_COLS,
-    BEHAVIOR_DATA_DIR,
-    BEHAVIOR_LOG_DIR,
     BENCHDB_TO_TABLES,
     DIFF_COLS,
     LEAF_NODES,
@@ -41,6 +40,8 @@ COMMON_SCHEMA: list[str] = [
     "end_time",
     "cpu_id",
 ] + BASE_TARGET_COLS
+
+logger = logging.getLogger(__name__)
 
 
 def verify_invocation_ids(unified: DataFrame) -> None:
@@ -112,7 +113,7 @@ def load_tscout_data(
         result_path = tscout_data_dir / f"Exec{node_name}.csv"
 
         if not result_path.exists():
-            logging.error(
+            logger.error(
                 "result doesn't exist for ou_name: %s, should be at path: %s",
                 node_name,
                 result_path,
@@ -148,7 +149,7 @@ def load_tscout_data(
         if df.shape[0] > 0:
             df.to_csv(logdir / f"{ou_name}_filtered.csv")
         else:
-            logging.warning("OU: %s has no data after filtering", ou_name)
+            logger.warning("OU: %s has no data after filtering", ou_name)
 
     return ou_to_df, unified
 
@@ -310,7 +311,7 @@ def diff_all_plans(unified: DataFrame, logdir: Path) -> DataFrame:
     all_query_ids: set[str] = set(pd.unique(unified["query_id"]))
     records: list[list[Any]] = []
 
-    logging.info("Num query_ids: %s", len(all_query_ids))
+    logger.info("Num query_ids: %s", len(all_query_ids))
     unified.to_csv(logdir / "final_unified_before_diffing.csv")
 
     for query_id in all_query_ids:
@@ -333,7 +334,7 @@ def diff_all_plans(unified: DataFrame, logdir: Path) -> DataFrame:
             pd.unique(query_invocations["query_invocation_id"])
         )
 
-        logging.info(
+        logger.info(
             "Query ID: %s, Num invocations: %s", query_id, len(query_invocation_ids)
         )
         indexed_invocations = query_invocations.set_index(
@@ -373,7 +374,7 @@ def save_results(
 
         # find the intersection of RIDs between diffed_cols and each df
         rids_to_update = df.index.intersection(diffed_cols.index)
-        logging.info("Num records to update: %s", rids_to_update.shape[0])
+        logger.info("Num records to update: %s", rids_to_update.shape[0])
 
         if rids_to_update.shape[0] > 0:
             diffed_df = df.join(diffed_cols.loc[rids_to_update], how="inner")
@@ -382,13 +383,12 @@ def save_results(
             diffed_df = df
 
 
-def main(experiment: str) -> None:
-
-    logging.info("Differencing experiment: %s", experiment)
+def main(data_dir, output_dir, experiment: str) -> None:
+    logger.info("Differencing experiment: %s", experiment)
 
     for mode in ["train", "eval"]:
-        experiment_root: Path = BEHAVIOR_DATA_DIR / mode / experiment
-        logdir = BEHAVIOR_LOG_DIR / "diff" / mode / experiment
+        experiment_root: Path = data_dir / mode / experiment
+        logdir = output_dir / "log" / mode / experiment
         logdir.mkdir(parents=True, exist_ok=True)
 
         bench_names: list[str] = [
@@ -398,14 +398,40 @@ def main(experiment: str) -> None:
         ]
 
         for bench_name in bench_names:
-            logging.info("Mode: %s | Benchmark: %s", mode, bench_name)
+            logger.info("Mode: %s | Benchmark: %s", mode, bench_name)
             bench_root = experiment_root / bench_name
             tscout_data_dir = bench_root / "tscout"
-            diff_data_dir: Path = bench_root / "differenced"
+            diff_data_dir: Path = output_dir / "diff" / mode / experiment
             if diff_data_dir.exists():
                 shutil.rmtree(diff_data_dir)
-            diff_data_dir.mkdir()
+            diff_data_dir.mkdir(parents=True, exist_ok=True)
 
             tscout_dfs, unified = load_tscout_data(tscout_data_dir, logdir)
             diffed_cols: DataFrame = diff_all_plans(unified, logdir)
             save_results(diff_data_dir, tscout_dfs, diffed_cols)
+
+
+class DataDiffCLI(cli.Application):
+    dir_datagen_data = cli.SwitchAttr(
+        "--dir-datagen-data",
+        Path,
+        mandatory=True,
+        help="Directory containing DataGenerator output data.",
+    )
+    dir_output = cli.SwitchAttr(
+        "--dir-output",
+        Path,
+        mandatory=True,
+        help="Directory to output differenced CSV files to.",
+    )
+
+    def main(self):
+        train_folder = self.dir_datagen_data / "train"
+        experiments = sorted(path.name for path in train_folder.glob("*"))
+        assert len(experiments) > 0, "No training data found?"
+        latest_experiment = experiments[-1]
+        main(self.dir_datagen_data, self.dir_output, latest_experiment)
+
+
+if __name__ == "__main__":
+    DataDiffCLI.run()
