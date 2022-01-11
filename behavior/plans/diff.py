@@ -93,9 +93,13 @@ def load_tscout_data(tscout_data_dir: Path, logdir: Path) -> tuple[dict[str, Dat
     # load all OU files into a dict of dataframes
     for node_name in PLAN_NODE_NAMES:
         result_path = tscout_data_dir / f"Exec{node_name}.csv"
-        assert (
-            result_path.exists()
-        ), f"Result doesn't exist for ou_name: {node_name}, must be at path: {result_path}"
+        if not result_path.exists():
+            logger.error(
+                "result doesn't exist for ou_name: %s, should be at path: %s",
+                node_name,
+                result_path,
+            )
+            sys.exit(1)
         if os.stat(result_path).st_size > 0:
             ou_to_df[node_name] = pd.read_csv(result_path)
 
@@ -108,7 +112,7 @@ def load_tscout_data(tscout_data_dir: Path, logdir: Path) -> tuple[dict[str, Dat
     unified = unified.sort_values(by=["invocation_id", "plan_node_id"], axis=0)
     unified.to_csv(logdir / "unified_initial.csv", index=False)
 
-    unified.set_index("invocation_id", drop=False, inplace=True)
+    unified.set_index("query_id", drop=False, inplace=True)
 
     # Phase 2: Filter and log all broken records
     # resolve true plan for all query_ids
@@ -197,7 +201,9 @@ def diff_all_plans(unified: DataFrame, logdir: Path) -> DataFrame:
         query_invocation_ids: set[int] = set(
             pd.unique(query_invocations["query_invocation_id"])
         )
-        print(f"Query ID: {query_id}, Num invocations: {len(query_invocation_ids)}")
+        logger.info(
+            "Query ID: %s, Num invocations: %s", query_id, len(query_invocation_ids)
+        )
         indexed_invocations = query_invocations.set_index(
             "query_invocation_id", drop=False, inplace=False
         )
@@ -208,9 +214,10 @@ def diff_all_plans(unified: DataFrame, logdir: Path) -> DataFrame:
                 continue
             assert isinstance(invocation, DataFrame)
 
-            # assert isinstance(rid, str)
-            # assert isinstance(diffed_costs, np.ndarray)
-            # records.append([rid] + diffed_costs.tolist())
+            # for rid, diffed_costs in diff_one_invocation(invocation).items():
+            #     assert isinstance(rid, str)
+            #     assert isinstance(diffed_costs, np.ndarray)
+            #     records.append([rid] + diffed_costs.tolist())
 
     diffed_cols = DataFrame(data=records, columns=["rid"] + DIFF_COLS)
     diffed_cols.to_csv(logdir / "diffed_cols.csv", index=False)
