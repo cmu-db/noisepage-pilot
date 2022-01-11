@@ -137,7 +137,7 @@ class GenerateCreateIndexTPCC(cli.Application):
                     cols = ",".join(permutation)
                     cols_name = "_".join(permutation) + "_key"
                     index_name = f"action_{table}_{cols_name}"
-                    sql = f"create index if not exists " f"{index_name} on {table} ({cols});"
+                    sql = f"create index if not exists {index_name} on {table} ({cols});"
                     print(sql, file=f)
 
 
