@@ -150,7 +150,7 @@ class Clusterer:
         """
         # The first level can be dropped since query_template == template.
         return df.query(
-            "`query_template` == @template" " and @start_time <= `log_time_s`" " and `log_time_s` < @end_time"
+            "`query_template` == @template and @start_time <= `log_time_s` and `log_time_s` < @end_time"
         ).droplevel(0)
 
     @staticmethod
@@ -169,7 +169,7 @@ class Clusterer:
         results : pd.DataFrame
         """
         # The first level can be dropped since query_template == template.
-        df = df.query("`query_template` == @template" " and `log_time_s` in @timestamps").droplevel(0)
+        df = df.query("`query_template` == @template and `log_time_s` in @timestamps").droplevel(0)
         return df.reindex(timestamps, fill_value=0)
 
     @staticmethod
