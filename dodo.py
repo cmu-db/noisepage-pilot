@@ -433,9 +433,7 @@ def task_behavior_datagen():
         "--path-noisepage-conf ./config/behavior/postgres/postgresql.conf "
         "--tscout-wait-sec 2 "
     )
-    datadiff_args = (
-        f"--dir-datagen-data {training_data_folder} --dir-output {diff_data_folder} "
-    )
+    datadiff_args = f"--dir-datagen-data {training_data_folder} --dir-output {diff_data_folder} "
 
     return {
         "actions": [

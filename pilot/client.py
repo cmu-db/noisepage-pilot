@@ -32,12 +32,7 @@ class ClientCLI(cli.Application):
             # TODO(WAN): We assume a CSV string of input.
             iostr = StringIO(args[0])
             reader = csv.reader(iostr)
-            data = {
-                key: val
-                for row in reader
-                for item in row
-                for key, val in [item.split("=", maxsplit=1)]
-            }
+            data = {key: val for row in reader for item in row for key, val in [item.split("=", maxsplit=1)]}
 
         # Invoke the function.
         func(data)

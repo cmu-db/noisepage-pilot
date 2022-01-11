@@ -15,9 +15,7 @@ class BehaviorCLI(cli.Application):
 
 
 if __name__ == "__main__":
-    logging.basicConfig(
-        format="%(levelname)s:%(asctime)s %(message)s", level=logging.INFO
-    )
+    logging.basicConfig(format="%(levelname)s:%(asctime)s %(message)s", level=logging.INFO)
     BehaviorCLI.subcommand("datagen", gen.DataGeneratorCLI)
     BehaviorCLI.subcommand("datadiff", diff.DataDiffCLI)
     BehaviorCLI.subcommand("train", train.TrainCLI)

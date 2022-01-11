@@ -25,9 +25,7 @@ def load_models() -> Any:
         ou_name = ou_model_dir.stem
         model_pickle = list(ou_model_dir.glob(f"*_{ou_name}.pkl"))
         if len(model_pickle) > 1:
-            raise ValueError(
-                f"Found more than 1 model pickle in ou_model_dir: {ou_model_dir}"
-            )
+            raise ValueError(f"Found more than 1 model pickle in ou_model_dir: {ou_model_dir}")
 
         first_model: Path = model_pickle[0]
 

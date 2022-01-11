@@ -84,10 +84,7 @@ class Clusterer:
 
         # Represent query templates with integers for concise readability.
         self._dbgname = {
-            template_str: template_id
-            for template_id, template_str in dict(
-                enumerate(self._get_queries())
-            ).items()
+            template_str: template_id for template_id, template_str in dict(enumerate(self._get_queries())).items()
         }
 
         # Cluster the queries.
@@ -153,9 +150,7 @@ class Clusterer:
         """
         # The first level can be dropped since query_template == template.
         return df.query(
-            "`query_template` == @template"
-            " and @start_time <= `log_time_s`"
-            " and `log_time_s` < @end_time"
+            "`query_template` == @template" " and @start_time <= `log_time_s`" " and `log_time_s` < @end_time"
         ).droplevel(0)
 
     @staticmethod
@@ -174,9 +169,7 @@ class Clusterer:
         results : pd.DataFrame
         """
         # The first level can be dropped since query_template == template.
-        df = df.query(
-            "`query_template` == @template" " and `log_time_s` in @timestamps"
-        ).droplevel(0)
+        df = df.query("`query_template` == @template" " and `log_time_s` in @timestamps").droplevel(0)
         return df.reindex(timestamps, fill_value=0)
 
     @staticmethod
@@ -261,21 +254,14 @@ class Clusterer:
         neighbors : sklearn.neighbors.NearestNeighbors | None
         """
         clusters = sorted(centers.keys())
-        samples = np.array(
-            [
-                Clusterer._query_series(centers[cluster], timestamps).values
-                for cluster in clusters
-            ]
-        )
+        samples = np.array([Clusterer._query_series(centers[cluster], timestamps).values for cluster in clusters])
 
         if len(samples) == 0:
             neighbors = None
         else:
             samples = samples.reshape(len(clusters), -1)
             normalized_samples = sklearn.preprocessing.normalize(samples, copy=False)
-            neighbors = sklearn.neighbors.NearestNeighbors(
-                n_neighbors=n_neighbors, algorithm="kd_tree", metric="l2"
-            )
+            neighbors = sklearn.neighbors.NearestNeighbors(n_neighbors=n_neighbors, algorithm="kd_tree", metric="l2")
             neighbors.fit(normalized_samples)
         return neighbors
 
@@ -293,18 +279,14 @@ class Clusterer:
         start_time, end_time : pd.Timestamp
             Current time range considered
         """
-        modify_method = (
-            self.centers[cluster].add if positive else self.centers[cluster].sub
-        )
+        modify_method = self.centers[cluster].add if positive else self.centers[cluster].sub
 
         self.centers[cluster] = modify_method(
             self._query_df_range(self._df, template, start_time, end_time), fill_value=0
         )
         self.cluster_sizes[cluster] += 1 if positive else -1
 
-    def _adjust_template(
-        self, template, current_time, old_assignment, timestamps, neighbors
-    ):
+    def _adjust_template(self, template, current_time, old_assignment, timestamps, neighbors):
         """Adjust template cluster assignment at current time.
 
         Parameters
@@ -329,9 +311,7 @@ class Clusterer:
         start_time = max(self.min_time, end_time - datetime.timedelta(seconds=10))
 
         # If template has not appeared at this point in time; assignment is still None.
-        if (old_assignment is None) and (
-            current_time <= self._get_first_arrival(template)
-        ):
+        if (old_assignment is None) and (current_time <= self._get_first_arrival(template)):
             return None
         if old_assignment is not None:
             # Template is the last member of the cluster.
@@ -368,16 +348,11 @@ class Clusterer:
                     new_assignment = cluster
                     break
         else:
-            data = self._query_df(self._df, template, timestamps)[
-                "count"
-            ].values.reshape(1, -1)
+            data = self._query_df(self._df, template, timestamps)["count"].values.reshape(1, -1)
             data = sklearn.preprocessing.normalize(data)
             neighbor = neighbors.kneighbors(data, return_distance=False)[0][0]
             clusters = sorted(self.centers.keys())
-            if (
-                self._similarity(data, self.centers[clusters[neighbor]].values)
-                > self.rho
-            ):
+            if self._similarity(data, self.centers[clusters[neighbor]].values) > self.rho:
                 new_assignment = clusters[neighbor]
 
         # If this template found a cluster to join, then make the assignment and continue.
@@ -391,9 +366,7 @@ class Clusterer:
         new_assignment = self.next_cluster
         self.next_cluster += 1
 
-        self.centers[new_assignment] = self._query_df_range(
-            self._df, template, start_time, end_time
-        )
+        self.centers[new_assignment] = self._query_df_range(self._df, template, start_time, end_time)
         assert self.centers[new_assignment].index.name == "log_time_s"
         assert self.centers[new_assignment].columns.values == ["count"]
         if self.centers[new_assignment].shape[0] == 0:
@@ -405,9 +378,7 @@ class Clusterer:
 
         self.cluster_sizes[new_assignment] = 1
         self.cluster_totals[new_assignment] = 0
-        print(
-            f"Created cluster {new_assignment} based on template: {self._dbgname[template]}"
-        )
+        print(f"Created cluster {new_assignment} based on template: {self._dbgname[template]}")
         return new_assignment
 
     def _cluster_online(self):
@@ -436,9 +407,7 @@ class Clusterer:
             # Only consider the last 10 seconds.
             start_time = max(self.min_time, next_time - datetime.timedelta(seconds=10))
             # Timestamps to consider.
-            timestamps = self._sample_timestamps(
-                self.n, start_time, next_time, self.n_samples, self.interval_delta
-            )
+            timestamps = self._sample_timestamps(self.n, start_time, next_time, self.n_samples, self.interval_delta)
 
             # Get assignment dicts.
             last_assignment = self.assignments[-1][1]
@@ -448,12 +417,8 @@ class Clusterer:
             for template in last_assignment:
                 old_assignment = last_assignment[template]
                 if old_assignment is not None:
-                    counts = self._query_df_range(
-                        self._df, template, current_time, next_time
-                    )
-                    self.centers[old_assignment] = self.centers[old_assignment].add(
-                        counts, fill_value=0
-                    )
+                    counts = self._query_df_range(self._df, template, current_time, next_time)
+                    self.centers[old_assignment] = self.centers[old_assignment].add(counts, fill_value=0)
                     self.cluster_totals[old_assignment] += counts.sum().values[0]
 
             # If possible, build a kdtree of neighbors.
@@ -478,9 +443,7 @@ class Clusterer:
                 # Try to merge clusters.
                 for i, cluster in enumerate(clusters):
                     merge_cluster = None
-                    data = self._query_series(self.centers[cluster], timestamps)[
-                        "count"
-                    ].values.reshape(1, -1)
+                    data = self._query_series(self.centers[cluster], timestamps)["count"].values.reshape(1, -1)
                     data = sklearn.preprocessing.normalize(data)
                     neighbor = neighbors.kneighbors(data, return_distance=False)
 
@@ -493,12 +456,8 @@ class Clusterer:
                         neighbor = root[neighbor]
                     is_similar = (
                         self._similarity(
-                            self._query_series(
-                                self.centers[cluster], timestamps
-                            ).values,
-                            self._query_series(
-                                self.centers[clusters[neighbor]], timestamps
-                            ).values,
+                            self._query_series(self.centers[cluster], timestamps).values,
+                            self._query_series(self.centers[clusters[neighbor]], timestamps).values,
                         )
                         > self.rho
                     )
@@ -534,9 +493,7 @@ class Clusterer:
         # TODO(Mike): only consider the last 10 seconds? or sample everything?
         start_time = self.min_time
         # Sample timestamps to consider.
-        timestamps = self._sample_timestamps(
-            self.n, start_time, next_time, self.n_samples, self.interval_delta
-        )
+        timestamps = self._sample_timestamps(self.n, start_time, next_time, self.n_samples, self.interval_delta)
         counts = np.array(
             [
                 # Create (k,n) matrix where there are
@@ -546,21 +503,13 @@ class Clusterer:
             ]
         )
 
-        clustering = DBSCAN(eps=1 - self.rho, metric="cosine", min_samples=1).fit(
-            counts
-        )
+        clustering = DBSCAN(eps=1 - self.rho, metric="cosine", min_samples=1).fit(counts)
         labels = clustering.labels_
-        reverse_lookup = {
-            template_id: template_str
-            for template_str, template_id in self._dbgname.items()
-        }
-        final_assignments = {
-            reverse_lookup[template_id]: cluster_id
-            for template_id, cluster_id in enumerate(labels)
-        }
-        return pd.DataFrame(
-            final_assignments.items(), columns=["query_template", "cluster"]
-        ).set_index("query_template")
+        reverse_lookup = {template_id: template_str for template_str, template_id in self._dbgname.items()}
+        final_assignments = {reverse_lookup[template_id]: cluster_id for template_id, cluster_id in enumerate(labels)}
+        return pd.DataFrame(final_assignments.items(), columns=["query_template", "cluster"]).set_index(
+            "query_template"
+        )
 
 
 class ClustererCLI(cli.Application):
