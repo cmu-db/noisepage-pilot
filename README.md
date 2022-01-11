@@ -17,11 +17,8 @@ The following is a list of some relevant doit tasks and their parameters:
 - Action Recommendation
   - The following task will begin picking indexes: `doit action_recommendation`.
 - Behavior Modeling
-  - `doit behavior --datagen` runs behavior model training data generation using TScout, Benchbase and Postgres.  Requires `sudo` permissions for TScout.
-  - `doit behavior --diff` performs training data differencing (subtracting child-plan costs).
-  - `doit behavior --train` trains, evaluates, and serializes models along with their evaluations and predictions.
-  - `doit behavior --all` is equivalent to `doit behavior --datagen --diff --train`.
-  - Any combination of the above flags can be used.
+  - `doit behavior_datagen` runs behavior model training data generation using TScout, Benchbase and Postgres.  Requires `sudo` permissions for TScout. Also performs training data differencing (subtracting child-plan costs).
+  - `doit behavior_train` trains, evaluates, and serializes models along with their evaluations and predictions. It depends on `behavior_datagen` having been run first.
   - Configure data generation, model training, Benchbase, and Postgres in `noisepage-pilot/config/behavior`.
   - Training data differencing and model training default to using the most recent experiment data.
   - Additional behavior modeling documentation is available at `noisepage-pilot/behavior/README.md`.
