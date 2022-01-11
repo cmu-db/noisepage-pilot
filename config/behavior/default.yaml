@@ -1,0 +1,55 @@
+# DataGeneratorCLI configuration.
+datagen: 
+  pg_prewarm: True
+  pg_analyze: True
+  pg_stat_statements: False
+  pg_store_plans: False # currently not installed
+  auto_explain: False
+  benchmarks: [tpcc]
+  sqlsmith: False # currently ignored because it causes dataset naming conflicts
+  log_level: DEBUG
+  debug: False
+
+# Modeling Configuration
+modeling: 
+  train_bench_dbs: [tpcc]
+  eval_bench_dbs: [tpcc, ycsb, wikipedia, voter, twitter, smallbank, auctionmark]
+  experiment_name: null
+  targets_diff: True
+  features_diff: True
+  methods: [lr, rf, dt]
+  normalize: True
+  log_transform: False
+  robust: False
+  num_jobs: 8
+  random_state: 42
+  log_level: INFO
+
+  # Model-specific Configuration
+  rf: 
+    n_estimators: 5
+    max_depth: 31
+    criterion: "squared_error"
+  lgbm: 
+    max_depth: 31
+    num_leaves: 1000
+    n_estimators: 100
+    min_child_samples: 5
+  mlp: 
+    hidden_layer_sizes: [25, 25]
+    early_stopping: True
+    max_iter: 1000000
+    alpha: 5
+  elastic: 
+    alpha: 0.1
+    l1_ratio: 0.5
+  mt_elastic: 
+    l1_ratio: 0.5
+  dt: 
+    max_depth: 3
+  huber: 
+    max_iter: 50
+  lasso:
+    alpha: 1.0
+  mt_lasso: 
+    alpha: 1.0

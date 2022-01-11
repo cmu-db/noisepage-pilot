@@ -2,6 +2,17 @@ black
 doit
 flake8
 isort
+lightgbm
+mypy
+numpy
+pandas
 plumbum
 psycopg
+psutil
+pydotplus
+pylint
+pyyaml
+sklearn
 toml
+tqdm
+types-PyYAML
