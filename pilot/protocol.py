@@ -95,12 +95,7 @@ class Client:
         """
         with psycopg.connect(self.db_conn_string) as conn:
             with conn.cursor() as cursor:
-                sql = (
-                    "INSERT INTO "
-                    "pilot_commands (ctype, args)"
-                    "VALUES "
-                    "(%(ctype)s, %(args)s)"
-                )
+                sql = "INSERT INTO pilot_commands (ctype, args) VALUES (%(ctype)s, %(args)s)"
                 params = {"ctype": ctype.value, "args": json.dumps(kwargs)}
                 cursor.execute(sql, params)
 

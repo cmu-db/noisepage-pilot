@@ -90,9 +90,7 @@ class ForecastDataset(Dataset):
         transformers : (None, None) or Tuple of scikit.preprocessing data transformers
         """
         x_transformer, y_transformer = transformers
-        shifted = (
-            self.raw_df.shift(freq=-self.horizon).reindex_like(self.raw_df).ffill()
-        )
+        shifted = self.raw_df.shift(freq=-self.horizon).reindex_like(self.raw_df).ffill()
 
         if x_transformer is None or y_transformer is None:
             self.X = torch.FloatTensor(self.raw_df.values)
@@ -133,9 +131,7 @@ class ForecastModel(ABC):
         assert self.interval == train_seqs.interval
         assert self.sequence_length == train_seqs.sequence_length
 
-        self._x_transformer, self._y_transformer = self._get_transformers(
-            train_seqs.raw_df.values
-        )
+        self._x_transformer, self._y_transformer = self._get_transformers(train_seqs.raw_df.values)
 
         transformed = copy.deepcopy(train_seqs)
         transformed.set_transformers((self._x_transformer, self._y_transformer))
@@ -173,9 +169,7 @@ class ForecastModel(ABC):
         predict = self._do_predict(test_seq)
         if self._y_transformer:
             # Get the predicted scalar value back
-            predict = self._y_transformer.inverse_transform(
-                np.array([predict]).reshape(1, -1)
-            )[0][0]
+            predict = self._y_transformer.inverse_transform(np.array([predict]).reshape(1, -1))[0][0]
 
         return predict
 
@@ -284,9 +278,7 @@ class LSTM(nn.Module, ForecastModel):
         -------
         A single value prediction
         """
-        lstm_out, self._hidden_cell = self._lstm(
-            input_seq.view(len(input_seq), 1, -1), self._hidden_cell
-        )
+        lstm_out, self._hidden_cell = self._lstm(input_seq.view(len(input_seq), 1, -1), self._hidden_cell)
         predictions = self._linear(lstm_out.view(len(input_seq), -1))
         return predictions[-1]
 

@@ -145,17 +145,13 @@ class DataGeneratorCLI(cli.Application):
             # Enable capturing query IDs.
             logger.debug("NoisePage: Query ID setup.")
             self.query("test", "ALTER DATABASE test SET compute_query_id = 'ON';")
-            self.query(
-                "benchbase", "ALTER DATABASE benchbase SET compute_query_id = 'ON';"
-            )
+            self.query("benchbase", "ALTER DATABASE benchbase SET compute_query_id = 'ON';")
 
             # Set up extensions.
             logger.debug("NoisePage: Extension setup.")
             if self.config["auto_explain"]:
                 logger.debug("NoisePage: auto_explain.")
-                self.query(
-                    "benchbase", "ALTER SYSTEM SET auto_explain.log_min_duration = 0;"
-                )
+                self.query("benchbase", "ALTER SYSTEM SET auto_explain.log_min_duration = 0;")
                 self.pg_ctl["reload", "-D", pg_data_dir]()
 
             if self.config["pg_prewarm"]:
@@ -325,9 +321,7 @@ class DataGeneratorCLI(cli.Application):
             "TScout Collector",
         }
         pg_procs, tscout_procs = [], []
-        for proc in psutil.process_iter(
-            ["pid", "name", "username", "ppid", "create_time"]
-        ):
+        for proc in psutil.process_iter(["pid", "name", "username", "ppid", "create_time"]):
             proc_name = proc.info["name"].lower()
             if "postgres" in proc_name:
                 pg_procs.append(proc)
@@ -389,9 +383,7 @@ class DataGeneratorCLI(cli.Application):
             logger.debug("Attaching TScout.")
             old_wd = os.getcwd()
             os.chdir(self.dir_tscout)
-            cmd.sudo["python3"][
-                "tscout.py", postmaster_pid, "--outdir", dir_tscout_output
-            ].run_bg()
+            cmd.sudo["python3"]["tscout.py", postmaster_pid, "--outdir", dir_tscout_output].run_bg()
             os.chdir(old_wd)
         except (FileNotFoundError, ProcessExecutionError) as err:
             self.clean(err, terminate=True, message="Error initializing TScout.")
@@ -466,11 +458,7 @@ class DataGeneratorCLI(cli.Application):
         self.pg_ctl["stop", "-D", self.dir_tmp_pg_data, "-m", "smart"].run_fg()
 
         # Remove existing logfiles, if any.
-        for log_path in [
-            path
-            for path in (self.dir_tmp_pg_data / "log").glob("*")
-            if path.suffix in ["csv", "log"]
-        ]:
+        for log_path in [path for path in (self.dir_tmp_pg_data / "log").glob("*") if path.suffix in ["csv", "log"]]:
             log_path.unlink()
 
         # Start NoisePage.
@@ -493,9 +481,7 @@ class DataGeneratorCLI(cli.Application):
         time.sleep(10)
 
         log_fps = list((self.dir_tmp_pg_data / "log").glob("*.log"))
-        assert (
-            len(log_fps) == 1
-        ), f"Expected 1 log file, found {len(log_fps)}, {log_fps}"
+        assert len(log_fps) == 1, f"Expected 1 log file, found {len(log_fps)}, {log_fps}"
         shutil.move(str(log_fps[0]), str(self.dir_output / "pg_log.log"))
 
         self.clean(err=None, terminate=False, message="")

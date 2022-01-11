@@ -48,9 +48,7 @@ def verify_invocation_ids(unified: DataFrame) -> None:
     inv_to_query_id: dict[int, str] = {}
     inv_to_node_ids: dict[int, set[int]] = {}
 
-    df: DataFrame = unified[
-        ["query_id", "global_invocation_id", "plan_node_id"]
-    ].values.tolist()
+    df: DataFrame = unified[["query_id", "global_invocation_id", "plan_node_id"]].values.tolist()
     for query_id, inv_id, node_id in df:
 
         # verify each global_invocation_id maps to the same query_id
@@ -82,9 +80,7 @@ def remap_cols(ou_to_df: dict[str, DataFrame]) -> dict[str, DataFrame]:
                 if (
                     common_col != init_col
                     and common_col in init_col
-                    and init_col
-                    not in BASE_TARGET_COLS
-                    + ["left_child_plan_node_id", "right_child_plan_node_id", ""]
+                    and init_col not in BASE_TARGET_COLS + ["left_child_plan_node_id", "right_child_plan_node_id", ""]
                 ):
                     assert not found, f"col: {init_col} and {common_col}"
                     assert init_col not in remapper, remapper
@@ -103,9 +99,7 @@ def remap_cols(ou_to_df: dict[str, DataFrame]) -> dict[str, DataFrame]:
     return remapped
 
 
-def load_tscout_data(
-    tscout_data_dir: Path, logdir: Path
-) -> tuple[dict[str, DataFrame], DataFrame]:
+def load_tscout_data(tscout_data_dir: Path, logdir: Path) -> tuple[dict[str, DataFrame], DataFrame]:
 
     ou_to_df: dict[str, DataFrame] = {}
 
@@ -125,9 +119,7 @@ def load_tscout_data(
 
     ou_to_df = remap_cols(ou_to_df)
 
-    unified: DataFrame = pd.concat(
-        [df[COMMON_SCHEMA] for df in ou_to_df.values()], axis=0
-    )
+    unified: DataFrame = pd.concat([df[COMMON_SCHEMA] for df in ou_to_df.values()], axis=0)
     unified = unified.sort_values(by=["query_id", "start_time", "plan_node_id"], axis=0)
     unified.to_csv(logdir / "unified_initial.csv", index=False)
 
@@ -140,10 +132,7 @@ def load_tscout_data(
     # we use a few different indexes for unified, starting with query_id
     unified.set_index("query_id", drop=False, inplace=True)
 
-    ou_to_df = {
-        ou_name: df.set_index("rid", drop=False, inplace=False)
-        for ou_name, df in ou_to_df.items()
-    }
+    ou_to_df = {ou_name: df.set_index("rid", drop=False, inplace=False) for ou_name, df in ou_to_df.items()}
 
     for ou_name, df in ou_to_df.items():
         if df.shape[0] > 0:
@@ -174,9 +163,7 @@ def filter_incomplete(
     broken_inv_ids: set[int] = set()
 
     for query_id, expected_ids in query_id_to_node_ids.items():
-        matched_inv_ids: list[int] = [
-            inv_id for (q_id2, inv_id) in inv_id_to_node_ids.keys() if q_id2 == query_id
-        ]
+        matched_inv_ids: list[int] = [inv_id for (q_id2, inv_id) in inv_id_to_node_ids.keys() if q_id2 == query_id]
 
         for inv_id in matched_inv_ids:
             actual_ids: set[int] = inv_id_to_node_ids[(query_id, inv_id)]
@@ -197,13 +184,9 @@ def filter_incomplete(
 
     # apply filtering to all tscout dataframes
     rid_idx: Index = Index(data=filt_unified["rid"], dtype=str)
-    filtered_ou_to_df = {
-        ou_name: filter_by_rid(rid_idx, df) for ou_name, df in ou_to_df.items()
-    }
+    filtered_ou_to_df = {ou_name: filter_by_rid(rid_idx, df) for ou_name, df in ou_to_df.items()}
 
-    filt_unified.sort_values(by=["global_invocation_id"], axis=0).to_csv(
-        logdir / "unified_filtered.csv", index=False
-    )
+    filt_unified.sort_values(by=["global_invocation_id"], axis=0).to_csv(logdir / "unified_filtered.csv", index=False)
 
     return filtered_ou_to_df, filt_unified
 
@@ -259,9 +242,7 @@ def add_invocation_ids(unified: DataFrame, logdir: Path) -> DataFrame:
     unified["query_invocation_id"] = query_invocation_ids
     unified["global_invocation_id"] = global_invocation_ids
     unified.to_csv(logdir / "unified_before_filtering.csv", index=False)
-    unified.loc[broken_rids].to_csv(
-        logdir / "cant_resolve_invocation_id.csv", index=False
-    )
+    unified.loc[broken_rids].to_csv(logdir / "cant_resolve_invocation_id.csv", index=False)
     unified = unified.loc[working_rids]
     unified.sort_values(by=["global_invocation_id", "plan_node_id"], axis=0).to_csv(
         logdir / "unified_with_invocations.csv", index=False
@@ -287,18 +268,12 @@ def diff_one_invocation(invocation: DataFrame) -> dict[str, NDArray[np.float64]]
     for _, parent_row in invocation.iterrows():
         parent_rid: str = parent_row["rid"]
         child_ids = [
-            id
-            for id in parent_row[
-                ["left_child_plan_node_id", "right_child_plan_node_id"]
-            ].values
-            if id != -1
+            id for id in parent_row[["left_child_plan_node_id", "right_child_plan_node_id"]].values if id != -1
         ]
         diffed_costs: NDArray[np.float64] = parent_row[DIFF_COLS].values
 
         for child_id in child_ids:
-            child_costs: NDArray[np.float64] = invocation.loc[child_id][
-                DIFF_COLS
-            ].values
+            child_costs: NDArray[np.float64] = invocation.loc[child_id][DIFF_COLS].values
             diffed_costs -= child_costs
 
         rid_to_diffed_costs[parent_rid] = diffed_costs
@@ -322,24 +297,16 @@ def diff_all_plans(unified: DataFrame, logdir: Path) -> DataFrame:
         assert isinstance(query_invocations, DataFrame)
 
         node_counts: pd.Series = node_ids.value_counts()
-        assert (
-            node_counts.min() == node_counts.max()
-        ), f"Invalid node_id set.  Node_counts: {node_counts}"
+        assert node_counts.min() == node_counts.max(), f"Invalid node_id set.  Node_counts: {node_counts}"
 
         assert (
             query_invocations["rid"].value_counts().max() == 1
         ), f"Found duplicate rids in query_invocations: {query_invocations}"
 
-        query_invocation_ids: set[int] = set(
-            pd.unique(query_invocations["query_invocation_id"])
-        )
+        query_invocation_ids: set[int] = set(pd.unique(query_invocations["query_invocation_id"]))
 
-        logger.info(
-            "Query ID: %s, Num invocations: %s", query_id, len(query_invocation_ids)
-        )
-        indexed_invocations = query_invocations.set_index(
-            "query_invocation_id", drop=False, inplace=False
-        )
+        logger.info("Query ID: %s, Num invocations: %s", query_id, len(query_invocation_ids))
+        indexed_invocations = query_invocations.set_index("query_invocation_id", drop=False, inplace=False)
 
         for invocation_id in query_invocation_ids:
             invocation = indexed_invocations.loc[invocation_id]
@@ -359,9 +326,7 @@ def diff_all_plans(unified: DataFrame, logdir: Path) -> DataFrame:
     return diffed_cols
 
 
-def save_results(
-    diff_data_dir: Path, ou_to_df: dict[str, DataFrame], diffed_cols: DataFrame
-) -> None:
+def save_results(diff_data_dir: Path, ou_to_df: dict[str, DataFrame], diffed_cols: DataFrame) -> None:
 
     diffed_cols.rename(columns=lambda col: f"diffed_{col}", inplace=True)
 
@@ -392,9 +357,7 @@ def main(data_dir, output_dir, experiment: str) -> None:
         logdir.mkdir(parents=True, exist_ok=True)
 
         bench_names: list[str] = [
-            d.name
-            for d in experiment_root.iterdir()
-            if d.is_dir() and d.name in BENCHDB_TO_TABLES
+            d.name for d in experiment_root.iterdir() if d.is_dir() and d.name in BENCHDB_TO_TABLES
         ]
 
         for bench_name in bench_names:

@@ -181,9 +181,7 @@ class Preprocessor:
         df : pd.DataFrame
             DataFrame containing the relevant columns for query forecasting.
         """
-        return pd.concat(
-            process_map(Preprocessor._read_csv, csvlogs, [log_columns for _ in csvlogs])
-        )
+        return pd.concat(process_map(Preprocessor._read_csv, csvlogs, [log_columns for _ in csvlogs]))
 
     @staticmethod
     def _extract_query(message_series):
@@ -354,9 +352,7 @@ class Preprocessor:
 
         print("Parse query: ", end="", flush=True)
         parsed = self._parse(df["query_subst"])
-        df[["query_template", "query_params"]] = pd.DataFrame(
-            parsed.tolist(), index=df.index
-        )
+        df[["query_template", "query_params"]] = pd.DataFrame(parsed.tolist(), index=df.index)
         clock("Parse query")
 
         # only keep the relevant columns for storage
@@ -437,9 +433,7 @@ class PreprocessorCLI(cli.Application):
 
     def main(self):
         pgfiles = glob.glob(str(Path(self.query_log_folder) / "postgresql*.csv"))
-        assert (
-            len(pgfiles) > 0
-        ), f"No PostgreSQL query log files found in: {self.query_log_folder}"
+        assert len(pgfiles) > 0, f"No PostgreSQL query log files found in: {self.query_log_folder}"
 
         # Resolve CSV log columns.
         assert self.log_type in [

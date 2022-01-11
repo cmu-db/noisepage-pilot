@@ -85,9 +85,7 @@ class ClusterForecaster:
             return
 
         # Only consider top k clusters.
-        cluster_totals = (
-            train_df.groupby(level=0).sum().sort_values(by="count", ascending=False)
-        )
+        cluster_totals = train_df.groupby(level=0).sum().sort_values(by="count", ascending=False)
         labels = cluster_totals.index[:top_k]
 
         print("Training on cluster time series..")
@@ -103,14 +101,10 @@ class ClusterForecaster:
                 continue
 
             print(f"training model for cluster {cluster}")
-            cluster_counts = train_df[
-                train_df.index.get_level_values(0) == cluster
-            ].droplevel(0)
+            cluster_counts = train_df[train_df.index.get_level_values(0) == cluster].droplevel(0)
 
             # This zero-fills the start and ends of the cluster time series.
-            cluster_counts = cluster_counts.reindex(
-                cluster_counts.index.append(dtindex), fill_value=0
-            )
+            cluster_counts = cluster_counts.reindex(cluster_counts.index.append(dtindex), fill_value=0)
             cluster_counts = cluster_counts.resample(prediction_interval).sum()
             self._train_cluster(cluster_counts, cluster, save_path)
 
@@ -143,9 +137,7 @@ class ClusterForecaster:
             print(f"Could not find cluster {cluster} in cluster_df")
             return None
 
-        cluster_counts = cluster_df[
-            cluster_df.index.get_level_values(0) == cluster
-        ].droplevel(0)
+        cluster_counts = cluster_df[cluster_df.index.get_level_values(0) == cluster].droplevel(0)
 
         # Truncate cluster_df to the time range necessary to generate prediction range.
 
@@ -153,16 +145,10 @@ class ClusterForecaster:
         # is not present in the data, we simply do not make any predictions (i.e. return 0)
         # Should we produce a warning/error so the user is aware there is insufficient
         # data?
-        trunc_start = (
-            start_time
-            - self.prediction_horizon
-            - (self.prediction_seqlen) * self.prediction_interval
-        )
+        trunc_start = start_time - self.prediction_horizon - (self.prediction_seqlen) * self.prediction_interval
         trunc_end = end_time - self.prediction_horizon
 
-        truncated = cluster_counts[
-            (cluster_counts.index >= trunc_start) & (cluster_counts.index < trunc_end)
-        ]
+        truncated = cluster_counts[(cluster_counts.index >= trunc_start) & (cluster_counts.index < trunc_end)]
 
         dataset = ForecastDataset(
             truncated,
@@ -175,9 +161,7 @@ class ClusterForecaster:
         predictions = [self.models[cluster].predict(seq) for seq, _ in dataset]
 
         # tag with timestamps
-        pred_arr = [
-            [dataset.get_y_timestamp(i), pred] for i, pred in enumerate(predictions)
-        ]
+        pred_arr = [[dataset.get_y_timestamp(i), pred] for i, pred in enumerate(predictions)]
 
         pred_df = pd.DataFrame(pred_arr, columns=["log_time_s", "count"])
         pred_df.set_index("log_time_s", inplace=True)
@@ -219,9 +203,7 @@ class WorkloadGenerator:
             A sampled workload in the form of (query, count) pairs
         """
 
-        templates = self._percentages[
-            self._percentages.index.get_level_values(0) == cluster
-        ].droplevel(0)
+        templates = self._percentages[self._percentages.index.get_level_values(0) == cluster].droplevel(0)
         templates = templates * cluster_count
 
         # TODO(Mike): The true sample of parameters might be too inefficient,
@@ -238,9 +220,7 @@ class WorkloadGenerator:
         templates_with_param_vecs = [
             (
                 template,
-                np.tile(
-                    self._preprocessor.sample_params(template, 1)[0], (int(count), 1)
-                ),
+                np.tile(self._preprocessor.sample_params(template, 1)[0], (int(count), 1)),
             )
             for template, count in zip(templates.index.values, templates.values)
         ]
@@ -251,20 +231,14 @@ class WorkloadGenerator:
             for param_vec in param_vecs
         ]
         workload = pd.DataFrame(workload, columns=["query"])
-        predicted_queries = (
-            workload.groupby("query").size().sort_values(ascending=False)
-        )
+        predicted_queries = workload.groupby("query").size().sort_values(ascending=False)
 
         return predicted_queries
 
 
 class ForecasterCLI(cli.Application):
-    preprocessor_parquet = cli.SwitchAttr(
-        ["-p", "--preprocessor-parquet"], str, mandatory=True
-    )
-    clusterer_parquet = cli.SwitchAttr(
-        ["-c", "--clusterer-parquet"], str, mandatory=True
-    )
+    preprocessor_parquet = cli.SwitchAttr(["-p", "--preprocessor-parquet"], str, mandatory=True)
+    clusterer_parquet = cli.SwitchAttr(["-c", "--clusterer-parquet"], str, mandatory=True)
     model_path = cli.SwitchAttr(["-m", "--model-path"], str, mandatory=True)
     override = cli.Flag("--override-models")
 
