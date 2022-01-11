@@ -24,7 +24,6 @@ from sklearn.metrics import (
 
 from behavior import BASE_TARGET_COLS, BENCHDB_TO_TABLES, LEAF_NODES, PLAN_NODE_NAMES
 from behavior.modeling.model import BehaviorModel
-from behavior.util import init_logging
 
 
 def evaluate(
@@ -208,7 +207,6 @@ def main(config_file, dir_data_train, dir_data_eval, dir_output) -> None:
     with config_file.open("r") as f:
         config = yaml.load(f, Loader=yaml.FullLoader)["modeling"]
 
-    init_logging(config["log_level"])
     training_timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     train_bench_dbs = config["train_bench_dbs"]
     train_bench_db = train_bench_dbs[0]
