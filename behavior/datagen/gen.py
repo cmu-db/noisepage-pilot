@@ -185,9 +185,8 @@ class DataGeneratorCLI(cli.Application):
         """
         try:
             # Copy the BenchBase config to the output directory.
-            input_cfg_path = self.dir_benchbase_config / f"{benchmark}_config.xml"
-            shutil.copy(input_cfg_path, benchbase_results_dir)
-            cfg_path = (benchbase_results_dir / f"{benchmark}_config.xml").absolute()
+            cfg_path = (self.dir_benchbase_config / f"sample_{benchmark}_config.xml").absolute()
+            shutil.copy(cfg_path, benchbase_results_dir)
 
             old_wd = os.getcwd()
             os.chdir(self.dir_benchbase)
@@ -383,7 +382,9 @@ class DataGeneratorCLI(cli.Application):
             logger.debug("Attaching TScout.")
             old_wd = os.getcwd()
             os.chdir(self.dir_tscout)
-            cmd.sudo["python3"]["tscout.py", postmaster_pid, "--outdir", dir_tscout_output].run_bg()
+            cmd.sudo["python3"]["tscout.py", postmaster_pid, "--outdir", dir_tscout_output].run_bg(
+                stdout=sys.stdout, stderr=sys.stdout
+            )
             os.chdir(old_wd)
         except (FileNotFoundError, ProcessExecutionError) as err:
             self.clean(err, terminate=True, message="Error initializing TScout.")
