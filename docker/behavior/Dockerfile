@@ -22,17 +22,21 @@ RUN set -eux; \
     build-essential \
     flex \
     libreadline-dev \
-    libssl-dev  \
-    libxml2-dev  \
-    libxml2-utils \ 
-    libxslt-dev \ 
-    xsltproc  \
+    libssl-dev \
+    libxml2-dev \
+    libxml2-utils \
+    libxslt-dev \
+    xsltproc \
     zlib1g-dev \
     # BenchBase requirements.
     openjdk-17-jdk \
-    unzip \ 
+    unzip \
+    # TScout (BCC) requirements.
+    bpfcc-tools \
+    linux-headers-$(uname -r) \
     && rm -rf /var/lib/apt/lists/*
 
+# TScout also requires psutil
 RUN python3 -m pip install --upgrade psutil
 
 # Create a non-sudo user and switch to them.
@@ -44,30 +48,24 @@ ENV HOME=/home/terrier
 WORKDIR ${HOME}
 ENV PATH="${HOME}/.local/bin/:${PATH}"
 
-
 ARG DEBIAN_FRONTEND=noninteractive
 
-
 # Get noisepage-pilot repository.
+# RUN git clone https://github.com/cmu-db/noisepage-pilot/
 RUN git clone https://github.com/garrisonhess/noisepage-pilot/
+
 WORKDIR ${HOME}/noisepage-pilot
+RUN git checkout gh/display-tscout-outputs
 
 # Install required python modules for package noisepage-pilot installation.
-RUN python3 -m pip install --user --upgrade pip setuptools wheel build
-
-# Install noisepage-pilot requirements into ~/.local.
-RUN python3 -m pip install --user --upgrade -r requirements.txt
-
-# Build behavior package and install all dependencies (invokes setup.py).
-RUN python3 -m build .
-
-# RUN ["/bin/bash"]
-
-CMD /bin/bash
-ENTRYPOINT /bin/bash
-
-
-  
+RUN python3 -m pip install --user --upgrade pip setuptools wheel build \ 
+    # Install noisepage-pilot requirements into ~/.local.
+    && python3 -m pip install --user --upgrade -r requirements.txt \
+    # Build behavior package and install all dependencies (invokes setup.py).
+    && python3 -m build .
 
 # COPY ./docker-entrypoint.sh /
 # ENTRYPOINT ["/docker-entrypoint.sh"]
+
+CMD /bin/bash
+ENTRYPOINT /bin/bash
