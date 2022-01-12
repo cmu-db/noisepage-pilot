@@ -55,14 +55,9 @@ ARG DEBIAN_FRONTEND=noninteractive
 RUN git clone https://github.com/garrisonhess/noisepage-pilot/
 
 WORKDIR ${HOME}/noisepage-pilot
-RUN git checkout gh/display-tscout-outputs
+RUN git checkout gh/better-docker
 
-# Install required python modules for package noisepage-pilot installation.
-RUN python3 -m pip install --user --upgrade pip setuptools wheel build \ 
-    # Install noisepage-pilot requirements into ~/.local.
-    && python3 -m pip install --user --upgrade -r requirements.txt \
-    # Build behavior package and install all dependencies (invokes setup.py).
-    && python3 -m build .
+RUN python3 -m pip install --user --upgrade -r requirements.txt
 
 # COPY ./docker-entrypoint.sh /
 # ENTRYPOINT ["/docker-entrypoint.sh"]
