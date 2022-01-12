@@ -110,12 +110,15 @@ def load_tscout_data(tscout_data_dir: Path, logdir: Path) -> tuple[dict[str, Dat
     invocation_ids = []
     invocation_id = 0
     prev_statement_id = None
+    curr_invocation_end_time = None
 
     for _, row in unified.iterrows():
         statement_id = row["statement_id"]
-        if statement_id != prev_statement_id or row["plan_node_id"] == 0:
+
+        if statement_id != prev_statement_id or row["end_time"] >= curr_invocation_end_time or row["plan_node_id"] == 0:
             invocation_id += 1
             prev_statement_id = statement_id
+            curr_invocation_end_time = row["end_time"]
         invocation_ids.append(invocation_id)
 
     unified["invocation_id"] = invocation_ids
@@ -142,14 +145,13 @@ def load_tscout_data(tscout_data_dir: Path, logdir: Path) -> tuple[dict[str, Dat
         if plan_node_ids != required_plan_node_ids:
             incomplete_query_ids.append(query_id)
 
-    print(f"incomplete query_ids: {incomplete_query_ids}")
     # Log incomplete query identifiers.
     with (logdir / "incomplete_query_ids.csv").open("w", encoding="utf-8") as f:
         f.write("incomplete_query_ids\n")
         output = [f"{query_id}\n" for query_id in sorted(incomplete_query_ids)]
         f.writelines(output)
 
-    # Remove all incomplete query_ids
+    # Remove all incomplete query_ids.
     unified.loc[incomplete_query_ids].to_csv(logdir / "incomplete_query_id_data.csv", index=False)
     unified = unified[~unified.query_id.isin(incomplete_query_ids)]
     unified.to_csv(logdir / "unified_without_incomplete_query_ids.csv", index=False)
@@ -168,6 +170,8 @@ def load_tscout_data(tscout_data_dir: Path, logdir: Path) -> tuple[dict[str, Dat
 
         if isinstance(invocation_plan_node_ids, (DataFrame, pd.Series)):
             invocation_plan_node_ids = set(invocation_plan_node_ids.values.tolist())
+            if not unified.loc[invocation_id]["plan_node_id"].value_counts().max() == 1:
+                print(f"Invocation_id: {invocation_id} has duplicate plan_node_ids")
         elif isinstance(query_id, np.int64):
             invocation_plan_node_ids = set([invocation_plan_node_ids])
 
@@ -240,7 +244,9 @@ def diff_all_plans(unified: DataFrame, logdir: Path) -> DataFrame:
 
         node_ids: pd.Series = query_invocations["plan_node_id"]
         node_counts: pd.Series = node_ids.value_counts()
-        assert node_counts.min() == node_counts.max(), f"Invalid node_id set.  Node_counts: {node_counts}"
+        assert (
+            node_counts.min() == node_counts.max()
+        ), f"Invalid node_id set for query_id: {query_id}.  Node_counts: {node_counts}"
 
         assert (
             query_invocations["rid"].value_counts().max() == 1

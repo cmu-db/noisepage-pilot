@@ -110,6 +110,8 @@ def prep_train_data(
     ou_name: str, df: DataFrame, feat_diff: bool, target_diff: bool
 ) -> tuple[list[str], list[str], NDArray[Any], NDArray[Any]]:
     cols_to_remove: list[str] = [
+        "statement_id",
+        "invocation_id",
         "start_time",
         "end_time",
         "cpu_id",
