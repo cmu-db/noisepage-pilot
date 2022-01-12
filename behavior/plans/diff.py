@@ -171,11 +171,19 @@ def load_tscout_data(tscout_data_dir: Path, logdir: Path) -> tuple[dict[str, Dat
         if isinstance(invocation_plan_node_ids, (DataFrame, pd.Series)):
             invocation_plan_node_ids = set(invocation_plan_node_ids.values.tolist())
             if not unified.loc[invocation_id]["plan_node_id"].value_counts().max() == 1:
-                print(f"Invocation_id: {invocation_id} has duplicate plan_node_ids")
-        elif isinstance(query_id, np.int64):
+                logger.warning("Invocation_id: %s has duplicate plan_node_ids", invocation_id)
+        elif isinstance(invocation_plan_node_ids, np.int64):
             invocation_plan_node_ids = set([invocation_plan_node_ids])
+        else:
+            logger.error("invalid type: %s", type(invocation_plan_node_ids))
 
         if required_plan_node_ids != invocation_plan_node_ids:
+            logger.info(
+                "Invalid Invocation_id: %s.  Required: %s.  Found: %s",
+                invocation_id,
+                required_plan_node_ids,
+                invocation_plan_node_ids,
+            )
             incomplete_invocation_ids.add(invocation_id)
 
     # Log incomplete invocation identifiers.
