@@ -19,7 +19,7 @@ setup(
         "pydotplus",
         "pylint",
         "pyyaml",
-        "sklearn",
+        "scikit-learn",
         "toml",
         "tqdm",
         "types-PyYAML",
