@@ -226,8 +226,7 @@ class DataGeneratorCLI(cli.Application):
             if self.config["pg_store_plans"]:
                 self.query("benchbase", "SELECT pg_store_plans_reset();")
 
-            cfg_path = (benchbase_results_dir / f"{benchmark}_config.xml").absolute()
-
+            cfg_path = (self.dir_benchbase_config / f"sample_{benchmark}_config.xml").absolute()
             old_wd = os.getcwd()
             os.chdir(self.dir_benchbase)
             logger.debug("BenchBase starting execute: %s", benchmark)
