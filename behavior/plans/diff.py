@@ -133,8 +133,8 @@ def load_tscout_data(tscout_data_dir: Path, logdir: Path) -> tuple[dict[str, Dat
         query_id_to_plan_node_ids[query_id] = plan_node_ids
 
     with (logdir / "query_plans.json").open("w", encoding="utf-8") as f:
-        json_dict = json.dumps({str(k): list(v) for k, v in query_id_to_plan_node_ids.items()})
-        f.write(json_dict)
+        json_dict = {str(k): list(v) for k, v in query_id_to_plan_node_ids.items()}
+        json.dump(json_dict, f, indent=4)
 
     # All query plans must be numbered from 0 to NUM_PLAN_NODES - 1.
     # Verify this invariant and remove/log all plans not satisfying it.
