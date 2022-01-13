@@ -225,11 +225,14 @@ def main(config_file, dir_data_train, dir_data_eval, dir_output) -> None:
         feat_cols, target_cols, x_train, y_train = prep_train_data(ou_name, train_df, feat_diff)
 
         if x_train.shape[1] == 0 or y_train.shape[1] == 0:
-            logging.warning(feat_cols)
-            logging.warning(target_cols)
-            logging.warning(x_train.shape)
-            logging.warning(y_train.shape)
-            logging.warning("%s has no valid training data, skipping", ou_name)
+            logging.warning(
+                "OU: %s has no valid training data, skipping. Feature cols: %s, Target cols: %s, X_train shape: %s, y_train shape: %s",
+                ou_name,
+                feat_cols,
+                target_cols,
+                x_train.shape,
+                y_train.shape,
+            )
             continue
 
         for method in config["methods"]:
