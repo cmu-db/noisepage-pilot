@@ -50,9 +50,8 @@ def task_noisepage_build():
             # Set up directories.
             f"mkdir -p {build_path()}",
             # Clone NoisePage.
-            f"git clone https://github.com/cmu-db/postgres.git {build_path()}",
+            f"git clone https://github.com/cmu-db/postgres.git --branch pg14 --single-branch --depth 1 {build_path()}",
             lambda: os.chdir(build_path()),
-            "git checkout 0bf57876c92aec0483ea3dbb95d438bcc265dc0a",
             # Configure NoisePage.
             "./cmudb/build/configure.sh release",
             # Compile NoisePage.
