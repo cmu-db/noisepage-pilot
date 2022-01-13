@@ -7,7 +7,7 @@
     <url>jdbc:postgresql://localhost:5432/benchbase?sslmode=disable&amp;ApplicationName=noop&amp;reWriteBatchedInserts=true</url>
     <username>admin</username>
     <password>password</password>
-    <isolation>TRANSACTION_SERIALIZABLE</isolation>
+    <isolation>TRANSACTION_READ_COMMITTED</isolation>
     <batchsize>128</batchsize>
 
     <!-- This parameter has no affect on this benchmark-->
