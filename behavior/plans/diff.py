@@ -364,9 +364,6 @@ def main(data_dir, output_dir, experiment: str) -> None:
 
     for mode in ["train", "eval"]:
         experiment_root: Path = data_dir / mode / experiment
-        logdir = output_dir / "log" / mode / experiment
-        logdir.mkdir(parents=True, exist_ok=True)
-
         bench_names: list[str] = [
             d.name for d in experiment_root.iterdir() if d.is_dir() and d.name in BENCHDB_TO_TABLES
         ]
@@ -375,10 +372,12 @@ def main(data_dir, output_dir, experiment: str) -> None:
             logger.info("Mode: %s | Benchmark: %s", mode, bench_name)
             bench_root = experiment_root / bench_name
             tscout_data_dir = bench_root / "tscout"
-            diff_data_dir: Path = output_dir / "diff" / mode / experiment
+            diff_data_dir: Path = output_dir / "diff" / mode / experiment / bench_name
             if diff_data_dir.exists():
                 shutil.rmtree(diff_data_dir)
             diff_data_dir.mkdir(parents=True, exist_ok=True)
+            logdir = output_dir / "log" / mode / experiment / bench_name
+            logdir.mkdir(parents=True, exist_ok=True)
 
             tscout_dfs, unified = load_tscout_data(tscout_data_dir, logdir)
             diffed_cols: DataFrame = diff_all_plans(unified, logdir)
