@@ -4,8 +4,8 @@ FROM ubuntu:20.04
 
 USER root
 
-# Suppress interactive dialog.
-ARG DEBIAN_FRONTEND=noninteractive
+# # Suppress interactive dialog.
+# ARG DEBIAN_FRONTEND=noninteractive
 
 # NoisePage Pilot requirements.
 RUN set -eux; \
@@ -17,6 +17,7 @@ RUN set -eux; \
     python3 \
     python3-pip \
     python3.8-venv \
+    graphviz \ 
     # Postgres requirements.
     bison \
     build-essential \
@@ -48,19 +49,19 @@ ENV HOME=/home/terrier
 WORKDIR ${HOME}
 ENV PATH="${HOME}/.local/bin/:${PATH}"
 
-ARG DEBIAN_FRONTEND=noninteractive
+# ARG DEBIAN_FRONTEND=noninteractive
 
 # Get noisepage-pilot repository.
 # RUN git clone https://github.com/cmu-db/noisepage-pilot/
 RUN git clone https://github.com/garrisonhess/noisepage-pilot/
 
 WORKDIR ${HOME}/noisepage-pilot
-RUN git checkout gh/better-docker
+RUN git checkout gh/docker-with-statement-timestamps
 
 RUN python3 -m pip install --user --upgrade -r requirements.txt
 
-# COPY ./docker-entrypoint.sh /
-# ENTRYPOINT ["/docker-entrypoint.sh"]
+RUN echo 'terrier' | sudo -S pwd
+RUN doit noisepage_build
+RUN doit benchbase_build
 
-CMD /bin/bash
 ENTRYPOINT /bin/bash
