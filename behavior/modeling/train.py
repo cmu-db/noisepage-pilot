@@ -206,8 +206,8 @@ def main(config_file, dir_data_train, dir_data_eval, dir_output) -> None:
     else:
         experiment_name = config["experiment_name"]
 
-    training_data_dir = dir_data_train / experiment_name
-    eval_data_dir = dir_data_eval / experiment_name
+    training_data_dir = dir_data_train / train_bench_db / experiment_name
+    eval_data_dir = dir_data_eval / eval_bench_db / experiment_name
 
     logging.info("eval data dir: %s", eval_data_dir)
     if not training_data_dir.exists():
