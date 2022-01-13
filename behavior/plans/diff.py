@@ -114,7 +114,6 @@ def infer_query_plans(query_to_plan_node_counts, logdir):
         for query_id, plan_node_id_to_counts in inferred_plan_node_counts.items()
     }
 
-    logger.info("Inferred query plans: %s", inferred_query_plans.items())
     assert isinstance(inferred_query_plans, dict)
     return inferred_query_plans
 
