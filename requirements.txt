@@ -3,16 +3,16 @@ doit
 flake8
 isort
 lightgbm
-mypy
-numpy
+numpy>=1.20 # Required for numpy.typing
 pandas
+pathlib
 plumbum
 psycopg
 psutil
 pydotplus
 pylint
 pyyaml
-scikit-learn
+scikit-learn>=1.0.0 # Required for various function definitions
 toml
 tqdm
 types-PyYAML
