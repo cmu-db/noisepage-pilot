@@ -485,9 +485,9 @@ def task_ci_python():
 
     return {
         "actions": [
-            "black --verbose dodo.py setup.py",
-            "isort --verbose dodo.py setup.py",
-            "flake8 --statistics dodo.py setup.py",
+            "black --verbose dodo.py",
+            "isort --verbose dodo.py",
+            "flake8 --statistics dodo.py",
             *[f"black --verbose {folder}" for folder in folders],
             *[f"isort {folder}" for folder in folders],
             *[f"flake8 --statistics {folder}" for folder in folders],

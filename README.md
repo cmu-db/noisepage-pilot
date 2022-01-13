@@ -5,7 +5,7 @@ This repository contains the pilot components for the [NoisePage DBMS](https://n
 ## Quickstart
 
 1. Install necessary packages.
-    - `pip3 -r requirements.txt`
+    - `pip3 install --upgrade -r requirements.txt`
 2. List all the tasks.
     - `doit list`
 3. Select and run a doit task from the task list, e.g. `doit action_recommendation`.  Task dependencies are executed automatically.
