@@ -97,7 +97,7 @@ class DataGeneratorCLI(cli.Application):
             The name of the database.
         query_str : str
             The query string to execute.
-        psql_args : str
+        psql_args : List[str]
             Any additional arguments to psql.
         """
         args = ["--dbname", db, "--command", query_str]
