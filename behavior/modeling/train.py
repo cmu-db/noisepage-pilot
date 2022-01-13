@@ -22,7 +22,7 @@ from sklearn.metrics import (
     r2_score,
 )
 
-from behavior import BASE_TARGET_COLS, BENCHDB_TO_TABLES, LEAF_NODES, PLAN_NODE_NAMES
+from behavior import BASE_TARGET_COLS, BENCHDB_TO_TABLES, PLAN_NODE_NAMES
 from behavior.modeling.model import BehaviorModel
 
 
@@ -107,58 +107,56 @@ def load_data(data_dir: Path) -> dict[str, DataFrame]:
 
 
 def prep_train_data(
-    ou_name: str, df: DataFrame, feat_diff: bool, target_diff: bool
+    ou_name: str, df: DataFrame, feat_diff: bool
 ) -> tuple[list[str], list[str], NDArray[Any], NDArray[Any]]:
+
+    # logging.error("INITIAL COLUMNS: %s, DF SHAPE: %s", df.columns, df.shape)
     cols_to_remove: list[str] = [
+        "rid",
         "statement_id",
         "invocation_id",
         "start_time",
         "end_time",
         "cpu_id",
         "query_id",
-        "rid",
         "plan_node_id",
+        "pid",
         "statement_timestamp",
         "left_child_plan_node_id",
         "right_child_plan_node_id",
     ]
+    cols_to_remove = [col for col in cols_to_remove if col in df.columns]
+    df = df.drop(cols_to_remove, axis=1).sort_index(axis=1)
+
+    # TODO(Garrison): Re-enable this in a way that doesn't remove everything in degenerate cases.
+    # for col in df.columns:
+    #     if df[col].nunique() == 1 and col not in diff_targ_cols + BASE_TARGET_COLS:
+    #         logging.info(
+    #             "Dropping zero-variance column: %s",
+    #             col,
+    #         )
+    #         cols_to_remove.append(col)
 
     diff_targ_cols = [f"diffed_{col}" for col in BASE_TARGET_COLS]
 
-    if target_diff and ou_name not in LEAF_NODES:
-        cols_to_remove += BASE_TARGET_COLS
+    if feat_diff:
+        df = df.drop(BASE_TARGET_COLS, axis=1)
+        target_cols = diff_targ_cols
     else:
-        cols_to_remove += diff_targ_cols
+        df = df.drop(diff_targ_cols, axis=1)
+        target_cols = BASE_TARGET_COLS
 
-    cols_to_remove = [col for col in cols_to_remove if col in df.columns]
+    logging.info("OU: %s | Feat Diff: %s | Targets: %s", ou_name, feat_diff, target_cols)
+    feat_cols: list[str] = [col for col in df.columns if col not in target_cols]
 
-    for col in df.columns:
-        if df[col].nunique() == 1:
-            cols_to_remove.append(col)
-
-    df = df.drop(cols_to_remove, axis=1).sort_index(axis=1)
-
-    if len(cols_to_remove) > 0:
-        logging.debug(
-            "Dropped zero-variance columns: %s | Num Remaining: %s, Num Removed: %s",
-            cols_to_remove,
-            len(df.columns),
-            len(cols_to_remove),
-        )
-
-    if target_diff and ou_name not in LEAF_NODES:
-        logging.debug("using differenced targets for: %s", ou_name)
-        target_cols = [col for col in df.columns if col in diff_targ_cols]
-    else:
-        target_cols = [col for col in df.columns if col in BASE_TARGET_COLS]
-        logging.debug("using undiff targets for: %s.  target_cols: %s", ou_name, target_cols)
-    all_target_cols = BASE_TARGET_COLS + diff_targ_cols
-    feat_cols: list[str] = [col for col in df.columns if col not in all_target_cols]
-
+    # Support filtered diffed features for ablation testing only.
     if not feat_diff:
         feat_cols = [col for col in feat_cols if not col.startswith("diffed")]
 
-    logging.debug("Using features: %s", feat_cols)
+    if not feat_cols:
+        logging.warning("All features were constant.  Defaulting to a single constant bias column.")
+        df["bias"] = 1
+        feat_cols = ["bias"]
 
     X = df[feat_cols].values
     y = df[target_cols].values
@@ -169,6 +167,9 @@ def prep_train_data(
 def prep_eval_data(
     df: pd.DataFrame, feat_cols: list[str], target_cols: list[str]
 ) -> tuple[NDArray[np.float32], NDArray[np.float32]]:
+    if "bias" in feat_cols:
+        df["bias"] = 1
+
     X = df[feat_cols].values
     y = df[target_cols].values
 
@@ -190,7 +191,6 @@ def main(config_file, dir_data_train, dir_data_eval, dir_output) -> None:
     eval_bench_dbs = config["eval_bench_dbs"]
     eval_bench_db = eval_bench_dbs[0]
     feat_diff = config["features_diff"]
-    target_diff = config["targets_diff"]
 
     for train_bench_db in train_bench_dbs:
         if train_bench_db not in BENCHDB_TO_TABLES:
@@ -222,7 +222,7 @@ def main(config_file, dir_data_train, dir_data_eval, dir_output) -> None:
 
     for ou_name, train_df in train_ou_to_df.items():
         logging.info("Begin Training OU: %s", ou_name)
-        feat_cols, target_cols, x_train, y_train = prep_train_data(ou_name, train_df, feat_diff, target_diff)
+        feat_cols, target_cols, x_train, y_train = prep_train_data(ou_name, train_df, feat_diff)
 
         if x_train.shape[1] == 0 or y_train.shape[1] == 0:
             logging.warning(feat_cols)

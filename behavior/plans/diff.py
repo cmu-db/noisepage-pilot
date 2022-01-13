@@ -15,13 +15,7 @@ from numpy.typing import NDArray
 from pandas import DataFrame
 from plumbum import cli
 
-from behavior import (
-    BASE_TARGET_COLS,
-    BENCHDB_TO_TABLES,
-    DIFF_COLS,
-    LEAF_NODES,
-    PLAN_NODE_NAMES,
-)
+from behavior import BASE_TARGET_COLS, BENCHDB_TO_TABLES, DIFF_COLS, PLAN_NODE_NAMES
 
 COMMON_SCHEMA: list[str] = [
     "statement_id",
@@ -82,67 +76,77 @@ def remap_cols(ou_to_df: dict[str, DataFrame]) -> dict[str, DataFrame]:
     return remapped
 
 
-def load_tscout_data(tscout_data_dir: Path, logdir: Path) -> tuple[dict[str, DataFrame], DataFrame]:
+def infer_query_plans(query_to_plan_node_counts, logdir):
+    # If less than 1% of plans have the last node id, just drop it.
+    inferred_plan_node_counts = {}
+    inferred_query_plans = {}
 
-    ou_to_df: dict[str, DataFrame] = {}
+    for query_id, node_id_to_count in query_to_plan_node_counts.items():
+        max_count = max(node_id_to_count.values())
+        truncation_node_id = None
 
-    # Phase 1: Create unified dataframe
-    # Load all OU files into a dict of dataframes.
-    for node_name in PLAN_NODE_NAMES:
-        result_path = tscout_data_dir / f"Exec{node_name}.csv"
-        if not result_path.exists():
-            logger.error(
-                "result doesn't exist for ou_name: %s, should be at path: %s",
-                node_name,
-                result_path,
-            )
-            sys.exit(1)
-        if os.stat(result_path).st_size > 0:
-            ou_to_df[node_name] = pd.read_csv(result_path)
+        for (node_id, count) in node_id_to_count.items():
+            if count < (0.01 * max_count):
+                logger.warning(
+                    "Truncating potentially broken plan.  Query_id: %s | Truncation Node Id: %s | Node Id to Count: %s",
+                    query_id,
+                    truncation_node_id,
+                    sorted(node_id_to_count),
+                )
+                truncation_node_id = node_id
+                break
 
-    # Remap the common columns into the common schema.
-    ou_to_df = remap_cols(ou_to_df)
+        # Only truncate plans if the criteria is met.
+        if truncation_node_id is not None:
+            inferred_plan_node_counts[query_id] = {k: v for k, v in node_id_to_count.items() if k < truncation_node_id}
+        else:
+            inferred_plan_node_counts[query_id] = node_id_to_count
 
-    unified: DataFrame = pd.concat([df[COMMON_SCHEMA] for df in ou_to_df.values()], axis=0)
-    unified.sort_values(by=["statement_id", "start_time", "plan_node_id"], axis=0, inplace=True)
-
-    # Partition multiple OU invocations within a single statement.
-    invocation_ids = []
-    invocation_id = 0
-    prev_statement_id = None
-    curr_invocation_end_time = None
-
-    for _, row in unified.iterrows():
-        statement_id = row["statement_id"]
-
-        if statement_id != prev_statement_id or row["end_time"] >= curr_invocation_end_time or row["plan_node_id"] == 0:
-            invocation_id += 1
-            prev_statement_id = statement_id
-            curr_invocation_end_time = row["end_time"]
-        invocation_ids.append(invocation_id)
-
-    unified["invocation_id"] = invocation_ids
-    unified.to_csv(logdir / "unified_initial.csv", index=False)
-
-    # Phase 2: Filter and log all incomplete query_ids
-    unified.set_index("query_id", drop=False, inplace=True)
-    query_id_to_plan_node_ids = {}
-    for query_id in pd.unique(unified.index):
-        temp = unified.loc[query_id]["plan_node_id"].values.tolist()
-        plan_node_ids = set(temp)
-        query_id_to_plan_node_ids[query_id] = plan_node_ids
-
-    with (logdir / "query_plans.json").open("w", encoding="utf-8") as f:
-        json_dict = {str(k): list(v) for k, v in query_id_to_plan_node_ids.items()}
+    with (logdir / "inferred_plan_node_counts.json").open("w", encoding="utf-8") as f:
+        json_dict = {
+            str(query_id): {int(node_id): int(node_count) for node_id, node_count in sorted(plan_node_counter.items())}
+            for query_id, plan_node_counter in inferred_plan_node_counts.items()
+        }
         json.dump(json_dict, f, indent=4)
+
+    inferred_query_plans = {
+        query_id: set(plan_node_id_to_counts.keys())
+        for query_id, plan_node_id_to_counts in inferred_plan_node_counts.items()
+    }
+
+    logger.info("Inferred query plans: %s", inferred_query_plans.items())
+    assert isinstance(inferred_query_plans, dict)
+    return inferred_query_plans
+
+
+def resolve_query_plans(unified, logdir):
+
+    unified.set_index("query_id", drop=False, inplace=True)
+
+    # Count all query plan nodes
+    query_to_plan_node_counts = {}
+    for query_id in pd.unique(unified.index):
+        node_ids = unified.loc[query_id]["plan_node_id"]
+        plan_node_counts = node_ids.value_counts().to_dict()
+        query_to_plan_node_counts[query_id] = plan_node_counts
+
+    with (logdir / "observed_query_plan_node_counts.json").open("w", encoding="utf-8") as f:
+        json_dict = {
+            str(query_id): {int(node_id): int(node_count) for node_id, node_count in sorted(plan_node_counter.items())}
+            for query_id, plan_node_counter in query_to_plan_node_counts.items()
+        }
+        json.dump(json_dict, f, indent=4)
+
+    inferred_query_plans = infer_query_plans(query_to_plan_node_counts, logdir)
 
     # All query plans must be numbered from 0 to NUM_PLAN_NODES - 1.
     # Verify this invariant and remove/log all plans not satisfying it.
     incomplete_query_ids = []
-    for query_id, plan_node_ids in query_id_to_plan_node_ids.items():
+    for query_id, plan_node_ids in inferred_query_plans.items():
         required_plan_node_ids = set(range(len(plan_node_ids)))
 
         if plan_node_ids != required_plan_node_ids:
+            logger.warning("Found incomplete query plan: %s for query_id %s", plan_node_ids, query_id)
             incomplete_query_ids.append(query_id)
 
     # Log incomplete query identifiers.
@@ -156,7 +160,12 @@ def load_tscout_data(tscout_data_dir: Path, logdir: Path) -> tuple[dict[str, Dat
     unified = unified[~unified.query_id.isin(incomplete_query_ids)]
     unified.to_csv(logdir / "unified_without_incomplete_query_ids.csv", index=False)
 
-    # Phase 3: Filter and log all invocation_ids with an incorrect set of plan_node_ids.
+    return unified, inferred_query_plans
+
+
+def resolve_query_invocations(unified, logdir, query_id_to_plan_node_ids):
+
+    # Filter and log all invocation_ids with an incorrect set of plan_node_ids.
     incomplete_invocation_ids = set()
     unified.set_index("invocation_id", drop=False, inplace=True)
     for invocation_id in pd.unique(unified.index):
@@ -179,8 +188,9 @@ def load_tscout_data(tscout_data_dir: Path, logdir: Path) -> tuple[dict[str, Dat
 
         if required_plan_node_ids != invocation_plan_node_ids:
             logger.info(
-                "Invalid Invocation_id: %s.  Required: %s.  Found: %s",
+                "Found Incomplete Plan Data | Invocation_id: %s | Query_id: %s | Required: %s | Found: %s",
                 invocation_id,
+                query_id,
                 required_plan_node_ids,
                 invocation_plan_node_ids,
             )
@@ -192,15 +202,60 @@ def load_tscout_data(tscout_data_dir: Path, logdir: Path) -> tuple[dict[str, Dat
         output = [f"{invocation_id}\n" for invocation_id in sorted(incomplete_invocation_ids)]
         f.writelines(output)
 
-    # incomplete_invocations = unified.loc[incomplete_invocation_ids]
     incomplete_invocations = unified[unified.invocation_id.isin(incomplete_invocation_ids)]
     incomplete_invocations.to_csv(logdir / "incomplete_invocations.csv", index=False)
     unified = unified[~unified.invocation_id.isin(incomplete_invocation_ids)]
     unified.to_csv(logdir / "unified_without_incomplete_invocation_ids.csv", index=False)
-
-    # Phase 4: Propagate changes back to original dataframes
-    ou_to_df = {ou_name: df.set_index("rid", drop=False, inplace=False) for ou_name, df in ou_to_df.items()}
     incomplete_rids = incomplete_invocations["rid"]
+
+    return unified, incomplete_rids
+
+
+def load_tscout_data(tscout_data_dir: Path, logdir: Path) -> tuple[dict[str, DataFrame], DataFrame]:
+
+    ou_to_df: dict[str, DataFrame] = {}
+
+    # Load all OU files into a dict of dataframes.
+    for node_name in PLAN_NODE_NAMES:
+        result_path = tscout_data_dir / f"Exec{node_name}.csv"
+        if not result_path.exists():
+            logger.error(
+                "result doesn't exist for ou_name: %s, should be at path: %s",
+                node_name,
+                result_path,
+            )
+            sys.exit(1)
+        if os.stat(result_path).st_size > 0:
+            ou_to_df[node_name] = pd.read_csv(result_path)
+
+    # Create unified dataframe, remapping all shared columns into one common schema.
+    ou_to_df = remap_cols(ou_to_df)
+    unified: DataFrame = pd.concat([df[COMMON_SCHEMA] for df in ou_to_df.values()], axis=0)
+    unified.sort_values(by=["statement_id", "start_time", "plan_node_id"], axis=0, inplace=True)
+
+    # Partition multiple OU invocations within a single statement.
+    invocation_ids = []
+    invocation_id = 0
+    prev_statement_id = None
+    curr_invocation_end_time = None
+
+    for _, row in unified.iterrows():
+        statement_id = row["statement_id"]
+
+        if statement_id != prev_statement_id or row["end_time"] >= curr_invocation_end_time or row["plan_node_id"] == 0:
+            invocation_id += 1
+            prev_statement_id = statement_id
+            curr_invocation_end_time = row["end_time"]
+        invocation_ids.append(invocation_id)
+
+    unified["invocation_id"] = invocation_ids
+    unified.to_csv(logdir / "unified_initial.csv", index=False)
+
+    unified, query_id_to_plan_node_ids = resolve_query_plans(unified, logdir)
+    unified, incomplete_rids = resolve_query_invocations(unified, logdir, query_id_to_plan_node_ids)
+
+    # Propagate changes back to original DataFrames.
+    ou_to_df = {ou_name: df.set_index("rid", drop=False, inplace=False) for ou_name, df in ou_to_df.items()}
     ou_to_df = {ou_name: df[~df.rid.isin(incomplete_rids)] for ou_name, df in ou_to_df.items()}
 
     for ou_name, df in ou_to_df.items():
@@ -289,9 +344,6 @@ def save_results(diff_data_dir: Path, ou_to_df: dict[str, DataFrame], diffed_col
     # add the new columns onto the tscout dataframes
     for ou_name, df in ou_to_df.items():
         df.drop(["ou_name", "rid"], axis=1, inplace=True)
-        if ou_name in LEAF_NODES:
-            df.to_csv(f"{diff_data_dir}/{ou_name}.csv", index=True)
-            continue
 
         # find the intersection of RIDs between diffed_cols and each df
         rids_to_update = df.index.intersection(diffed_cols.index)
@@ -299,9 +351,12 @@ def save_results(diff_data_dir: Path, ou_to_df: dict[str, DataFrame], diffed_col
 
         if rids_to_update.shape[0] > 0:
             diffed_df = df.join(diffed_cols.loc[rids_to_update], how="inner")
-            diffed_df.to_csv(f"{diff_data_dir}/{ou_name}.csv", index=True)
         else:
             diffed_df = df
+            diff_target_cols = [f"diffed_{col}" for col in BASE_TARGET_COLS]
+            diffed_df[diff_target_cols] = diffed_df[BASE_TARGET_COLS]
+
+        diffed_df.to_csv(f"{diff_data_dir}/{ou_name}.csv", index=True)
 
 
 def main(data_dir, output_dir, experiment: str) -> None:
