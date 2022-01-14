@@ -2,6 +2,8 @@
 
 The `docker` folder is for all files that relate to development or CI docker images and containers.
 
+A successful build-and-run will put you in the shell in the running container.  At this point, you should be able to run `doit` tasks or perform other general development tasks.
+
 ## Tips
 
 - Run the below commands from the project root.
@@ -19,7 +21,7 @@ To build a container using the current `main` branch reference on GitHub, you ca
 
 To run the Docker container you can use:
 
-```docker run -it --rm --privileged --cap-add="ALL" noisepage-pilot_dev```
+```docker run -it --rm --cap-add="ALL" noisepage-pilot_dev```
 
 To delete old images, you can use:
 
