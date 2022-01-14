@@ -2,8 +2,6 @@
 # NoisePage officially supports Ubuntu 20.04.
 FROM ubuntu:20.04
 
-USER root
-
 # Suppress interactive dialog.
 ARG DEBIAN_FRONTEND=noninteractive
 
@@ -40,21 +38,15 @@ RUN set -eux; \
 # TScout also requires psutil (on the root user)
 RUN python3 -m pip install --upgrade psutil
 
-# Enable users to run sudo without entering password
-RUN echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
-
-# Create a non-sudo user and switch to them.
-# This is because PostgreSQL binaries don't like being
-# run as root, e.g., initdb.
-RUN useradd --create-home --shell /bin/bash --home-dir /home/terrier --password "$(openssl passwd -1 terrier)" -G sudo terrier 
+RUN useradd --create-home --shell /bin/bash --home-dir /home/terrier \
+    --password "$(openssl passwd -1 terrier)" -G sudo terrier  \
+    && echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 USER terrier
 ENV HOME=/home/terrier
 WORKDIR $HOME
 
 # Add pip package installation directory to PATH
 ENV PATH="${HOME}/.local/bin/:${PATH}"
-
-ARG DEBIAN_FRONTEND=noninteractive
 
 # Copy the contents of the build context (working directory).
 COPY --chown=terrier:terrier . ${HOME}/noisepage-pilot

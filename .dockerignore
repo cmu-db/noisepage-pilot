@@ -6,6 +6,7 @@
 # Build artifacts.
 artifacts/
 
+
 # Directory for building code.
 build/
 
@@ -19,7 +20,8 @@ docs/
 cmake-build-*/
 
 # Ignore Python bytecode cache files.
-__pycache__/
+**/__pycache__
+**/*.pyc
 
 # Ignore Python doit db.
 .doit.db

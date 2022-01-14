@@ -9,7 +9,7 @@ A successful build-and-run will put you in the shell in the running container.  
 - Run the below commands from the project root.
 - You must rebuild the Docker image every time there are changes in your source tree.
 
-## Helpful Commands
+## Helpful commands
 
 To build a local development image you can use:
 
@@ -26,3 +26,7 @@ To run the Docker container you can use:
 To delete old images, you can use:
 
 ```docker system prune --all```
+
+## Docker gotchas
+
+Anything that takes you over 1 day to figure out should be documented here.
