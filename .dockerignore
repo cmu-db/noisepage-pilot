@@ -1,4 +1,4 @@
-# NoisePage-Pilot Docker ignores
+# NoisePage-Pilot Docker ignores.
 .git
 .gitignore
 
@@ -10,7 +10,7 @@ artifacts/
 # Directory for building code.
 build/
 
-# Docker containers don't need documentation
+# Docker containers don't need documentation.
 docs/
 
 # Ignore most JetBrains IDE files.
