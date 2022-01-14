@@ -25,6 +25,8 @@ from sklearn.metrics import (
 from behavior import BASE_TARGET_COLS, BENCHDB_TO_TABLES, PLAN_NODE_NAMES
 from behavior.modeling.model import BehaviorModel
 
+logger = logging.getLogger(__name__)
+
 
 def evaluate(
     ou_model: BehaviorModel,
@@ -97,7 +99,7 @@ def load_data(data_dir: Path) -> dict[str, DataFrame]:
     for ou_name in PLAN_NODE_NAMES:
         ou_results = [fp for fp in result_paths if fp.name.startswith(ou_name)]
         if len(ou_results) > 0:
-            logging.info("Found %s run(s) for %s", len(ou_results), ou_name)
+            logger.info("Found %s run(s) for %s", len(ou_results), ou_name)
             ou_name_to_df[ou_name] = pd.concat(map(pd.read_csv, ou_results))
 
     if len(ou_name_to_df) == 0:
@@ -110,7 +112,6 @@ def prep_train_data(
     ou_name: str, df: DataFrame, feat_diff: bool
 ) -> tuple[list[str], list[str], NDArray[Any], NDArray[Any]]:
 
-    # logging.error("INITIAL COLUMNS: %s, DF SHAPE: %s", df.columns, df.shape)
     cols_to_remove: list[str] = [
         "rid",
         "statement_id",
@@ -125,19 +126,25 @@ def prep_train_data(
         "left_child_plan_node_id",
         "right_child_plan_node_id",
     ]
+
+    # Blacklist columns which include the relation ID.
+    relid_cols = [col for col in df.columns if col.endswith("relid")]
+    cols_to_remove += relid_cols
+
+    # Don't try to remove any columns which aren't actually in the DataFrame.
     cols_to_remove = [col for col in cols_to_remove if col in df.columns]
     df = df.drop(cols_to_remove, axis=1).sort_index(axis=1)
 
-    # TODO(Garrison): Re-enable this in a way that doesn't remove everything in degenerate cases.
-    # for col in df.columns:
-    #     if df[col].nunique() == 1 and col not in diff_targ_cols + BASE_TARGET_COLS:
-    #         logging.info(
-    #             "Dropping zero-variance column: %s",
-    #             col,
-    #         )
-    #         cols_to_remove.append(col)
-
+    # Remove all features with zero variance.
     diff_targ_cols = [f"diffed_{col}" for col in BASE_TARGET_COLS]
+    all_target_columns = diff_targ_cols + BASE_TARGET_COLS
+    for col in df.columns:
+        if df[col].nunique() == 1 and col not in all_target_columns:
+            logger.info(
+                "Dropping zero-variance column: %s",
+                col,
+            )
+            cols_to_remove.append(col)
 
     if feat_diff:
         df = df.drop(BASE_TARGET_COLS, axis=1)
@@ -146,7 +153,7 @@ def prep_train_data(
         df = df.drop(diff_targ_cols, axis=1)
         target_cols = BASE_TARGET_COLS
 
-    logging.info("OU: %s | Feat Diff: %s | Targets: %s", ou_name, feat_diff, target_cols)
+    logger.info("OU: %s | Feat Diff: %s | Targets: %s", ou_name, feat_diff, target_cols)
     feat_cols: list[str] = [col for col in df.columns if col not in target_cols]
 
     # Support filtered diffed features for ablation testing only.
@@ -154,7 +161,7 @@ def prep_train_data(
         feat_cols = [col for col in feat_cols if not col.startswith("diffed")]
 
     if not feat_cols:
-        logging.warning("All features were constant.  Defaulting to a single constant bias column.")
+        logger.warning("All features were constant.  Defaulting to a single constant bias column.")
         df["bias"] = 1
         feat_cols = ["bias"]
 
@@ -199,17 +206,17 @@ def main(config_file, dir_data_train, dir_data_eval, dir_output) -> None:
     # if no experiment name is provided, try to find one
     if config["experiment_name"] is None:
         experiment_list = sorted([exp_path.name for exp_path in dir_data_train.glob("*")])
-        logging.info("%s experiments: %s", train_bench_db, experiment_list)
+        logger.info("%s experiments: %s", train_bench_db, experiment_list)
         assert len(experiment_list) > 0, "No experiments found"
         experiment_name = experiment_list[-1]
-        logging.info("Experiment name was not provided, using experiment: %s", experiment_name)
+        logger.info("Experiment name was not provided, using experiment: %s", experiment_name)
     else:
         experiment_name = config["experiment_name"]
 
     training_data_dir = dir_data_train / experiment_name / train_bench_db
     eval_data_dir = dir_data_eval / experiment_name / eval_bench_db
 
-    logging.info("eval data dir: %s", eval_data_dir)
+    logger.info("eval data dir: %s", eval_data_dir)
     if not training_data_dir.exists():
         raise ValueError(f"Train Benchmark DB {train_bench_db} not found in experiment: {experiment_name}")
     if not eval_data_dir.exists():
@@ -221,11 +228,11 @@ def main(config_file, dir_data_train, dir_data_eval, dir_output) -> None:
     output_dir = dir_output / base_model_name
 
     for ou_name, train_df in train_ou_to_df.items():
-        logging.info("Begin Training OU: %s", ou_name)
+        logger.info("Begin Training OU: %s", ou_name)
         feat_cols, target_cols, x_train, y_train = prep_train_data(ou_name, train_df, feat_diff)
 
         if x_train.shape[1] == 0 or y_train.shape[1] == 0:
-            logging.warning(
+            logger.warning(
                 "OU: %s has no valid training data, skipping. Feature cols: %s, Target cols: %s, X_train shape: %s, y_train shape: %s",
                 ou_name,
                 feat_cols,
@@ -238,7 +245,7 @@ def main(config_file, dir_data_train, dir_data_eval, dir_output) -> None:
         for method in config["methods"]:
             full_outdir = output_dir / method / ou_name
             full_outdir.mkdir(parents=True, exist_ok=True)
-            logging.info("Training OU: %s with model: %s", ou_name, method)
+            logger.info("Training OU: %s with model: %s", ou_name, method)
             ou_model = BehaviorModel(
                 dir_output,
                 method,
