@@ -12,8 +12,8 @@ datagen:
 
 # Modeling Configuration
 modeling: 
-  train_bench_dbs: [tpcc]
-  eval_bench_dbs: [tpcc]
+  train_bench_db: tpcc
+  eval_bench_db: tpcc
   experiment_name: null
   targets_diff: True
   features_diff: True

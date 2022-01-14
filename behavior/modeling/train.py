@@ -192,17 +192,13 @@ def main(config_file, dir_data_train, dir_data_eval, dir_output) -> None:
     with config_file.open("r") as f:
         config = yaml.load(f, Loader=yaml.FullLoader)["modeling"]
 
-    # TODO(Garrison): Get this work with multiple evaluation datasets
     training_timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    train_bench_dbs = config["train_bench_dbs"]
-    train_bench_db = train_bench_dbs[0]
-    eval_bench_dbs = config["eval_bench_dbs"]
-    eval_bench_db = eval_bench_dbs[0]
+    train_bench_db = config["train_bench_db"]
+    eval_bench_db = config["eval_bench_db"]
     feat_diff = config["features_diff"]
 
-    for train_bench_db in train_bench_dbs:
-        if train_bench_db not in BENCHDB_TO_TABLES:
-            raise ValueError(f"Benchmark DB {config['bench_db']} not supported")
+    if train_bench_db not in BENCHDB_TO_TABLES:
+        raise ValueError(f"Benchmark DB {config['bench_db']} not supported")
 
     # if no experiment name is provided, try to find one
     if config["experiment_name"] is None:
