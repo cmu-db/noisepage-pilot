@@ -35,7 +35,7 @@ RUN set -eux; \
     linux-headers-$(uname -r) \
     && rm -rf /var/lib/apt/lists/*
 
-# TScout also requires psutil (on the root user)
+# TScout also requires psutil (on the root user).
 RUN python3 -m pip install --upgrade psutil
 
 RUN useradd --create-home --shell /bin/bash --home-dir /home/terrier \
@@ -45,7 +45,7 @@ USER terrier
 ENV HOME=/home/terrier
 WORKDIR $HOME
 
-# Add pip package installation directory to PATH
+# Add pip package installation directory to PATH.
 ENV PATH="${HOME}/.local/bin/:${PATH}"
 
 # Copy the contents of the build context (working directory).
