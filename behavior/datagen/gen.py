@@ -476,6 +476,7 @@ class DataGeneratorCLI(cli.Application):
 
         # Attach TScout.
         self._tscout_init(output_dir)
+
         # Execute BenchBase.
         self._benchbase_exec(benchmark, benchbase_results_dir)
         # TODO(GARRISON/WAN): This is a hack.

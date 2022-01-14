@@ -4,8 +4,8 @@ FROM ubuntu:20.04
 
 USER root
 
-# # Suppress interactive dialog.
-# ARG DEBIAN_FRONTEND=noninteractive
+# Suppress interactive dialog.
+ARG DEBIAN_FRONTEND=noninteractive
 
 # NoisePage Pilot requirements.
 RUN set -eux; \
@@ -49,7 +49,12 @@ ENV HOME=/home/terrier
 WORKDIR ${HOME}
 ENV PATH="${HOME}/.local/bin/:${PATH}"
 
-# ARG DEBIAN_FRONTEND=noninteractive
+ARG DEBIAN_FRONTEND=noninteractive
+
+# Ensure sudo group users are not 
+# asked for a password when using 
+# sudo command by ammending sudoers file
+RUN echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
 # Get noisepage-pilot repository.
 # RUN git clone https://github.com/cmu-db/noisepage-pilot/
@@ -60,8 +65,8 @@ RUN git checkout gh/docker-with-statement-timestamps
 
 RUN python3 -m pip install --user --upgrade -r requirements.txt
 
-RUN echo 'terrier' | sudo -S pwd
-RUN doit noisepage_build
+# RUN echo 'terrier' | sudo -S pwd
+# RUN doit noisepage_build
 RUN doit benchbase_build
 
 ENTRYPOINT /bin/bash
