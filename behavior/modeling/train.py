@@ -192,6 +192,7 @@ def main(config_file, dir_data_train, dir_data_eval, dir_output) -> None:
     with config_file.open("r") as f:
         config = yaml.load(f, Loader=yaml.FullLoader)["modeling"]
 
+    # TODO(Garrison): Get this work with multiple evaluation datasets
     training_timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     train_bench_dbs = config["train_bench_dbs"]
     train_bench_db = train_bench_dbs[0]

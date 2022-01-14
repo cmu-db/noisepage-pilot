@@ -13,11 +13,11 @@ datagen:
 # Modeling Configuration
 modeling: 
   train_bench_dbs: [tpcc]
-  eval_bench_dbs: [tpcc, ycsb, wikipedia, voter, twitter, smallbank, auctionmark]
+  eval_bench_dbs: [tpcc]
   experiment_name: null
   targets_diff: True
   features_diff: True
-  methods: [lr, rf, dt]
+  methods: [lr, dt, rf, gbm]
   normalize: True
   log_transform: False
   robust: False
@@ -27,14 +27,15 @@ modeling:
 
   # Model-specific Configuration
   rf: 
-    n_estimators: 5
+    n_estimators: 50
     max_depth: 31
-    criterion: "squared_error"
-  lgbm: 
-    max_depth: 31
-    num_leaves: 1000
+    criterion: "absolute_error"
+  gbm: 
+    max_depth: -1
+    num_leaves: 31
     n_estimators: 100
     min_child_samples: 5
+    objective: "mape"
   mlp: 
     hidden_layer_sizes: [25, 25]
     early_stopping: True

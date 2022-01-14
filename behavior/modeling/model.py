@@ -47,6 +47,7 @@ def get_model(method: str, config: dict[str, Any]) -> Any:
             num_leaves=config["gbm"]["num_leaves"],
             n_estimators=config["gbm"]["n_estimators"],
             min_child_samples=config["gbm"]["min_child_samples"],
+            objective=config["gbm"]["objective"],
             random_state=config["random_state"],
         )
         regressor = MultiOutputRegressor(regressor)
