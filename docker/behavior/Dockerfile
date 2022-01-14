@@ -40,6 +40,11 @@ RUN set -eux; \
 # TScout also requires psutil
 RUN python3 -m pip install --upgrade psutil
 
+# Ensure sudo group users are not 
+# asked for a password when using 
+# sudo command by ammending sudoers file
+RUN echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+
 # Create a non-sudo user and switch to them.
 # This is because PostgreSQL binaries don't like being
 # run as root, e.g., initdb.
@@ -51,11 +56,6 @@ ENV PATH="${HOME}/.local/bin/:${PATH}"
 
 ARG DEBIAN_FRONTEND=noninteractive
 
-# Ensure sudo group users are not 
-# asked for a password when using 
-# sudo command by ammending sudoers file
-RUN echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
-
 # Get noisepage-pilot repository.
 # RUN git clone https://github.com/cmu-db/noisepage-pilot/
 RUN git clone https://github.com/garrisonhess/noisepage-pilot/
@@ -64,9 +64,6 @@ WORKDIR ${HOME}/noisepage-pilot
 RUN git checkout gh/docker-with-statement-timestamps
 
 RUN python3 -m pip install --user --upgrade -r requirements.txt
-
-# RUN echo 'terrier' | sudo -S pwd
-# RUN doit noisepage_build
-RUN doit benchbase_build
+RUN doit noisepage_build benchbase_build
 
 ENTRYPOINT /bin/bash
