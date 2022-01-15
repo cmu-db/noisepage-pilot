@@ -18,7 +18,7 @@
     <works>
         <work>
             <time>60</time>
-            <rate>10000</rate>
+            <rate>100</rate>
             <weights>45, 10, 20, 2, 1, 4, 10, 5, 3</weights>
         </work>
     </works>

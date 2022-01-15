@@ -209,7 +209,7 @@ class DataGeneratorCLI(cli.Application):
         except (KeyboardInterrupt, FileNotFoundError, ProcessExecutionError) as err:
             self.clean(err, terminate=True, message="Error initializing BenchBase.")
 
-    def _benchbase_exec(self, benchmark, benchbase_results_dir):
+    def _benchbase_exec(self, benchmark, benchbase_results_dir, output_dir):
         """
         Run BenchBase (execute).
 
@@ -219,6 +219,8 @@ class DataGeneratorCLI(cli.Application):
             The BenchBase benchmark to be run.
         benchbase_results_dir : Path
             Directory for Benchbase results.
+        output_dir : Path
+            Directory for experiment outputs.
         """
         try:
             if self.config["pg_stat_statements"]:
@@ -248,18 +250,18 @@ class DataGeneratorCLI(cli.Application):
             os.chdir(old_wd)
 
             if self.config["pg_stat_statements"]:
-                with (self.dir_output / "stat_file.csv").open("w") as f:
-                    stats_result = self.psql[
+                with (output_dir / "pg_stat_statements.csv").open("w") as f:
+                    pg_stat_statements_result = self.psql[
                         "--dbname",
                         "benchbase",
                         "--csv",
                         "--command",
-                        "SELECT * FROM pg_stat_statements;",
+                        "SELECT * FROM pg_stat_statements ORDER BY calls DESC;",
                     ]()
-                    f.write(stats_result)
+                    f.write(pg_stat_statements_result)
 
             if self.config["pg_store_plans"]:
-                with (self.dir_output / "plan_file.csv").open("w") as f:
+                with (output_dir / "pg_store_plans.csv").open("w") as f:
                     plans_result = self.psql[
                         "--dbname",
                         "benchbase",
@@ -268,6 +270,16 @@ class DataGeneratorCLI(cli.Application):
                         "SELECT queryid, planid, plan FROM pg_store_plans ORDER BY queryid, planid;",
                     ]()
                     f.write(plans_result)
+
+            with (output_dir / "pg_stats.csv").open("w") as f:
+                pg_stats_results = self.psql[
+                    "--dbname",
+                    "benchbase",
+                    "--csv",
+                    "--command",
+                    "SELECT * FROM pg_stats;",
+                ]()
+                f.write(pg_stats_results)
 
             # Move BenchBase results to experiment results directory.
             shutil.move(str(self.dir_benchbase / "results"), benchbase_results_dir)
@@ -478,15 +490,16 @@ class DataGeneratorCLI(cli.Application):
         self._tscout_init(output_dir)
 
         # Execute BenchBase.
-        self._benchbase_exec(benchmark, benchbase_results_dir)
+        self._benchbase_exec(benchmark, benchbase_results_dir, output_dir)
         # TODO(GARRISON/WAN): This is a hack.
         #   Allow TScout Collector to finish getting results.
         time.sleep(10)
 
-        log_fps = list((self.dir_tmp_pg_data / "log").glob("*.log"))
-        assert len(log_fps) == 1, f"Expected 1 log file, found {len(log_fps)}, {log_fps}"
-        shutil.move(str(log_fps[0]), str(self.dir_output / "pg_log.log"))
+        # Move Postgres log file to experiment output directory.
+        pg_log_path = self.dir_tmp_pg_data / "log" / "postgresql.log"
+        shutil.move(str(pg_log_path), str(output_dir / "postgresql.log"))
 
+        # Cleanup experiment run.
         self.clean(err=None, terminate=False, message="")
         logger.debug("Finished benchmark run: %s", benchmark)
 

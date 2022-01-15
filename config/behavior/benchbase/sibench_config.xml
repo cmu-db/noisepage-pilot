@@ -17,7 +17,7 @@
     <works>
         <work>
             <time>60</time>
-            <rate>unlimited</rate>
+            <rate>100</rate>
             <weights>50,50</weights>
         </work>
     </works>

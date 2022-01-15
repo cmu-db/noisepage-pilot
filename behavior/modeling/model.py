@@ -45,10 +45,10 @@ def get_model(method, config):
         raise ValueError(f"Method: {method} is not supported.")
 
     regressor = None
-    if method == "lr":
-        regressor = LinearRegression(n_jobs=config["num_jobs"])
-    if method == "huber":
-        regressor = HuberRegressor(max_iter=config["huber"]["max_iter"])
+
+    # Tree-based Models.
+    if method == "dt":
+        regressor = DecisionTreeRegressor(max_depth=config["dt"]["max_depth"])
         regressor = MultiOutputRegressor(regressor)
     if method == "rf":
         regressor = RandomForestRegressor(
@@ -68,6 +68,7 @@ def get_model(method, config):
             random_state=config["random_state"],
         )
         regressor = MultiOutputRegressor(regressor)
+    # Multi-layer Perceptron.
     if method == "mlp":
         hls = tuple(dim for dim in config["mlp"]["hidden_layers"])
         regressor = MLPRegressor(
@@ -75,19 +76,27 @@ def get_model(method, config):
             early_stopping=config["mlp"]["early_stopping"],
             max_iter=config["mlp"]["max_iter"],
             alpha=config["mlp"]["alpha"],
+            random_state=config["random_state"],
         )
-    if method == "mt_lasso":
-        regressor = MultiTaskLasso(alpha=config["mt_lasso"]["alpha"])
-    if method == "lasso":
-        regressor = Lasso(alpha=config["lasso"]["alpha"])
-    if method == "dt":
-        regressor = DecisionTreeRegressor(max_depth=config["dt"]["max_depth"])
+    # Generalized Linear Models.
+    if method == "lr":
+        regressor = LinearRegression(n_jobs=config["num_jobs"])
+    if method == "huber":
+        regressor = HuberRegressor(max_iter=config["huber"]["max_iter"])
         regressor = MultiOutputRegressor(regressor)
+    if method == "mt_lasso":
+        regressor = MultiTaskLasso(alpha=config["mt_lasso"]["alpha"], random_state=config["random_state"])
+    if method == "lasso":
+        regressor = Lasso(alpha=config["lasso"]["alpha"], random_state=config["random_state"])
     if method == "elastic":
-        regressor = ElasticNet(alpha=config["elastic"]["alpha"], l1_ratio=config["elastic"]["l1_ratio"])
+        regressor = ElasticNet(
+            alpha=config["elastic"]["alpha"],
+            l1_ratio=config["elastic"]["l1_ratio"],
+            random_state=config["random_state"],
+        )
         regressor = MultiOutputRegressor(regressor)
     if method == "mt_elastic":
-        regressor = MultiTaskElasticNet(l1_ratio=config["mt_elastic"]["l1_ratio"])
+        regressor = MultiTaskElasticNet(l1_ratio=config["mt_elastic"]["l1_ratio"], random_state=config["random_state"])
 
     return regressor
 

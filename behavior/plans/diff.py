@@ -42,17 +42,17 @@ logger = logging.getLogger(__name__)
 
 
 def remap_cols(ou_to_df):
-    """[summary]
+    """Canonicalize the column names and add unique identrifiers for all the original DataFrames.
 
     Parameters
     ----------
     ou_to_df : dict[str, DataFrame]
-        [description]
+        Dictionary of raw DataFrames.
 
     Returns
     -------
     dict[str, DataFrame]
-        [description]
+        Dictionary of remapped DataFrames.
     """
     remapped = {}
 
@@ -148,7 +148,6 @@ def infer_query_plans(query_to_plan_node_counts, logdir):
         for query_id, plan_node_id_to_counts in inferred_plan_node_counts.items()
     }
 
-    assert isinstance(inferred_query_plans, dict)
     return inferred_query_plans
 
 
@@ -265,7 +264,7 @@ def resolve_query_invocations(unified, logdir, query_id_to_plan_node_ids):
         f.writelines(output)
 
     incomplete_invocations = unified[unified.invocation_id.isin(incomplete_invocation_ids)]
-    incomplete_invocations.to_csv(logdir / "incomplete_invocations.csv", index=False)
+    incomplete_invocations.to_csv(logdir / "incomplete_invocation_data.csv", index=False)
     unified = unified[~unified.invocation_id.isin(incomplete_invocation_ids)]
     unified.to_csv(logdir / "unified_without_incomplete_invocation_ids.csv", index=False)
     incomplete_rids = incomplete_invocations["rid"]
@@ -367,6 +366,22 @@ def diff_one_invocation(invocation):
         parent_rid: str = parent_row["rid"]
         child_ids: NDArray[np.int64] = [id for id in parent_row[child_cols].values if id != -1]
         diffed_costs: NDArray[np.float64] = parent_row[DIFF_COLS].values
+
+        # Verify all child_ids are present.
+        missing_plan_node = False
+        for child_id in child_ids:
+            if child_id not in invocation.index:
+                logger.warning(
+                    "Tried to get non-existent child_id: %s corresponding to parent statement_id: %s, ou_name: %s, plan_node_id: %s",
+                    child_id,
+                    parent_row["statement_id"],
+                    parent_row["ou_name"],
+                    parent_row["plan_node_id"],
+                )
+            missing_plan_node = True
+
+        if missing_plan_node:
+            continue
 
         for child_id in child_ids:
             child_row = invocation.loc[child_id]
