@@ -15,8 +15,6 @@ modeling:
   train_bench_db: tpcc
   eval_bench_db: tpcc
   experiment_name: null
-  targets_diff: True
-  features_diff: True
   methods: [lr, dt, rf, gbm]
   normalize: True
   log_transform: False
@@ -27,13 +25,13 @@ modeling:
 
   # Model-specific Configuration
   rf: 
-    n_estimators: 50
+    n_estimators: 10
     max_depth: 31
-    criterion: "absolute_error"
+    criterion: "squared_error"  # "absolute_error"
   gbm: 
-    max_depth: -1
+    max_depth: 31
     num_leaves: 31
-    n_estimators: 100
+    n_estimators: 50
     min_child_samples: 5
     objective: "mape"
   mlp: 

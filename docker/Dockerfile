@@ -54,11 +54,9 @@ COPY --chown=terrier:terrier . ${HOME}/noisepage-pilot
 # Set the pilot directory to current working directory.
 WORKDIR ${HOME}/noisepage-pilot
 
-# Install required Python packages.
-RUN python3 -m pip install --user --upgrade -r requirements.txt
-
-# Build the pilot.
-RUN doit noisepage_build benchbase_build
+# Install required Python packages and build the pilot.
+RUN python3 -m pip install --user --upgrade -r requirements.txt \ 
+    && doit noisepage_build benchbase_build
 
 # Provide shell entrypoint.
 ENTRYPOINT /bin/bash

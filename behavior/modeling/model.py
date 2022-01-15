@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 import pickle
-from typing import Any
 
 import numpy as np
 from lightgbm import LGBMRegressor
-from numpy.typing import NDArray
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import (
     ElasticNet,
@@ -23,9 +21,28 @@ from sklearn.tree import DecisionTreeRegressor
 from behavior.modeling import METHODS
 
 
-def get_model(method: str, config: dict[str, Any]) -> Any:
+def get_model(method, config):
+    """Initialize and return the underlying Behavior Model variant with the provided configuration parameters.
+
+    Parameters
+    ----------
+    method : str
+        Regression model variant.
+    config : dict
+        Configuration parameters for the model.
+
+    Returns
+    -------
+    Any
+       A regression model.
+
+    Raises
+    ------
+    ValueError
+        If the requested method is not supported.
+    """
     if method not in METHODS:
-        raise ValueError(f"Unknown method: {method}")
+        raise ValueError(f"Method: {method} is not supported.")
 
     regressor = None
     if method == "lr":
@@ -76,30 +93,46 @@ def get_model(method: str, config: dict[str, Any]) -> Any:
 
 
 class BehaviorModel:
-    def __init__(
-        self,
-        output_dir,
-        method: str,
-        ou_name: str,
-        timestamp: str,
-        config: dict[str, Any],
-        features: list[str],
-        targets: list[str],
-    ):
+    def __init__(self, output_dir, method, ou_name, timestamp, config, features):
+        """Create a Behavior Model for predicting the resource consumption cost of a single Postgres operating-unit.
+
+        Parameters
+        ----------
+        output_dir : [type]
+            [description]
+        method : str
+            [description]
+        ou_name : str
+            [description]
+        timestamp : str
+            [description]
+        config : dict[str, Any]
+            [description]
+        features : list[str]
+            [description]
+        """
         self.output_dir = output_dir
         self.method = method
         self.timestamp = timestamp
         self.ou_name = ou_name
         self.model = get_model(method, config)
         self.features = features
-        self.targets = targets
         self.normalize = config["normalize"]
         self.log_transform = config["log_transform"]
         self.eps = 1e-4
         self.xscaler = RobustScaler() if config["robust"] else StandardScaler()
         self.yscaler = RobustScaler() if config["robust"] else StandardScaler()
 
-    def train(self, x: NDArray[np.float32], y: NDArray[np.float32]) -> None:
+    def train(self, x, y):
+        """Train a model using the input features and targets.
+
+        Parameters
+        ----------
+        x : NDArray[np.float32]
+            Input features.
+        y : NDArray[np.float32]
+            Input targets.
+        """
         if self.log_transform:
             x = np.log(x + self.eps)
             y = np.log(y + self.eps)
@@ -110,17 +143,29 @@ class BehaviorModel:
 
         self.model.fit(x, y)
 
-    def predict(self, x: NDArray[np.float32]) -> NDArray[np.float32]:
-        # transform the features
+    def predict(self, x):
+        """Run inference using the provided input features.
+
+        Parameters
+        ----------
+        x : NDArray[np.float32]
+            Input features.
+
+        Returns
+        -------
+        NDArray[np.float32]
+            Predicted targets.
+        """
+        # Transform the features.
         if self.log_transform:
             x = np.log(x + self.eps)
         if self.normalize:
             x = self.xscaler.transform(x)
 
-        # make prediction
-        y: NDArray[np.float32] = self.model.predict(x)
+        # Perform inference (in the transformed feature space).
+        y = self.model.predict(x)
 
-        # transform the y back
+        # Map the result back to the original space.
         if self.normalize:
             y = self.yscaler.inverse_transform(y)
         if self.log_transform:
@@ -129,7 +174,8 @@ class BehaviorModel:
 
         return y
 
-    def save(self) -> None:
+    def save(self):
+        """Save the model to disk."""
         model_dir = self.output_dir / self.timestamp / self.method / self.ou_name
         with open(model_dir / f"{self.method}_{self.ou_name}.pkl", "wb") as f:
             pickle.dump(self.model, f)

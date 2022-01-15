@@ -17,6 +17,7 @@ from plumbum import cli
 
 from behavior import BASE_TARGET_COLS, BENCHDB_TO_TABLES, DIFF_COLS, PLAN_NODE_NAMES
 
+# The set of columns present in all operating-unit datasets.
 COMMON_SCHEMA: list[str] = [
     "statement_id",
     "rid",
@@ -40,10 +41,24 @@ COMMON_SCHEMA: list[str] = [
 logger = logging.getLogger(__name__)
 
 
-def remap_cols(ou_to_df: dict[str, DataFrame]) -> dict[str, DataFrame]:
+def remap_cols(ou_to_df):
+    """[summary]
+
+    Parameters
+    ----------
+    ou_to_df : dict[str, DataFrame]
+        [description]
+
+    Returns
+    -------
+    dict[str, DataFrame]
+        [description]
+    """
     remapped = {}
+
     for ou_name, df in ou_to_df.items():
         remapper: dict[str, str] = {}
+
         for init_col in df.columns:
             found = False
             for common_col in COMMON_SCHEMA:
@@ -64,19 +79,38 @@ def remap_cols(ou_to_df: dict[str, DataFrame]) -> dict[str, DataFrame]:
                     found = True
 
         df = df.rename(columns=remapper)
+
+        # Generate record IDs for maintaining a mapping between records
+        # in each DataFrame and records in the unified DataFrame.
         rids: list[str] = [uuid.uuid4().hex for _ in range(df.shape[0])]
         df["rid"] = rids
         df["ou_name"] = ou_name
+
+        # Create compound key.
         df["statement_id"] = (
             df["query_id"].astype(str) + "_" + df["statement_timestamp"].astype(str) + "_" + df["pid"].astype(str)
         )
-        assert df.index.is_unique and df.index.size == df.shape[0]
         remapped[ou_name] = df
 
     return remapped
 
 
 def infer_query_plans(query_to_plan_node_counts, logdir):
+    """[summary]
+
+    Parameters
+    ----------
+    query_to_plan_node_counts : [type]
+        [description]
+    logdir : [type]
+        [description]
+
+    Returns
+    -------
+    [type]
+        [description]
+    """
+
     # If less than 1% of plans have the last node id, just drop it.
     inferred_plan_node_counts = {}
     inferred_query_plans = {}
@@ -91,7 +125,7 @@ def infer_query_plans(query_to_plan_node_counts, logdir):
                     "Truncating potentially broken plan.  Query_id: %s | Truncation Node Id: %s | Node Id to Count: %s",
                     query_id,
                     truncation_node_id,
-                    sorted(node_id_to_count),
+                    sorted(node_id_to_count.items()),
                 )
                 truncation_node_id = node_id
                 break
@@ -119,7 +153,20 @@ def infer_query_plans(query_to_plan_node_counts, logdir):
 
 
 def resolve_query_plans(unified, logdir):
+    """[summary]
 
+    Parameters
+    ----------
+    unified : [type]
+        [description]
+    logdir : [type]
+        [description]
+
+    Returns
+    -------
+    [type]
+        [description]
+    """
     unified.set_index("query_id", drop=False, inplace=True)
 
     # Count all query plan nodes
@@ -163,6 +210,22 @@ def resolve_query_plans(unified, logdir):
 
 
 def resolve_query_invocations(unified, logdir, query_id_to_plan_node_ids):
+    """[summary]
+
+    Parameters
+    ----------
+    unified : [type]
+        [description]
+    logdir : [type]
+        [description]
+    query_id_to_plan_node_ids : [type]
+        [description]
+
+    Returns
+    -------
+    [type]
+        [description]
+    """
 
     # Filter and log all invocation_ids with an incorrect set of plan_node_ids.
     incomplete_invocation_ids = set()
@@ -210,8 +273,21 @@ def resolve_query_invocations(unified, logdir, query_id_to_plan_node_ids):
     return unified, incomplete_rids
 
 
-def load_tscout_data(tscout_data_dir: Path, logdir: Path) -> tuple[dict[str, DataFrame], DataFrame]:
+def load_tscout_data(tscout_data_dir, logdir):
+    """[summary]
 
+    Parameters
+    ----------
+    tscout_data_dir : Path
+        [description]
+    logdir : Path
+        [description]
+
+    Returns
+    -------
+    tuple[dict[str, DataFrame], DataFrame]
+        [description]
+    """
     ou_to_df: dict[str, DataFrame] = {}
 
     # Load all OU files into a dict of dataframes.
@@ -266,7 +342,20 @@ def load_tscout_data(tscout_data_dir: Path, logdir: Path) -> tuple[dict[str, Dat
     return ou_to_df, unified
 
 
-def diff_one_invocation(invocation: DataFrame) -> dict[str, NDArray[np.float64]]:
+def diff_one_invocation(invocation):
+    """[summary]
+
+    Parameters
+    ----------
+    invocation : DataFrame
+        [description]
+
+    Returns
+    -------
+    dict[str, NDArray[np.float64]]
+        [description]
+    """
+
     rid_to_diffed_costs: dict[str, NDArray[np.float64]] = {}
     invocation.set_index("plan_node_id", drop=False, inplace=True)
     child_cols = ["left_child_plan_node_id", "right_child_plan_node_id"]
@@ -290,7 +379,14 @@ def diff_one_invocation(invocation: DataFrame) -> dict[str, NDArray[np.float64]]
     return rid_to_diffed_costs
 
 
-def diff_all_plans(unified: DataFrame, logdir: Path) -> DataFrame:
+def diff_all_plans(unified, logdir):
+    """[summary]
+
+    Returns
+    -------
+    [type]
+        [description]
+    """
 
     all_query_ids: set[str] = set(pd.unique(unified["query_id"]))
     records: list[list[Any]] = []
@@ -336,7 +432,18 @@ def diff_all_plans(unified: DataFrame, logdir: Path) -> DataFrame:
     return diffed_cols
 
 
-def save_results(diff_data_dir: Path, ou_to_df: dict[str, DataFrame], diffed_cols: DataFrame) -> None:
+def save_results(diff_data_dir, ou_to_df, diffed_cols):
+    """[summary]
+
+    Parameters
+    ----------
+    diff_data_dir : Path
+        [description]
+    ou_to_df : dict[str, DataFrame]
+        [description]
+    diffed_cols : DataFrame
+        [description]
+    """
 
     diffed_cols.rename(columns=lambda col: f"diffed_{col}", inplace=True)
 
@@ -358,7 +465,19 @@ def save_results(diff_data_dir: Path, ou_to_df: dict[str, DataFrame], diffed_col
         diffed_df.to_csv(f"{diff_data_dir}/{ou_name}.csv", index=True)
 
 
-def main(data_dir, output_dir, experiment: str) -> None:
+def main(data_dir, output_dir, experiment) -> None:
+    """[summary]
+
+    Parameters
+    ----------
+    data_dir : [type]
+        [description]
+    output_dir : [type]
+        [description]
+    experiment : str
+        [description]
+    """
+
     logger.info("Differencing experiment: %s", experiment)
 
     for mode in ["train", "eval"]:
