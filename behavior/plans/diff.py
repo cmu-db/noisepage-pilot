@@ -95,21 +95,13 @@ def remap_cols(ou_to_df):
     return remapped
 
 
-def infer_query_plans(query_to_plan_node_counts, logdir):
-    """[summary]
-
-    Parameters
-    ----------
-    query_to_plan_node_counts : [type]
-        [description]
-    logdir : [type]
-        [description]
-
-    Returns
-    -------
-    [type]
-        [description]
-    """
+def infer_query_plans(unified, logdir):
+    # Count all query plan nodes
+    query_to_plan_node_counts = {}
+    for query_id in pd.unique(unified.index):
+        node_ids = unified.loc[query_id]["plan_node_id"]
+        plan_node_counts = node_ids.value_counts().to_dict()
+        query_to_plan_node_counts[query_id] = plan_node_counts
 
     # If less than 1% of plans have the last node id, just drop it.
     inferred_plan_node_counts = {}
@@ -168,21 +160,37 @@ def resolve_query_plans(unified, logdir):
     """
     unified.set_index("query_id", drop=False, inplace=True)
 
-    # Count all query plan nodes
-    query_to_plan_node_counts = {}
+    # Count all query plan nodes and child references.
+    query_info = {}
+
     for query_id in pd.unique(unified.index):
-        node_ids = unified.loc[query_id]["plan_node_id"]
-        plan_node_counts = node_ids.value_counts().to_dict()
-        query_to_plan_node_counts[query_id] = plan_node_counts
-
-    with (logdir / "observed_query_plan_node_counts.json").open("w", encoding="utf-8") as f:
-        json_dict = {
-            str(query_id): {int(node_id): int(node_count) for node_id, node_count in sorted(plan_node_counter.items())}
-            for query_id, plan_node_counter in query_to_plan_node_counts.items()
+        curr_query_info = {}
+        query = unified.loc[query_id]
+        curr_query_info["observed_plan_node_ids"] = {
+            str(k): str(v) for k, v in sorted(query["plan_node_id"].value_counts().to_dict().items()) if k != -1
         }
-        json.dump(json_dict, f, indent=4)
+        curr_query_info["referenced_left_plan_node_ids"] = {
+            str(k): str(v)
+            for k, v in sorted(query["left_child_plan_node_id"].value_counts().to_dict().items())
+            if k != -1
+        }
+        curr_query_info["referenced_right_plan_node_ids"] = {
+            str(k): str(v)
+            for k, v in sorted(query["right_child_plan_node_id"].value_counts().to_dict().items())
+            if k != -1
+        }
+        query_info[str(query_id)] = curr_query_info
 
-    inferred_query_plans = infer_query_plans(query_to_plan_node_counts, logdir)
+    # Record the observed plan information.
+    # For each query_id.
+    # For each plan node identifier.
+    #   - Number of observed records.
+    #   - Number of times referenced as left child.
+    #   - Number of times referenced as right child.
+    with (logdir / "observed_query_plan_data.json").open("w", encoding="utf-8") as f:
+        json.dump(query_info, f, indent=4)
+
+    inferred_query_plans = infer_query_plans(unified, logdir)
 
     # All query plans must be numbered from 0 to NUM_PLAN_NODES - 1.
     # Verify this invariant and remove/log all plans not satisfying it.
@@ -213,7 +221,7 @@ def resolve_query_invocations(unified, logdir, query_id_to_plan_node_ids):
 
     Parameters
     ----------
-    unified : [type]
+    unified : DataFrame
         [description]
     logdir : [type]
         [description]
@@ -372,11 +380,11 @@ def diff_one_invocation(invocation):
         for child_id in child_ids:
             if child_id not in invocation.index:
                 logger.warning(
-                    "Tried to get non-existent child_id: %s corresponding to parent statement_id: %s, ou_name: %s, plan_node_id: %s",
-                    child_id,
-                    parent_row["statement_id"],
+                    "Missing Child Node | QueryID: %s | OU: %s | NodeID: %s | Child NodeID: %s",
+                    parent_row["query_id"],
                     parent_row["ou_name"],
                     parent_row["plan_node_id"],
+                    child_id,
                 )
             missing_plan_node = True
 
@@ -413,7 +421,6 @@ def diff_all_plans(unified, logdir):
         query_invocations = unified.loc[query_id]
         if isinstance(query_invocations, pd.Series):
             continue
-        assert isinstance(query_invocations, DataFrame)
 
         node_ids: pd.Series = query_invocations["plan_node_id"]
         node_counts: pd.Series = node_ids.value_counts()
@@ -433,7 +440,6 @@ def diff_all_plans(unified, logdir):
             invocation = indexed_invocations.loc[invocation_id]
             if isinstance(invocation, pd.Series):
                 continue
-            assert isinstance(invocation, DataFrame)
 
             for rid, diffed_costs in diff_one_invocation(invocation).items():
                 assert isinstance(rid, str)
