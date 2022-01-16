@@ -383,7 +383,9 @@ class DataGeneratorCLI(cli.Application):
             logger.debug("Attaching TScout.")
             old_wd = os.getcwd()
             os.chdir(self.dir_tscout)
-            cmd.sudo["python3"]["tscout.py", postmaster_pid, "--outdir", dir_tscout_output].run_bg()
+            cmd.sudo["python3"]["tscout.py", postmaster_pid, "--outdir", dir_tscout_output].run_bg(
+                stdout=sys.stdout, stderr=sys.stderr
+            )
             os.chdir(old_wd)
         except (FileNotFoundError, ProcessExecutionError) as err:
             self.clean(err, terminate=True, message="Error initializing TScout.")
