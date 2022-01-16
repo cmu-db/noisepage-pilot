@@ -166,8 +166,11 @@ def resolve_query_plans(unified, logdir):
     for query_id in pd.unique(unified.index):
         curr_query_info = {}
         query = unified.loc[query_id]
+
         curr_query_info["observed_plan_node_ids"] = {
-            str(k): str(v) for k, v in sorted(query["plan_node_id"].value_counts().to_dict().items()) if k != -1
+            str(k): str(v)
+            for k, v in sorted(query[["ou_name", "plan_node_id"]].value_counts().to_dict().items())
+            if k != -1
         }
         curr_query_info["referenced_left_plan_node_ids"] = {
             str(k): str(v)

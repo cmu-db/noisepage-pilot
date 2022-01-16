@@ -1,17 +1,17 @@
 # DataGeneratorCLI configuration.
-datagen: 
+datagen:
   pg_prewarm: True
   pg_analyze: True
   pg_stat_statements: True
   pg_store_plans: False # currently not installed
-  auto_explain: False
-  benchmarks: [epinions] # Benchmarks include: [auctionmark, epinions, noop, seats, sibench, smallbank, tatp, tpcc, tpch, twitter, voter, wikipedia, ycsb]
+  auto_explain: True
+  benchmarks: [auctionmark, epinions, noop, seats, sibench, smallbank, tatp, tpcc, tpch, twitter, voter, wikipedia, ycsb] # Benchmarks include: [auctionmark, epinions, noop, seats, sibench, smallbank, tatp, tpcc, tpch, twitter, voter, wikipedia, ycsb]
   sqlsmith: False # currently ignored because it causes dataset naming conflicts
   log_level: DEBUG
   debug: False
 
 # Modeling Configuration
-modeling: 
+modeling:
   train_bench_db: epinions
   eval_bench_db: epinions
   experiment_name: null
@@ -24,31 +24,31 @@ modeling:
   log_level: INFO
 
   # Model-specific Configuration
-  rf: 
+  rf:
     n_estimators: 10
     max_depth: 31
-    criterion: "squared_error"  # or "absolute_error" 
-  gbm: 
+    criterion: "squared_error" # or "absolute_error"
+  gbm:
     n_estimators: 50
     max_depth: 31
     num_leaves: 31
     min_child_samples: 5
     objective: "mape"
-  mlp: 
+  mlp:
     hidden_layer_sizes: [25, 25]
     early_stopping: True
     max_iter: 1000000
     alpha: 5
-  elastic: 
+  elastic:
     alpha: 0.1
     l1_ratio: 0.5
-  mt_elastic: 
+  mt_elastic:
     l1_ratio: 0.5
-  dt: 
+  dt:
     max_depth: 5
-  huber: 
+  huber:
     max_iter: 50
   lasso:
     alpha: 1.0
-  mt_lasso: 
+  mt_lasso:
     alpha: 1.0
