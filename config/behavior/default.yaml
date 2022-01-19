@@ -5,7 +5,7 @@ datagen:
   pg_stat_statements: True
   pg_store_plans: False # currently not installed
   auto_explain: True
-  benchmarks: [auctionmark, epinions, noop, seats, sibench, smallbank, tatp, tpcc, tpch, twitter, voter, wikipedia, ycsb] # Benchmarks include: [auctionmark, epinions, noop, seats, sibench, smallbank, tatp, tpcc, tpch, twitter, voter, wikipedia, ycsb]
+  benchmarks: [tpcc] # Benchmarks include: [auctionmark, epinions, seats, sibench, smallbank, tatp, tpcc, tpch, twitter, voter, wikipedia, ycsb]
   sqlsmith: False # currently ignored because it causes dataset naming conflicts
   log_level: DEBUG
   debug: False

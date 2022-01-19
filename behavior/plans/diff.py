@@ -165,33 +165,71 @@ def resolve_query_plans(unified, logdir):
 
     for query_id in pd.unique(unified.index):
         curr_query_info = {}
-        query = unified.loc[query_id]
+        query_df = unified.loc[query_id]
 
-        curr_query_info["observed_plan_node_ids"] = {
-            str(k): str(v)
-            for k, v in sorted(query[["ou_name", "plan_node_id"]].value_counts().to_dict().items())
-            if k != -1
+        observed_nodes = query_df[["ou_name", "plan_node_id"]].value_counts()
+        left_child_counts = query_df["left_child_plan_node_id"].value_counts()
+        right_child_counts = query_df["right_child_plan_node_id"].value_counts()
+
+        # Log the observed and referenced node ids.
+        curr_query_info["info"] = {}
+        curr_query_info["info"]["observed_plan_node_ids"] = {
+            str(k): str(v) for k, v in sorted(observed_nodes.to_dict().items())
         }
-        curr_query_info["referenced_left_plan_node_ids"] = {
-            str(k): str(v)
-            for k, v in sorted(query["left_child_plan_node_id"].value_counts().to_dict().items())
-            if k != -1
+        curr_query_info["info"]["referenced_left_plan_node_ids"] = {
+            str(k): str(v) for k, v in sorted(left_child_counts.to_dict().items()) if k != -1
         }
-        curr_query_info["referenced_right_plan_node_ids"] = {
-            str(k): str(v)
-            for k, v in sorted(query["right_child_plan_node_id"].value_counts().to_dict().items())
-            if k != -1
+        curr_query_info["info"]["referenced_right_plan_node_ids"] = {
+            str(k): str(v) for k, v in sorted(right_child_counts.to_dict().items()) if k != -1
         }
+
+        # Log the id-to-ou map. If there are multiple ou's for a single plan_node_id then this map
+        # will not be correct, and the discrepancy will be recorded in the errors section of the query report.
+        curr_query_info["info"]["node_id_to_ou_name"] = {
+            node_id: ou_name for (ou_name, node_id), _ in sorted(observed_nodes.items(), key=lambda x: x[0])
+        }
+
+        # Find all observed plan identifiers (to compare observations and references).
+        # Discard root node because it can't be referenced by anyone else.
+        observed_plan_ids = set(node_id for node_id in query_df["plan_node_id"].to_numpy().tolist() if node_id != 0)
+
+        # Find all referenced node ids.
+        # Discard placeholder ("NULL") values for child plan node ids.
+        referenced_node_ids = set(
+            node_id
+            for node_id in query_df[["left_child_plan_node_id", "right_child_plan_node_id"]].to_numpy().ravel()
+            if node_id != -1
+        )
+
+        # Check for the same plan_node_id with different OU names.
+        node_ids_with_multiple_ous = [
+            node_id
+            for node_id, distinct_ou_count in observed_nodes.groupby(["plan_node_id"]).size().items()
+            if distinct_ou_count > 1
+        ]
+
+        # Find, log, and count errors.
+        # Log duplicates.
+        curr_query_info["errors"] = {}
+        curr_query_info["errors"]["plan_node_ids_with_multiple_ous"] = {}
+        for node_id in node_ids_with_multiple_ous:
+            node_df = query_df[query_df["plan_node_id"] == node_id]
+            ou_names = pd.unique(node_df["ou_name"]).tolist()
+            curr_query_info["errors"]["plan_node_ids_with_multiple_ous"][node_id] = ou_names
+
+        # Log the potential discrepancies.
+        curr_query_info["errors"]["observed_unreferenced_node_ids"] = list(observed_plan_ids - referenced_node_ids)
+        curr_query_info["errors"]["referenced_unobserved_node_ids"] = list(referenced_node_ids - observed_plan_ids)
+
+        # Log the number of errors.
+        curr_query_info["error_count"] = sum(len(errs) for errs in curr_query_info["errors"].values())
+
         query_info[str(query_id)] = curr_query_info
 
-    # Record the observed plan information.
-    # For each query_id.
-    # For each plan node identifier.
-    #   - Number of observed records.
-    #   - Number of times referenced as left child.
-    #   - Number of times referenced as right child.
-    with (logdir / "observed_query_plan_data.json").open("w", encoding="utf-8") as f:
-        json.dump(query_info, f, indent=4)
+    # Log all the collected query plan information.
+    with (logdir / "query_plan_report.json").open("w", encoding="utf-8") as f:
+        query_report = {"queries": query_info}
+        json.dump(query_report, f, indent=4)
 
     inferred_query_plans = infer_query_plans(unified, logdir)
 
@@ -250,7 +288,7 @@ def resolve_query_invocations(unified, logdir, query_id_to_plan_node_ids):
         invocation_plan_node_ids = unified.loc[invocation_id]["plan_node_id"]
 
         if isinstance(invocation_plan_node_ids, (DataFrame, pd.Series)):
-            invocation_plan_node_ids = set(invocation_plan_node_ids.values.tolist())
+            invocation_plan_node_ids = set(invocation_plan_node_ids.to_numpy().tolist())
             if not unified.loc[invocation_id]["plan_node_id"].value_counts().max() == 1:
                 logger.warning("Invocation_id: %s has duplicate plan_node_ids", invocation_id)
         elif isinstance(invocation_plan_node_ids, np.int64):
@@ -303,14 +341,16 @@ def load_tscout_data(tscout_data_dir, logdir):
     # Load all OU files into a dict of dataframes.
     for node_name in PLAN_NODE_NAMES:
         result_path = tscout_data_dir / f"Exec{node_name}.csv"
+
         if not result_path.exists():
             logger.error(
-                "result doesn't exist for ou_name: %s, should be at path: %s",
+                "Missing data for OU: %s, should be at path: %s.",
                 node_name,
                 result_path,
             )
             sys.exit(1)
         if os.stat(result_path).st_size > 0:
+            logger.info("Found data at path: %s", result_path)
             ou_to_df[node_name] = pd.read_csv(result_path)
 
     # Create unified dataframe, remapping all shared columns into one common schema.
@@ -375,8 +415,8 @@ def diff_one_invocation(invocation):
 
     for _, parent_row in invocation.iterrows():
         parent_rid: str = parent_row["rid"]
-        child_ids: NDArray[np.int64] = [id for id in parent_row[child_cols].values if id != -1]
-        diffed_costs: NDArray[np.float64] = parent_row[DIFF_COLS].values
+        child_ids: NDArray[np.int64] = [id for id in parent_row[child_cols].to_numpy() if id != -1]
+        diffed_costs: NDArray[np.float64] = parent_row[DIFF_COLS].to_numpy()
 
         # Verify all child_ids are present.
         missing_plan_node = False
@@ -397,7 +437,7 @@ def diff_one_invocation(invocation):
         for child_id in child_ids:
             child_row = invocation.loc[child_id]
             assert isinstance(child_row, pd.Series), f"Child row must always be a Pandas Series {child_row}"
-            child_costs: NDArray[np.float64] = child_row[DIFF_COLS].values
+            child_costs: NDArray[np.float64] = child_row[DIFF_COLS].to_numpy()
             diffed_costs -= child_costs
 
         rid_to_diffed_costs[parent_rid] = diffed_costs
@@ -416,7 +456,7 @@ def diff_all_plans(unified, logdir):
 
     all_query_ids: set[str] = set(pd.unique(unified["query_id"]))
     records: list[list[Any]] = []
-    logger.info("Num query_ids: %s", len(all_query_ids))
+    logger.info("Total Number of Query IDs: %s.", len(all_query_ids))
     unified.to_csv(logdir / "unified_final_before_diffing.csv")
     unified.set_index("query_id", drop=False, inplace=True)
 
@@ -477,7 +517,7 @@ def save_results(diff_data_dir, ou_to_df, diffed_cols):
 
         # find the intersection of RIDs between diffed_cols and each df
         rids_to_update = df.index.intersection(diffed_cols.index)
-        logger.info("Num records to update: %s", rids_to_update.shape[0])
+        logger.info("Saving Differenced OU: %s | Num records to update: %s", ou_name, rids_to_update.shape[0])
 
         if rids_to_update.shape[0] > 0:
             diffed_df = df.join(diffed_cols.loc[rids_to_update], how="inner")

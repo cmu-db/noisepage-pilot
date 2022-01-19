@@ -85,9 +85,12 @@ BENCHDB_TO_TABLES = {
     "ycsb": ["usertable"],
 }
 
+# TODO(Garrison): Add other OU names as they are implemented on TScout end.
+# Some future OUs include: Memoize and BitmapOr.
 PLAN_NODE_NAMES = [
     "Agg",
     "Append",
+    "BitmapAnd",
     "CteScan",
     "CustomScan",
     "ForeignScan",
@@ -95,6 +98,7 @@ PLAN_NODE_NAMES = [
     "Gather",
     "GatherMerge",
     "Group",
+    "Hash",
     "HashJoinImpl",
     "IncrementalSort",
     "IndexOnlyScan",
