@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 
 
 def evaluate(model, df, output_dir, dataset, mode):
-    """[summary]
+    """Evaluate the model.
 
     Parameters
     ----------
@@ -295,8 +295,6 @@ def main(config_file, dir_data_train, dir_data_eval, dir_output):
         # Train one model for each method specified in the modeling configuration.
         for method in config["methods"]:
             logger.info("Training OU: %s with model: %s", ou_name, method)
-
-            # Instantiate the model.
             ou_model = BehaviorModel(
                 dir_output,
                 method,

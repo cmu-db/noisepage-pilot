@@ -245,23 +245,6 @@ def resolve_query_plans(unified, logdir):
 
 
 def resolve_query_invocations(unified, logdir, query_id_to_plan_node_ids):
-    """[summary]
-
-    Parameters
-    ----------
-    unified : DataFrame
-        [description]
-    logdir : [type]
-        [description]
-    query_id_to_plan_node_ids : [type]
-        [description]
-
-    Returns
-    -------
-    [type]
-        [description]
-    """
-
     # Filter and log all invocation_ids with an incorrect set of plan_node_ids.
     incomplete_invocation_ids = set()
     unified.set_index("invocation_id", drop=False, inplace=True)
@@ -309,20 +292,6 @@ def resolve_query_invocations(unified, logdir, query_id_to_plan_node_ids):
 
 
 def load_tscout_data(tscout_data_dir, logdir):
-    """[summary]
-
-    Parameters
-    ----------
-    tscout_data_dir : Path
-        [description]
-    logdir : Path
-        [description]
-
-    Returns
-    -------
-    tuple[dict[str, DataFrame], DataFrame]
-        [description]
-    """
     ou_to_df: dict[str, DataFrame] = {}
 
     # Load all OU files into a dict of dataframes.
