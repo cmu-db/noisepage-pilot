@@ -51,17 +51,26 @@ The following is a list of Postgres query plan nodes, each of which are profiled
 
 ## BenchBase Benchmark Databases
 
-This list includes several BenchBase benchmarks that have been run through behavior modeling.  TODO(GH): denote which do/don't work with plan differencing.
+The following list of BenchBase benchmarks work with behavior modeling.
 
-- AuctionMark
+- Auctionmark
+- Epinions
+- Seats
+- Sibench
 - SmallBank
 - TATP
-- TPC-C - primary focus
-- TPC-H - pending dataloader
+- TPC-C
 - Twitter
 - Voter
 - Wikipedia
 - YCSB
+
+Caveats:
+
+- Various benchmarks yields slightly different OUs for a BenchBase run with the same configuration.
+- If you curtail the BenchBase experiment time too short, you will not get data for all OUs.  This may or may not be related to the above issue.
+- TPC-H will be testable when the dataloader is merged.
+- Epinions is missing results for the Materialize OU in one plan.
 
 ## Resource Consumption Metrics
 
@@ -81,18 +90,19 @@ The following is a list of resource consumption metrics that TScout collects and
 
 ## Operating Unit (OU) Model Variants
 
-- lr - good baseline
-- huber
-- svr
-- kr
-- rf - good performance
-- gbm - good performance
-- mlp
-- mt_lasso
-- lasso
-- dt
-- mt_elastic
-- elastic
+- Tree-based
+  - dt
+  - rf - good performance
+  - gbm - good performance
+- Multi-layer perceptron
+  - mlp
+- Generalized linear models
+  - lr
+  - huber
+  - mt_lasso
+  - lasso
+  - mt_elastic
+  - elastic
 
 ## Training Data
 
