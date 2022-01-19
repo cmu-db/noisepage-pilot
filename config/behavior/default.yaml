@@ -12,8 +12,8 @@ datagen:
 
 # Modeling Configuration
 modeling:
-  train_bench_db: epinions
-  eval_bench_db: epinions
+  train_bench_db: tpcc
+  eval_bench_db: tpcc
   experiment_name: null
   methods: [lr, dt, rf, gbm]
   normalize: True

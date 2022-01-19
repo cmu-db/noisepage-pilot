@@ -11,7 +11,6 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from numpy.typing import NDArray
 from pandas import DataFrame
 from plumbum import cli
 
@@ -281,7 +280,7 @@ def resolve_query_invocations(unified, logdir, query_id_to_plan_node_ids):
     incomplete_invocation_ids = set()
     unified.set_index("invocation_id", drop=False, inplace=True)
     for invocation_id in pd.unique(unified.index):
-        query_id = unified.loc[[invocation_id]]["query_id"]
+        query_id = unified.loc[invocation_id]["query_id"]
 
         if isinstance(query_id, (DataFrame, pd.Series)):
             query_id = query_id.min()
@@ -408,7 +407,7 @@ def diff_one_invocation(invocation):
         [description]
     """
 
-    rid_to_diffed_costs: dict[str, NDArray[np.float64]] = {}
+    rid_to_diffed_costs = {}
     invocation.set_index("plan_node_id", drop=False, inplace=True)
     child_cols = ["left_child_plan_node_id", "right_child_plan_node_id"]
     assert (
@@ -416,9 +415,9 @@ def diff_one_invocation(invocation):
     ), f"An invocation can only have one plan root!  Invocation Data: {invocation}"
 
     for _, parent_row in invocation.iterrows():
-        parent_rid: str = parent_row["rid"]
-        child_ids: NDArray[np.int64] = [id for id in parent_row[child_cols].to_numpy() if id != -1]
-        diffed_costs: NDArray[np.float64] = parent_row[DIFF_COLS].to_numpy()
+        parent_rid = parent_row["rid"]
+        child_ids = [id for id in parent_row[child_cols].to_numpy() if id != -1]
+        diffed_costs = parent_row[DIFF_COLS].to_numpy()
 
         # Verify all child_ids are present.
         missing_plan_node = False
@@ -431,14 +430,15 @@ def diff_one_invocation(invocation):
                     parent_row["plan_node_id"],
                     child_id,
                 )
-            missing_plan_node = True
+                missing_plan_node = True
 
         if missing_plan_node:
             continue
 
         for child_id in child_ids:
             child_row = invocation.loc[child_id]
-            child_costs: NDArray[np.float64] = child_row[DIFF_COLS].to_numpy()
+            assert isinstance(child_row, pd.Series), f"Child row must always be a Pandas Series {child_row}"
+            child_costs = child_row[DIFF_COLS].to_numpy()
             diffed_costs -= child_costs
 
         rid_to_diffed_costs[parent_rid] = diffed_costs
