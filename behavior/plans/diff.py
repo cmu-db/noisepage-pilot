@@ -99,7 +99,7 @@ def infer_query_plans(unified, logdir):
     # Count all query plan nodes
     query_to_plan_node_counts = {}
     for query_id in pd.unique(unified.index):
-        node_ids = unified.loc[query_id]["plan_node_id"]
+        node_ids = unified.loc[[query_id]]["plan_node_id"]
         plan_node_counts = node_ids.value_counts().to_dict()
         query_to_plan_node_counts[query_id] = plan_node_counts
 
@@ -165,7 +165,7 @@ def resolve_query_plans(unified, logdir):
 
     for query_id in pd.unique(unified.index):
         curr_query_info = {}
-        query_df = unified.loc[query_id]
+        query_df = unified.loc[[query_id]]
 
         observed_nodes = query_df[["ou_name", "plan_node_id"]].value_counts()
         left_child_counts = query_df["left_child_plan_node_id"].value_counts()
@@ -177,33 +177,35 @@ def resolve_query_plans(unified, logdir):
             str(k): str(v) for k, v in sorted(observed_nodes.to_dict().items())
         }
         curr_query_info["info"]["referenced_left_plan_node_ids"] = {
-            str(k): str(v) for k, v in sorted(left_child_counts.to_dict().items()) if k != -1
+            int(k): str(v) for k, v in sorted(left_child_counts.to_dict().items()) if k != -1
         }
         curr_query_info["info"]["referenced_right_plan_node_ids"] = {
-            str(k): str(v) for k, v in sorted(right_child_counts.to_dict().items()) if k != -1
+            int(k): str(v) for k, v in sorted(right_child_counts.to_dict().items()) if k != -1
         }
 
         # Log the id-to-ou map. If there are multiple ou's for a single plan_node_id then this map
         # will not be correct, and the discrepancy will be recorded in the errors section of the query report.
         curr_query_info["info"]["node_id_to_ou_name"] = {
-            node_id: ou_name for (ou_name, node_id), _ in sorted(observed_nodes.items(), key=lambda x: x[0])
+            int(node_id): ou_name for (ou_name, node_id), _ in sorted(observed_nodes.items(), key=lambda x: x[0])
         }
 
         # Find all observed plan identifiers (to compare observations and references).
         # Discard root node because it can't be referenced by anyone else.
-        observed_plan_ids = set(node_id for node_id in query_df["plan_node_id"].to_numpy().tolist() if node_id != 0)
+        observed_plan_ids = set(
+            int(node_id) for node_id in query_df["plan_node_id"].to_numpy().tolist() if node_id != 0
+        )
 
         # Find all referenced node ids.
         # Discard placeholder ("NULL") values for child plan node ids.
         referenced_node_ids = set(
-            node_id
+            int(node_id)
             for node_id in query_df[["left_child_plan_node_id", "right_child_plan_node_id"]].to_numpy().ravel()
             if node_id != -1
         )
 
         # Check for the same plan_node_id with different OU names.
         node_ids_with_multiple_ous = [
-            node_id
+            int(node_id)
             for node_id, distinct_ou_count in observed_nodes.groupby(["plan_node_id"]).size().items()
             if distinct_ou_count > 1
         ]
@@ -279,7 +281,7 @@ def resolve_query_invocations(unified, logdir, query_id_to_plan_node_ids):
     incomplete_invocation_ids = set()
     unified.set_index("invocation_id", drop=False, inplace=True)
     for invocation_id in pd.unique(unified.index):
-        query_id = unified.loc[invocation_id]["query_id"]
+        query_id = unified.loc[[invocation_id]]["query_id"]
 
         if isinstance(query_id, (DataFrame, pd.Series)):
             query_id = query_id.min()
@@ -436,7 +438,6 @@ def diff_one_invocation(invocation):
 
         for child_id in child_ids:
             child_row = invocation.loc[child_id]
-            assert isinstance(child_row, pd.Series), f"Child row must always be a Pandas Series {child_row}"
             child_costs: NDArray[np.float64] = child_row[DIFF_COLS].to_numpy()
             diffed_costs -= child_costs
 
@@ -485,8 +486,6 @@ def diff_all_plans(unified, logdir):
                 continue
 
             for rid, diffed_costs in diff_one_invocation(invocation).items():
-                assert isinstance(rid, str)
-                assert isinstance(diffed_costs, np.ndarray)
                 records.append([rid] + diffed_costs.tolist())
 
     diffed_cols = DataFrame(data=records, columns=["rid"] + DIFF_COLS)
