@@ -27,13 +27,13 @@ modeling:
   # To learn more about the configuration parameters, 
   # visit the scikit-learn or LightGBM documentation.
   rf:
-    n_estimators: 10
+    n_estimators: 25
     max_depth: 31
     criterion: "squared_error" # or "absolute_error"
   gbm:
-    n_estimators: 50
+    n_estimators: 100
     max_depth: 31
-    num_leaves: 31
+    num_leaves: 1000
     min_child_samples: 5
     objective: "mape"
   mlp:
