@@ -85,8 +85,7 @@ BENCHDB_TO_TABLES = {
     "ycsb": ["usertable"],
 }
 
-# TODO(Garrison): Add other OU names as they are implemented on TScout end.
-# Some future OUs include: Memoize and BitmapOr.
+# This list must be kept up to date with cmu-db/postgres.
 PLAN_NODE_NAMES = [
     "Agg",
     "Append",
