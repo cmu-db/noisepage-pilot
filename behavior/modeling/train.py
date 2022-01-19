@@ -161,7 +161,7 @@ def load_data(data_dir):
 
 
 def prep_train_data(df):
-    """[summary]
+    """Pre-process the training data.
 
     Parameters
     ----------
@@ -230,28 +230,6 @@ def prep_train_data(df):
 
 
 def main(config_file, dir_data_train, dir_data_eval, dir_output):
-    """[summary]
-
-    Parameters
-    ----------
-    config_file : Path
-        [description]
-    dir_data_train : Path
-        [description]
-    dir_data_eval : Path
-        [description]
-    dir_output : Path
-        [description]
-
-    Raises
-    ------
-    ValueError
-        [description]
-    ValueError
-        [description]
-    ValueError
-        [description]
-    """
     # Load modeling configuration.
     if not config_file.exists():
         raise ValueError(f"Config file: {config_file} does not exist")

@@ -143,20 +143,6 @@ def infer_query_plans(unified, logdir):
 
 
 def resolve_query_plans(unified, logdir):
-    """[summary]
-
-    Parameters
-    ----------
-    unified : [type]
-        [description]
-    logdir : [type]
-        [description]
-
-    Returns
-    -------
-    [type]
-        [description]
-    """
     unified.set_index("query_id", drop=False, inplace=True)
 
     # Count all query plan nodes and child references.
@@ -394,19 +380,6 @@ def load_tscout_data(tscout_data_dir, logdir):
 
 
 def diff_one_invocation(invocation):
-    """[summary]
-
-    Parameters
-    ----------
-    invocation : DataFrame
-        [description]
-
-    Returns
-    -------
-    dict[str, NDArray[np.float64]]
-        [description]
-    """
-
     rid_to_diffed_costs = {}
     invocation.set_index("plan_node_id", drop=False, inplace=True)
     child_cols = ["left_child_plan_node_id", "right_child_plan_node_id"]
@@ -447,14 +420,6 @@ def diff_one_invocation(invocation):
 
 
 def diff_all_plans(unified, logdir):
-    """[summary]
-
-    Returns
-    -------
-    [type]
-        [description]
-    """
-
     all_query_ids: set[str] = set(pd.unique(unified["query_id"]))
     records: list[list[Any]] = []
     logger.info("Total Number of Query IDs: %s.", len(all_query_ids))
@@ -496,16 +461,17 @@ def diff_all_plans(unified, logdir):
 
 
 def save_results(diff_data_dir, ou_to_df, diffed_cols):
-    """[summary]
+    """Write the differenced data back to the original
+    DataFrame and save the new DataFrames to disk.
 
     Parameters
     ----------
     diff_data_dir : Path
-        [description]
+        Directory to save the differenced data.
     ou_to_df : dict[str, DataFrame]
-        [description]
+        Map from operating-unit name to the original DataFrame.
     diffed_cols : DataFrame
-        [description]
+        DataFrame of all differenced records, indexed by RID.
     """
 
     diffed_cols.rename(columns=lambda col: f"diffed_{col}", inplace=True)
@@ -529,18 +495,6 @@ def save_results(diff_data_dir, ou_to_df, diffed_cols):
 
 
 def main(data_dir, output_dir, experiment) -> None:
-    """[summary]
-
-    Parameters
-    ----------
-    data_dir : [type]
-        [description]
-    output_dir : [type]
-        [description]
-    experiment : str
-        [description]
-    """
-
     logger.info("Differencing experiment: %s", experiment)
 
     for mode in ["train", "eval"]:
