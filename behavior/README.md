@@ -69,6 +69,7 @@ Caveats:
 
 - Various benchmarks yields slightly different OUs for a BenchBase run with the same configuration.
 - If you curtail the BenchBase experiment time too short, you will not get data for all OUs.  This may or may not be related to the above issue.
+- Using pg_stat_statements and auto_explain will affect benchmark statistics and model performance.  These are only intended for debugging.
 - TPC-H will be testable when the dataloader is merged.
 - Epinions is missing results for the Materialize OU in one plan.
 

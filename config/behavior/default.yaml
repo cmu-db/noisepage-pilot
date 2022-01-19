@@ -2,11 +2,11 @@
 datagen:
   pg_prewarm: True
   pg_analyze: True
-  pg_stat_statements: False
-  pg_store_plans: False # currently not installed
-  auto_explain: False
-  benchmarks: [tpcc] # Benchmarks include: [auctionmark, epinions, seats, sibench, smallbank, tatp, tpcc, tpch, twitter, voter, wikipedia, ycsb]
-  sqlsmith: False # currently ignored because it causes dataset naming conflicts
+  pg_stat_statements: False # Intended for debugging only, as it affects benchmark and modeling results.
+  pg_store_plans: False     # Currently not installed.
+  auto_explain: False       # Intended for debugging only, as it affects benchmark and modeling results.
+  benchmarks: [tpcc]        # Benchmarks include: [auctionmark, epinions, seats, sibench, smallbank, tatp, tpcc, tpch, twitter, voter, wikipedia, ycsb]
+  sqlsmith: False           # Currently ignored because it causes dataset naming conflicts.
   log_level: DEBUG
   debug: False
 
@@ -24,6 +24,8 @@ modeling:
   log_level: INFO
 
   # Model-specific Configuration
+  # To learn more about the configuration parameters, 
+  # visit the scikit-learn or LightGBM documentation.
   rf:
     n_estimators: 10
     max_depth: 31
