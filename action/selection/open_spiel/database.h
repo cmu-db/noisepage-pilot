@@ -5,6 +5,10 @@
 
 #include "open_spiel/spiel.h"
 
+namespace httplib {
+class Client;
+}
+
 namespace open_spiel {
 namespace database {
 
@@ -95,6 +99,9 @@ class DatabaseGame : public Game {
   // Knobs and configuration.
   const std::string &GetDatabaseConnectionString() const { return db_conn_string_; }
   bool UseHypoPG() const { return use_hypopg_; }
+  bool UseMicroservice() const { return use_microservice_; }
+
+  httplib::Client *GetMicroserviceClient() const { return microservice_client_.get(); }
 
  private:
   std::string db_conn_string_;
@@ -102,6 +109,10 @@ class DatabaseGame : public Game {
   std::unique_ptr<Tuner> tuner_;
   int max_tuning_actions_;
   bool use_hypopg_;
+  bool use_microservice_;
+
+  // use_microservice_ options.
+  std::unique_ptr<httplib::Client> microservice_client_;
 };
 
 }  // namespace database

@@ -2,10 +2,16 @@
 
 #include <fstream>
 #include <iostream>
+#include <memory>
 #include <pqxx/pqxx>
 #include <regex>
 #include <stdexcept>
 #include <string>
+
+#include "httplib.h"
+#include "rapidjson/document.h"
+#include "rapidjson/prettywriter.h"
+#include "rapidjson/stringbuffer.h"
 
 namespace open_spiel {
 namespace database {
@@ -34,6 +40,7 @@ const GameType kGameType{
         {"actions_path", GameParameter("")},
         {"max_tuning_actions", GameParameter(1)},
         {"use_hypopg", GameParameter(true)},
+        {"use_microservice", GameParameter(false)},
     }
 };
 // clang-format on
@@ -84,6 +91,155 @@ struct ExplainCost {
   double total_cost_ = -1;
   long num_rows_ = -1;
   long width_ = -1;
+};
+
+//-- ExplainMicroserviceCost
+
+struct ExplainMicroserviceCost {
+ public:
+  explicit ExplainMicroserviceCost(httplib::Client *client, pqxx::result *rset) {
+    for (const auto &r : *rset) {
+      for (const auto &f : r) {
+        // Parse the JSON result from EXPLAIN (FORMAT JSON).
+        std::string json_str{pqxx::to_string(f)};
+        rapidjson::Document doc;
+        doc.Parse(json_str.c_str());
+
+        // Augment the JSON tree by computing additional properties, e.g., differencing.
+        for (auto &plan_node : doc.GetArray()) {
+          rapidjson::Document::Object &&plan_obj = plan_node["Plan"].GetObject();
+          Augment(doc, plan_obj);
+        }
+
+        // Accumulate the cost of each JSON node into model_cost_.
+        for (auto &plan_node : doc.GetArray()) {
+          rapidjson::Document::Object &&plan_obj = plan_node["Plan"].GetObject();
+          Cost(client, plan_obj);
+        }
+      }
+    }
+  }
+
+  friend std::ostream &operator<<(std::ostream &os, const ExplainMicroserviceCost &cost) {
+    os << "[EWSC(" << cost.model_cost_ << ")]";
+    return os;
+  }
+
+ private:
+  void Augment(rapidjson::Document &doc, rapidjson::Document::Object &node) {
+    // TODO(WAN): Robustness for checking that node is a Plan from PostgreSQL's EXPLAIN (FORMAT JSON).
+
+    // Currently, the only augmentation done is differencing.
+    // Differencing refers to isolating a node's contribution to a feature by subtracting away children contributions.
+    // For example, for this plan:
+    //  LockRows  (cost=0.29..8.32 rows=1 width=297)
+    //   ->  Index Scan using stock_pkey on stock  (cost=0.29..8.31 rows=1 width=297)
+    //         Index Cond: ((s_w_id = 1) AND (s_i_id = 69279))
+    // LockRows has a differenced startup cost of 0 and differenced total cost of 0.01.
+
+    // Compute the contribution of the children.
+    double children_startup_cost = 0;
+    double children_total_cost = 0;
+    if (node.HasMember("Plans")) {
+      for (auto &child_node : node["Plans"].GetArray()) {
+        rapidjson::Document::Object &&child = child_node.GetObject();
+        Augment(doc, child);
+        children_startup_cost += child["Startup Cost"].GetDouble();
+        children_total_cost += child["Total Cost"].GetDouble();
+      }
+    }
+    // Compute the diffed features.
+    double diffed_startup_cost = node["Startup Cost"].GetDouble() - children_startup_cost;
+    double diffed_total_cost = node["Total Cost"].GetDouble() - children_total_cost;
+    // Add the diffed features back to the JSON object.
+    node.AddMember("Diffed Startup Cost", diffed_startup_cost, doc.GetAllocator());
+    node.AddMember("Diffed Total Cost", diffed_total_cost, doc.GetAllocator());
+  }
+
+  void Cost(httplib::Client *client, rapidjson::Document::Object &node) {
+    // TODO(WAN): Robustness for checking that node is a Plan from PostgreSQL's EXPLAIN (FORMAT JSON).
+
+    std::vector<std::string> args{
+        absl::StrCat("startup_cost=", std::to_string(node["Startup Cost"].GetDouble()).c_str()),
+        absl::StrCat("total_cost=", std::to_string(node["Total Cost"].GetDouble()).c_str()),
+        absl::StrCat("plan_rows=", std::to_string(node["Plan Rows"].GetInt64()).c_str()),
+        absl::StrCat("plan_width=", std::to_string(node["Plan Width"].GetInt64()).c_str()),
+        absl::StrCat("diffed_startup_cost=", std::to_string(node["Diffed Startup Cost"].GetDouble()).c_str()),
+        absl::StrCat("diffed_total_cost=", std::to_string(node["Diffed Total Cost"].GetDouble()).c_str()),
+    };
+
+    // Determine which behavior model type to use.
+    std::string model_type = "rf";
+    // Just kidding. No choice allowed, random forests only.
+    // TODO(WAN): More seriously, we should expose this as a parameter.
+
+    // Determine which behavior model this is.
+    // Currently, names mostly match if you strip out spaces.
+    std::string model_name = std::regex_replace(node["Node Type"].GetString(), std::regex("\\s+"), "");
+
+    // Model-specific hacks.
+    if (model_name == "Aggregate") {
+      model_name = "Agg";
+    } else if (model_name == "ModifyTable") {
+      // See PostgreSQL nodes.h/CmdType. At time of writing: UNKNOWN, SELECT, UPDATE, INSERT, DELETE, UTILITY, NOTHING.
+      // C standard guarantees that if you don't specify enum value, it starts at 0 and goes sequentially.
+      std::string opstr = node["Operation"].GetString();
+      std::string opnum = "-1";
+      if (opstr == "Select") {
+        opnum = "1";
+      } else if (opstr == "Update") {
+        opnum = "2";
+      } else if (opstr == "Insert") {
+        opnum = "3";
+      } else if (opstr == "Delete") {
+        opnum = "4";
+      }
+      args.emplace_back(absl::StrCat("ModifyTable_operation=", opnum));
+    } else if (model_name == "NestedLoop") {
+      model_name = "NestLoop";
+    }
+
+    // Construct the URL.
+    std::string url_params = absl::StrCat("?", absl::StrJoin(args, "&"));
+    std::string url = absl::StrJoin({"/model", model_type.c_str(), model_name.c_str(), url_params.c_str()}, "/");
+
+    // Invoke inference.
+    if (auto res = client->Get(url.c_str())) {
+      // If it looks like we got a JSON response, we're probably fine.
+      if (res->status == 200 && absl::StartsWith(res->body, "{")) {
+        // Parse the JSON response and add the relevant attributes to our cost.
+        rapidjson::Document doc;
+        doc.Parse(res->body.c_str());
+        // TODO(WAN): Pending discussion in #self-driving on Slack re: inconsistent labels.
+        if (doc.HasMember("elapsed_us")) {
+          model_cost_ += doc["elapsed_us"].GetDouble();
+        } else if (doc.HasMember("diffed_elapsed_us")) {
+          model_cost_ += doc["diffed_elapsed_us"].GetDouble();
+        } else {
+          std::cerr << absl::StrCat("ERROR bad result: status ", res->status, " url ", url, " body ", res->body)
+                    << std::endl;
+        }
+      } else {
+        std::cerr << absl::StrCat("ERROR unknown: status ", res->status, " url ", url, " body ", res->body)
+                  << std::endl;
+      }
+    } else {
+      auto err = res.error();
+      std::cerr << absl::StrCat("ERROR bad URL: status ", err, " url ", url) << std::endl;
+    }
+
+    // Repeat the costing process for all children.
+    if (node.HasMember("Plans")) {
+      for (auto &child_node : node["Plans"].GetArray()) {
+        rapidjson::Document::Object &&child = child_node.GetObject();
+        Cost(client, child);
+      }
+    }
+  }
+
+ public:
+  // The model cost is aggregated by making network requests.
+  double model_cost_ = 0;
 };
 
 //-- ExplainAnalyzeCost
@@ -303,6 +459,7 @@ std::vector<double> DatabaseState::Returns() const {
   // Game parameters.
   const std::string &db_conn_string = game_->GetDatabaseConnectionString();
   bool use_hypopg = game_->UseHypoPG();
+  bool use_microservice = game_->UseMicroservice();
   // Non-owning pointers to Forecast and Tuner.
   Forecast *forecast = game_->GetForecast();
   Tuner *tuner = game_->GetTuner();
@@ -315,6 +472,12 @@ std::vector<double> DatabaseState::Returns() const {
   if (use_hypopg) {
     // hypopg_reset() removes all hypothetical indexes.
     txn.exec("select hypopg_reset();");
+  }
+
+  httplib::Client *client;
+  if (use_microservice) {
+    client = game_->GetMicroserviceClient();
+    SPIEL_CHECK_NE(client, nullptr);
   }
 
   // Simulate the game trajectory.
@@ -345,11 +508,16 @@ std::vector<double> DatabaseState::Returns() const {
     {
       for (const auto &work : workload) {
         std::string query = work.sql_;
-        if (use_hypopg) {
+        if (use_hypopg && !use_microservice) {
           query = absl::StrCat("EXPLAIN ", query);
           pqxx::result rset{txn.exec(query)};
           ExplainCost cost{&rset};
           total_cost += cost.total_cost_ * work.num_arrivals_;
+        } else if (use_hypopg && use_microservice) {
+          query = absl::StrCat("EXPLAIN (FORMAT JSON) ", query);
+          pqxx::result rset{txn.exec(query)};
+          ExplainMicroserviceCost cost{client, &rset};
+          total_cost += cost.model_cost_ * work.num_arrivals_;
         } else {
           query = absl::StrCat("EXPLAIN (ANALYZE, BUFFERS) ", query);
           pqxx::result rset{txn.exec(query)};
@@ -386,6 +554,12 @@ DatabaseGame::DatabaseGame(const GameParameters &params) : Game(kGameType, param
   tuner_ = std::make_unique<Tuner>(params.at("actions_path").string_value());
   max_tuning_actions_ = params.at("max_tuning_actions").int_value();
   use_hypopg_ = params.at("use_hypopg").bool_value();
+  use_microservice_ = params.at("use_microservice").bool_value();
+
+  if (use_microservice_) {
+    // 127.0.0.1:5000 is the Flask default.
+    microservice_client_ = std::make_unique<httplib::Client>("127.0.0.1", 5000);
+  }
 }
 
 }  // namespace database
