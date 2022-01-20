@@ -3,16 +3,19 @@ doit
 flake8
 isort
 lightgbm
-numpy>=1.20 # Required for numpy.typing
+numpy>=1.20 # numpy.typing.
+pandarallel # Forecast. Parallelize pandas computations.
 pandas
 pathlib
 plumbum
 psycopg
 psutil
+pyarrow # Forecast. Parquet support.
 pydotplus
 pylint
 pyyaml
-scikit-learn>=1.0.0 # Required for various function definitions
+scikit-learn>=1.0.0 # Behavior models.
+torch # Forecast. LSTM.
 toml
 tqdm
 types-PyYAML
