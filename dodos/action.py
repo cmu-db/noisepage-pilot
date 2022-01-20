@@ -30,15 +30,28 @@ def task_action_generation():
     """
     Action generation: generate actions to choose from.
     """
+
+    def generate_actions(args):
+        cmd = f"python3 ./action/generation/generate_create_index_tpcc.py --output-sql {ARTIFACT_ACTIONS} {args}"
+        return cmd
+
     return {
         "actions": [
             f"mkdir -p {ARTIFACTS_PATH}",
             # Generate create index suggestions for TPC-C.
-            f"python3 ./action/generation/generate_create_index_tpcc.py --min-num-cols 1 --max-num-cols 4 --output-sql {ARTIFACT_ACTIONS}",
+            CmdAction(generate_actions),
         ],
         "file_dep": ["./action/generation/generate_create_index_tpcc.py"],
         "targets": [ARTIFACT_ACTIONS],
+        "uptodate": [False],
         "verbosity": VERBOSITY_DEFAULT,
+        "params": [
+            {
+                "name": "args",
+                "long": "args",
+                "default": "--min-num-cols 1 --max-num-cols 4",
+            },
+        ],
     }
 
 
