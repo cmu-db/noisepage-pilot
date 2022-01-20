@@ -1,6 +1,7 @@
 black
 doit
 flake8
+flask
 isort
 lightgbm
 numpy>=1.20 # numpy.typing.
