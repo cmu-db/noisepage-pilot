@@ -172,7 +172,7 @@ def task_action_recommendation():
     Action recommendation: apply recommended actions to the DBMS.
     """
 
-    def index_picker(batch_size, db_conn_string):
+    def index_picker(batch_size, db_conn_string, database_game_args):
         action = (
             "python3 ./action/recommendation/index_picker.py "
             # index_picker.py arguments.
@@ -183,6 +183,7 @@ def task_action_recommendation():
             f'--db_conn_string "{db_conn_string}" '
             f"--actions_path {ARTIFACT_ACTIONS} "
             f"--forecast_path {dodos.forecast.ARTIFACT_FORECAST} "
+            f"{database_game_args} "
         )
         return action
 
@@ -192,7 +193,10 @@ def task_action_recommendation():
             "./action/recommendation/index_picker.py",
             ARTIFACT_ACTIONS,
             ARTIFACT_DATABASE_GAME,
-            dodos.forecast.ARTIFACT_FORECAST,
+            # TODO(WAN): Unfortunately, action_recommendation is usually invoked after a separate initialization
+            #  that generated a forecast already. Expressing this dependency causes us to try to recompute a forecast,
+            #  which fails exactly because we want to start from a clean slate DBMS-wise.
+            # dodos.forecast.ARTIFACT_FORECAST,
         ],
         "verbosity": VERBOSITY_DEFAULT,
         "uptodate": [False],
@@ -210,6 +214,12 @@ def task_action_recommendation():
                 "long": "db_conn_string",
                 "help": "The database connection string to use.",
                 "default": DB_CONN_STRING_AS_SPIEL,
+            },
+            {
+                "name": "database_game_args",
+                "long": "database_game_args",
+                "help": "Additional arguments to pass to database_game.",
+                "default": "",
             },
         ],
     }
