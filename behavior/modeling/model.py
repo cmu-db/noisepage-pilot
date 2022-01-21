@@ -103,13 +103,11 @@ def get_model(method, config):
 
 
 class BehaviorModel:
-    def __init__(self, output_dir, method, ou_name, timestamp, config, features):
-        """Create a Behavior Model for predicting the resource consumption cost of a single Postgres operating-unit.
+    def __init__(self, method, ou_name, timestamp, config, features):
+        """Create a Behavior Model for predicting the resource consumption cost of a single PostgreSQL operating-unit.
 
         Parameters
         ----------
-        output_dir : [type]
-            [description]
         method : str
             [description]
         ou_name : str
@@ -184,8 +182,14 @@ class BehaviorModel:
 
         return y
 
-    def save(self):
-        """Save the model to disk."""
-        model_dir = self.output_dir / self.timestamp / self.method / self.ou_name
+    def save(self, output_dir):
+        """Save the model to disk.
+
+        Parameters
+        ----------
+        output_dir : Path | str
+            The directory to save the model to.
+        """
+        model_dir = output_dir / self.timestamp / self.method / self.ou_name
         with open(model_dir / f"{self.method}_{self.ou_name}.pkl", "wb") as f:
             pickle.dump(self, f)
