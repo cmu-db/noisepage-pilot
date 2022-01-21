@@ -51,12 +51,12 @@ The following is a list of Postgres query plan nodes, each of which are profiled
 
 ## BenchBase Benchmark Databases
 
-The following list of BenchBase benchmarks work with behavior modeling.
+The following BenchBase benchmarks have been tested to work with behavior modeling.
 
-- Auctionmark
+- AuctionMark
 - Epinions
-- Seats
-- Sibench
+- SEATS
+- SIBench
 - SmallBank
 - TATP
 - TPC-C
@@ -67,11 +67,13 @@ The following list of BenchBase benchmarks work with behavior modeling.
 
 Caveats:
 
-- Various benchmarks yields slightly different OUs for a BenchBase run with the same configuration.
-- If you curtail the BenchBase experiment time too short, you will not get data for all OUs.  This may or may not be related to the above issue.
-- Using pg_stat_statements and auto_explain will affect benchmark statistics and model performance.  These are only intended for debugging.
-- TPC-H will be testable when the dataloader is merged.
-- Epinions is missing results for the Materialize OU in one plan.
+- Various benchmarks yield slightly different OUs for a BenchBase run with the same configuration. Cause unknown.
+- If the BenchBase experiment duration is too short, you may not get data for all OUs.
+- Using pg_stat_statements and auto_explain will affect benchmark statistics and model performance.
+    - These are only intended for debugging.
+- TPC-H support is blocked on the [native loader](https://github.com/cmu-db/benchbase/pull/99) being merged.
+- Epinions is missing results for the Materialize OU in the plan generated for `GetReviewsByUser`.
+    - `SELECT * FROM review r, useracct u WHERE u.u_id = r.u_id AND r.u_id=$1 ORDER BY rating LIMIT 10`
 
 ## Resource Consumption Metrics
 
@@ -92,18 +94,18 @@ The following is a list of resource consumption metrics that TScout collects and
 ## Operating Unit (OU) Model Variants
 
 - Tree-based
-  - dt
-  - rf - good performance
-  - gbm - good performance
+    - dt
+    - rf - good performance
+    - gbm - good performance
 - Multi-layer perceptron
-  - mlp
+    - mlp
 - Generalized linear models
-  - lr
-  - huber
-  - mt_lasso
-  - lasso
-  - mt_elastic
-  - elastic
+    - lr
+    - huber
+    - mt_lasso
+    - lasso
+    - mt_elastic
+    - elastic
 
 ## Training Data
 
