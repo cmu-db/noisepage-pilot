@@ -28,7 +28,7 @@ def get_model(method, config):
     ----------
     method : str
         Regression model variant.
-    config : dict
+    config : dict[str, Any]
         Configuration parameters for the model.
 
     Returns
@@ -103,25 +103,25 @@ def get_model(method, config):
 
 
 class BehaviorModel:
-    def __init__(self, method, ou_name, timestamp, config, features):
+    def __init__(self, method, ou_name, base_model_name, config, features):
         """Create a Behavior Model for predicting the resource consumption cost of a single PostgreSQL operating-unit.
 
         Parameters
         ----------
         method : str
-            [description]
+            The method to use. Valid methods are defined in modeling/__init__.py.
         ou_name : str
-            [description]
-        timestamp : str
-            [description]
+            The name of this operating unit.
+        base_model_name : str
+            The base name for this model, currently just the experiment name.
         config : dict[str, Any]
-            [description]
+            The dictionary of configuration parameters for this model.
         features : list[str]
-            [description]
+            The list of input features for this model.
         """
         self.output_dir = output_dir
         self.method = method
-        self.timestamp = timestamp
+        self.base_model_name = base_model_name
         self.ou_name = ou_name
         self.model = get_model(method, config)
         self.features = features
@@ -190,6 +190,6 @@ class BehaviorModel:
         output_dir : Path | str
             The directory to save the model to.
         """
-        model_dir = output_dir / self.timestamp / self.method / self.ou_name
+        model_dir = output_dir / self.base_model_name / self.method / self.ou_name
         with open(model_dir / f"{self.method}_{self.ou_name}.pkl", "wb") as f:
             pickle.dump(self, f)
