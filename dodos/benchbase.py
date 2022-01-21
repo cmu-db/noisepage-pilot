@@ -130,7 +130,7 @@ def task_benchbase_run():
     def invoke_benchbase(benchmark, config, args):
         if config is None:
             config = ARTIFACTS_PATH / f"config/postgres/{benchmark}_config.xml"
-        elif not config.startswith('/'):
+        elif not config.startswith("/"):
             # If config is not an absolute path,
             # because we must be in the BenchBase folder for the java invocation to work out,
             # we need to get the original relative path that the caller intended.
