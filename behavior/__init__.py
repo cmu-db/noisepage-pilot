@@ -85,9 +85,15 @@ BENCHDB_TO_TABLES = {
     "ycsb": ["usertable"],
 }
 
+# This list must be kept up to date with the OU definitions in cmu-db/postgres.
+# OU_DEFS is defined in: https://github.com/cmu-db/postgres/blob/pg14/cmudb/tscout/model.py
 PLAN_NODE_NAMES = [
     "Agg",
     "Append",
+    "BitmapAnd",
+    "BitmapHeapScan",
+    "BitmapIndexScan",
+    "BitmapOr",
     "CteScan",
     "CustomScan",
     "ForeignScan",
@@ -95,6 +101,7 @@ PLAN_NODE_NAMES = [
     "Gather",
     "GatherMerge",
     "Group",
+    "Hash",
     "HashJoinImpl",
     "IncrementalSort",
     "IndexOnlyScan",
@@ -102,6 +109,7 @@ PLAN_NODE_NAMES = [
     "Limit",
     "LockRows",
     "Material",
+    "Memoize",
     "MergeAppend",
     "MergeJoin",
     "ModifyTable",
@@ -124,13 +132,6 @@ PLAN_NODE_NAMES = [
     "WorkTableScan",
 ]
 
-LEAF_NODES: set[str] = {
-    "IndexScan",
-    "SeqScan",
-    "IndexOnlyScan",
-    "Result",
-}
-
 BASE_TARGET_COLS = [
     "cpu_cycles",
     "instructions",
@@ -145,5 +146,6 @@ BASE_TARGET_COLS = [
     "elapsed_us",
 ]
 
+DIFFED_TARGET_COLS: list[str] = [f"diffed_{col}" for col in BASE_TARGET_COLS]
 
 DIFF_COLS: list[str] = ["startup_cost", "total_cost"] + BASE_TARGET_COLS

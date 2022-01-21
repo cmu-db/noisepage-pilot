@@ -1,23 +1,21 @@
 # DataGeneratorCLI configuration.
-datagen: 
+datagen:
   pg_prewarm: True
   pg_analyze: True
-  pg_stat_statements: False
-  pg_store_plans: False # currently not installed
-  auto_explain: False
-  benchmarks: [tpcc]
-  sqlsmith: False # currently ignored because it causes dataset naming conflicts
+  pg_stat_statements: False # Intended for debugging only, as it affects benchmark and modeling results.
+  pg_store_plans: False     # Currently not installed.
+  auto_explain: False       # Intended for debugging only, as it affects benchmark and modeling results.
+  benchmarks: [tpcc]        # Benchmarks include: [auctionmark, epinions, seats, sibench, smallbank, tatp, tpcc, tpch, twitter, voter, wikipedia, ycsb]
+  sqlsmith: False           # Currently ignored because it causes dataset naming conflicts.
   log_level: DEBUG
   debug: False
 
 # Modeling Configuration
-modeling: 
-  train_bench_dbs: [tpcc]
-  eval_bench_dbs: [tpcc, ycsb, wikipedia, voter, twitter, smallbank, auctionmark]
+modeling:
+  train_bench_db: tpcc
+  eval_bench_db: tpcc
   experiment_name: null
-  targets_diff: True
-  features_diff: True
-  methods: [lr, rf, dt]
+  methods: [lr, dt, rf, gbm]
   normalize: True
   log_transform: False
   robust: False
@@ -26,30 +24,33 @@ modeling:
   log_level: INFO
 
   # Model-specific Configuration
-  rf: 
-    n_estimators: 5
+  # To learn more about the configuration parameters, 
+  # visit the scikit-learn or LightGBM documentation.
+  rf:
+    n_estimators: 25
     max_depth: 31
-    criterion: "squared_error"
-  lgbm: 
+    criterion: "squared_error" # or "absolute_error"
+  gbm:
+    n_estimators: 100
     max_depth: 31
     num_leaves: 1000
-    n_estimators: 100
     min_child_samples: 5
-  mlp: 
+    objective: "mape"
+  mlp:
     hidden_layer_sizes: [25, 25]
     early_stopping: True
     max_iter: 1000000
     alpha: 5
-  elastic: 
+  elastic:
     alpha: 0.1
     l1_ratio: 0.5
-  mt_elastic: 
+  mt_elastic:
     l1_ratio: 0.5
-  dt: 
-    max_depth: 3
-  huber: 
+  dt:
+    max_depth: 5
+  huber:
     max_iter: 50
   lasso:
     alpha: 1.0
-  mt_lasso: 
+  mt_lasso:
     alpha: 1.0
