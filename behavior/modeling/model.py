@@ -33,7 +33,7 @@ def get_model(method, config):
 
     Returns
     -------
-    Any
+    model : Any
        A regression model.
 
     Raises
