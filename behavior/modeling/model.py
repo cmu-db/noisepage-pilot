@@ -187,4 +187,4 @@ class BehaviorModel:
         """Save the model to disk."""
         model_dir = self.output_dir / self.timestamp / self.method / self.ou_name
         with open(model_dir / f"{self.method}_{self.ou_name}.pkl", "wb") as f:
-            pickle.dump(self.model, f)
+            pickle.dump(self, f)

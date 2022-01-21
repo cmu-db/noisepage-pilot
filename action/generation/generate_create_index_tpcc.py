@@ -115,22 +115,67 @@ tables = {
     ],
 }
 
+tables_filtered = {
+    "warehouse": [
+        "w_id",
+    ],
+    "item": [
+        "i_id",
+    ],
+    "stock": [
+        "s_w_id",
+        "s_i_id",
+        "s_quantity",
+    ],
+    "district": [
+        "d_w_id",
+        "d_id",
+    ],
+    "customer": [
+        "c_w_id",
+        "c_d_id",
+        "c_id",
+        "c_last",
+        "c_first",
+    ],
+    "oorder": [
+        "o_w_id",
+        "o_d_id",
+        "o_id",
+        "o_c_id",
+    ],
+    "new_order": [
+        "no_w_id",
+        "no_d_id",
+        "no_o_id",
+    ],
+    "order_line": [
+        "ol_w_id",
+        "ol_d_id",
+        "ol_o_id",
+        "ol_i_id",
+    ],
+}
+
 
 class GenerateCreateIndexTPCC(cli.Application):
     min_num_cols = cli.SwitchAttr("--min-num-cols", int, mandatory=True)
     max_num_cols = cli.SwitchAttr("--max-num-cols", int, mandatory=True)
     output_sql = cli.SwitchAttr("--output-sql", str, mandatory=True)
+    filter_tables = cli.Flag("--filter-tables", default=False)
 
     def main(self):
         assert 1 <= self.min_num_cols, "Need at least one column."
         assert self.min_num_cols <= self.max_num_cols, "min must be <= max."
+
+        tables_used = tables_filtered if self.filter_tables else tables
 
         for max_n_cols in range(self.max_num_cols + 1):
             with open(self.output_sql, "w") as f:
                 permutations = (
                     (table, permutation)
                     for num_cols in range(self.min_num_cols, max_n_cols + 1)
-                    for table, cols in tables.items()
+                    for table, cols in tables_used.items()
                     for permutation in itertools.permutations(cols, num_cols)
                 )
                 for table, permutation in permutations:
