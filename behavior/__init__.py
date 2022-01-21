@@ -85,7 +85,8 @@ BENCHDB_TO_TABLES = {
     "ycsb": ["usertable"],
 }
 
-# This list must be kept up to date with cmu-db/postgres.
+# This list must be kept up to date with the OU definitions in cmu-db/postgres.
+# OU_DEFS is defined in: https://github.com/cmu-db/postgres/blob/pg14/cmudb/tscout/model.py
 PLAN_NODE_NAMES = [
     "Agg",
     "Append",
