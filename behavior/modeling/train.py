@@ -296,7 +296,6 @@ def main(config_file, dir_data_train, dir_data_eval, dir_output):
         for method in config["methods"]:
             logger.info("Training OU: %s with model: %s", ou_name, method)
             ou_model = BehaviorModel(
-                dir_output,
                 method,
                 ou_name,
                 base_model_name,
@@ -310,7 +309,7 @@ def main(config_file, dir_data_train, dir_data_eval, dir_output):
             # Save and evaluate the model against the training data.
             full_outdir = output_dir / method / ou_name
             full_outdir.mkdir(parents=True, exist_ok=True)
-            ou_model.save()
+            ou_model.save(dir_output)
             evaluate(ou_model, train_df, full_outdir, train_bench_db, mode="train")
 
             if ou_name not in eval_ou_to_df:
