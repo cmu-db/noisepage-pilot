@@ -119,7 +119,6 @@ class BehaviorModel:
         features : list[str]
             The list of input features for this model.
         """
-        self.output_dir = output_dir
         self.method = method
         self.base_model_name = base_model_name
         self.ou_name = ou_name
