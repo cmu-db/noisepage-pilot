@@ -1,3 +1,5 @@
+from doit import get_var
+
 from dodos import VERBOSITY_DEFAULT
 
 
@@ -21,13 +23,12 @@ def task_ci_python():
     CI: this should be run and all warnings fixed before pushing commits.
     """
     folders = ["action", "behavior", "dodos", "forecast", "pilot"]
+    config = {"check": "--check" if str(get_var("check")).lower() == "true" else ""}
 
     return {
         "actions": [
-            "black --verbose dodo.py",
-            "isort --verbose dodo.py",
-            *[f"black --verbose {folder}" for folder in folders],
-            *[f"isort {folder}" for folder in folders],
+            *[f"black {config['check']} --verbose {folder}" for folder in folders],
+            *[f"isort {config['check']} {folder}" for folder in folders],
             *[f"flake8 --statistics {folder}" for folder in folders],
             # TODO(WAN): Only run pylint on behavior for now.
             *[f"pylint --verbose {folder}" for folder in ["behavior"]],
