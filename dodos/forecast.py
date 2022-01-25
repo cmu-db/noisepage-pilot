@@ -9,8 +9,6 @@ BUILD_PATH = default_build_path()
 
 # Input: query log.
 QUERY_LOG_DIR = dodos.noisepage.ARTIFACT_pgdata_log
-from pathlib import Path
-QUERY_LOG_DIR = Path("/home/mkpjnx/repos/noisepage-pilot/forecast/data/extracted/long_simple")
 
 # Scratch work.
 PREPROCESSOR_ARTIFACT = BUILD_PATH / "preprocessed.parquet.gzip"
@@ -87,13 +85,13 @@ def task_forecast_predict():
             log_start = pd.Timestamp(lines[0]).floor(pred_interval)
             log_end = pd.Timestamp(lines[1]).floor(pred_interval)
 
-        # The minimum prediction horizon needed
+        # Infer the prediction window from the query log and default params.
         if pred_start is None:
             pred_start = log_end + pred_interval
         if pred_end is None:
             pred_end = log_end + pred_horizon
 
-        # TODO(Mike): assert there is enough data for inference
+        # TODO(Mike): Assert there is enough data for inference.
         print(
             f"Using query data ({log_start.isoformat()} to {log_end.isoformat()})\n"
             f"to predict ({pred_start.isoformat()} to {pred_end.isoformat()})\n"
@@ -126,35 +124,35 @@ def task_forecast_predict():
             {
                 "name": "pred_start",
                 "long": "pred_start",
-                "help": "The start point of the forecast (inclusive). Default: now.",
+                "help": "The start point of the forecast (inclusive). Default: last timestamp in the query log.",
                 "type": pd.Timestamp,
                 "default": None,
             },
             {
                 "name": "pred_end",
                 "long": "pred_end",
-                "help": "The end point of the forecast (inclusive). Default: 1 minute from now.",
+                "help": "The end point of the forecast (inclusive). Default: 10 seconds from pred_start.",
                 "type": pd.Timestamp,
                 "default": None,
             },
             {
                 "name": "pred_horizon",
                 "long": "pred_horizon",
-                "help": "The end point of the forecast (inclusive). Default: 1 minute from now.",
+                "help": "How far in the future to predict.",
                 "type": pd.Timedelta,
                 "default": DEFAULT_PRED_HORIZON,  # Infer horizon from file if needed
             },
             {
                 "name": "pred_interval",
                 "long": "pred_interval",
-                "help": "The end point of the forecast (inclusive). Default: 1 minute from now.",
+                "help": "Interval to aggregate the queries for training/prediction.",
                 "type": pd.Timedelta,
                 "default": DEFAULT_PRED_INTERVAL,
             },
             {
                 "name": "pred_seqlen",
                 "long": "pred_seqlen",
-                "help": "The end point of the forecast (inclusive). Default: 1 minute from now.",
+                "help": "How many consecutive intervals of query arrival rate is used to make inference.",
                 "type": int,
                 "default": DEFAULT_PRED_SEQLEN,
             },

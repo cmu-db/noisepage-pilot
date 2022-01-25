@@ -133,14 +133,13 @@ class ClusterForecaster:
         assert cluster_df.index.names[0] == "cluster"
         assert cluster_df.index.names[1] == "log_time_s"
 
+        # Cluster not in the data.
         if cluster not in cluster_df.index.get_level_values(0):
-            print(f"Could not find cluster {cluster} in cluster_df")
             return None
 
+        # No model for give cluster.
         if cluster not in self.models.keys():
-            print(f"Could not find model for cluster {cluster}")
             return None
-        
 
         cluster_counts = cluster_df[cluster_df.index.get_level_values(0) == cluster].droplevel(0)
 
@@ -293,7 +292,7 @@ class ForecasterCLI(cli.Application):
             end_time = pd.Timestamp(self.end_ts)
             pred_df = forecaster.predict(clustered_df, cluster, start_time, end_time)
             if pred_df is None:
-                print(f"No Prediction for {cluster}, not in top k clusters")
+                # No data or model for cluster.
                 continue
             prediction_count = pred_df["count"].sum()
             print(f"Prediction for {cluster}: {prediction_count}")
