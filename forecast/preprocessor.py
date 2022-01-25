@@ -424,6 +424,8 @@ class PreprocessorCLI(cli.Application):
 
     query_log_folder = cli.SwitchAttr("--query-log-folder", str, mandatory=True)
     output_parquet = cli.SwitchAttr("--output-parquet", str, mandatory=True)
+    output_timestamp = cli.SwitchAttr("--output-timestamp", str, default=None)
+
     log_type = cli.SwitchAttr(
         "--log-type",
         argtype=str,
@@ -458,6 +460,14 @@ class PreprocessorCLI(cli.Application):
         preprocessor = Preprocessor(pgfiles, log_columns)
         print("Storing parquet")
         preprocessor.get_dataframe().to_parquet(self.output_parquet, compression="gzip")
+
+        # Optionally write min and max timestamps of queries to infer forecast
+        # window
+        if self.output_timestamp is None:
+            return
+        with open(self.output_timestamp, "w") as ts_file:
+            ts_file.write(preprocessor.get_dataframe().index.min().isoformat() + "\n")
+            ts_file.write(preprocessor.get_dataframe().index.max().isoformat() + "\n")
 
 
 if __name__ == "__main__":
