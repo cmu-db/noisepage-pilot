@@ -76,14 +76,17 @@ def task_forecast_predict():
     Forecast: produce predictions for the given time range.
     """
 
+    # Read the query log timestamps from the preprocessor's output.
+    with open(PREPROCESSOR_TIMESTAMP) as ts_file:
+        lines = ts_file.readlines()
+        assert len(lines) == 2, "Timestamp file should have two lines with a timestamp each."
+        log_start = pd.Timestamp(lines[0])
+        log_end = pd.Timestamp(lines[1])
+
     def forecast_action(pred_start, pred_end, pred_horizon, pred_interval, pred_seqlen):
-        log_start = None
-        log_end = None
-        with open(PREPROCESSOR_TIMESTAMP) as ts_file:
-            lines = ts_file.readlines()
-            assert len(lines) >= 2, "Timestamp file should have two lines with a timestamp each"
-            log_start = pd.Timestamp(lines[0]).floor(pred_interval)
-            log_end = pd.Timestamp(lines[1]).floor(pred_interval)
+        nonlocal log_start, log_end
+        log_start = log_start.floor(pred_interval)
+        log_end = log_end.floor(pred_interval)
 
         # Infer the prediction window from the query log and default params.
         if pred_start is None:
@@ -92,6 +95,9 @@ def task_forecast_predict():
             pred_end = log_end + pred_horizon
 
         # TODO(Mike): Assert there is enough data for inference.
+        # TODO(WAN): This entire callable may be invoked repeatedly, so print statements are not a good idea.
+        #   Arguably we can push this logic into the forecaster itself (a verbose mode). I am ok with this for now,
+        #   but if you the reader are thinking of duplicating this code, please don't.
         print(
             f"Using query data ({log_start.isoformat()} to {log_end.isoformat()})\n"
             f"to predict ({pred_start.isoformat()} to {pred_end.isoformat()})\n"
