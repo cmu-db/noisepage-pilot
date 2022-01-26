@@ -89,7 +89,7 @@ def task_forecast_predict():
         if pred_start is None:
             pred_start = log_end + pred_interval
         if pred_end is None:
-            pred_end = log_end + pred_horizon
+            pred_end = log_end + pred_horizon + pred_interval
 
         # TODO(Mike): Assert there is enough data for inference.
         # TODO(WAN): This entire callable may be invoked repeatedly, so print statements are not a good idea.
