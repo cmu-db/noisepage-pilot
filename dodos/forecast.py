@@ -144,15 +144,15 @@ def task_forecast_predict():
             {
                 "name": "pred_horizon",
                 "long": "pred_horizon",
-                "help": "How far in the future to predict.",
-                "type": pd.Timedelta,
+                "help": "How far in the future to predict (seconds).",
+                "type": lambda x: pd.Timedelta(seconds=int(x)),
                 "default": DEFAULT_PRED_HORIZON,  # Infer horizon from file if needed
             },
             {
                 "name": "pred_interval",
                 "long": "pred_interval",
-                "help": "Interval to aggregate the queries for training/prediction.",
-                "type": pd.Timedelta,
+                "help": "Interval (seconds) to aggregate the queries for training/prediction.",
+                "type": lambda x: pd.Timedelta(seconds=int(x)),
                 "default": DEFAULT_PRED_INTERVAL,
             },
             {
