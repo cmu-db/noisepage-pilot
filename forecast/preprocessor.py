@@ -461,8 +461,7 @@ class PreprocessorCLI(cli.Application):
         print("Storing parquet")
         preprocessor.get_dataframe().to_parquet(self.output_parquet, compression="gzip")
 
-        # Optionally write min and max timestamps of queries to infer forecast
-        # window
+        # Optionally write min and max timestamps of queries to infer forecast window.
         if self.output_timestamp is None:
             return
         with open(self.output_timestamp, "w") as ts_file:

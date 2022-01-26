@@ -16,7 +16,7 @@ PREPROCESSOR_TIMESTAMP = BUILD_PATH / "preprocessed.timestamp.txt"
 CLUSTER_ARTIFACT = BUILD_PATH / "clustered.parquet"
 MODEL_DIR = BUILD_PATH / "models"
 
-# Default Forecasting Params
+# Default forecasting parameters.
 DEFAULT_PRED_HORIZON = pd.Timedelta(seconds=10)
 DEFAULT_PRED_INTERVAL = pd.Timedelta(seconds=1)
 DEFAULT_PRED_SEQLEN = 10
@@ -88,7 +88,7 @@ def task_forecast_predict():
         log_start = log_start.floor(pred_interval)
         log_end = log_end.floor(pred_interval)
 
-        # Infer the prediction window from the query log and default params.
+        # Infer the prediction window from the query log and default parameters.
         if pred_start is None:
             pred_start = log_end + pred_interval
         if pred_end is None:

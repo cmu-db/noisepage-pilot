@@ -137,7 +137,7 @@ class ClusterForecaster:
         if cluster not in cluster_df.index.get_level_values(0):
             return None
 
-        # No model for give cluster.
+        # No model for given cluster.
         if cluster not in self.models.keys():
             return None
 
