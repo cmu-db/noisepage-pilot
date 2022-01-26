@@ -76,17 +76,14 @@ def task_forecast_predict():
     Forecast: produce predictions for the given time range.
     """
 
-    # Read the query log timestamps from the preprocessor's output.
-    with open(PREPROCESSOR_TIMESTAMP) as ts_file:
-        lines = ts_file.readlines()
-        assert len(lines) == 2, "Timestamp file should have two lines with a timestamp each."
-        log_start = pd.Timestamp(lines[0])
-        log_end = pd.Timestamp(lines[1])
-
     def forecast_action(pred_start, pred_end, pred_horizon, pred_interval, pred_seqlen):
-        nonlocal log_start, log_end
-        log_start = log_start.floor(pred_interval)
-        log_end = log_end.floor(pred_interval)
+        # Read the query log timestamps from the preprocessor's output.
+        # TODO(WAN): This file is read repeatedly!
+        with open(PREPROCESSOR_TIMESTAMP) as ts_file:
+            lines = ts_file.readlines()
+            assert len(lines) == 2, "Timestamp file should have two lines with a timestamp each."
+            log_start = pd.Timestamp(lines[0]).floor(pred_interval)
+            log_end = pd.Timestamp(lines[1]).floor(pred_interval)
 
         # Infer the prediction window from the query log and default parameters.
         if pred_start is None:
