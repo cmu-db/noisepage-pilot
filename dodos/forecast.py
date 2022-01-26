@@ -158,7 +158,7 @@ def task_forecast_predict():
             {
                 "name": "pred_seqlen",
                 "long": "pred_seqlen",
-                "help": "How many consecutive intervals of query arrival rate is used to make inference.",
+                "help": "Number of consecutive query arrival rate intervals that are used for inference.",
                 "type": int,
                 "default": DEFAULT_PRED_SEQLEN,
             },
