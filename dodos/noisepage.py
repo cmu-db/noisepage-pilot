@@ -178,3 +178,28 @@ def task_noisepage_disable_logging():
         ],
         "verbosity": VERBOSITY_DEFAULT,
     }
+
+
+def task_noisepage_truncate_log():
+    """
+    NoisePage: truncate the most recent query log files.
+    """
+
+    return {
+        "actions": [
+            lambda: os.chdir(ARTIFACT_pgdata_log),
+            'RECENT=$(ls --sort=time --reverse *.csv | head --lines=%(num_files)s) ; echo "Deleting:\n$RECENT" ; rm $RECENT ; echo "Deleted."',
+            # Reset working directory.
+            lambda: os.chdir(doit.get_initial_workdir()),
+        ],
+        "verbosity": VERBOSITY_DEFAULT,
+        "uptodate": [False],
+        "params": [
+            {
+                "name": "num_files",
+                "long": "num_files",
+                "help": "The number of query log files to remove.",
+                "default": 5,
+            },
+        ],
+    }
