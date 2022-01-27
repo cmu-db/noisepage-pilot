@@ -105,3 +105,15 @@ def task_behavior_microservice():
         "actions": [run_microservice],
         "verbosity": VERBOSITY_DEFAULT,
     }
+
+
+def task_behavior_microservice_kill():
+    """
+    Behavior modeling: kill all running microservices.
+    """
+    return {
+        "actions": [
+            "pkill --full '^Behavior Models Microservice' || true",
+        ],
+        "verbosity": VERBOSITY_DEFAULT,
+    }

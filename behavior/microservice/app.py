@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Dict
 
 import numpy as np
+import setproctitle
 from flask import Flask, jsonify, request
 from plumbum import cli
 
@@ -64,6 +65,7 @@ class ModelMicroserviceCLI(cli.Application):
 
         # Expose the models to the Flask app.
         app.config["model_map"] = model_map
+        setproctitle.setproctitle("Behavior Models Microservice")
         # Run the Flask app.
         app.run()
 

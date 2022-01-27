@@ -16,6 +16,7 @@ pydotplus
 pylint
 pyyaml
 scikit-learn>=1.0.0 # Behavior models.
+setproctitle
 torch # Forecast. LSTM.
 toml
 tqdm
