@@ -133,8 +133,12 @@ class ClusterForecaster:
         assert cluster_df.index.names[0] == "cluster"
         assert cluster_df.index.names[1] == "log_time_s"
 
+        # Cluster not in the data.
         if cluster not in cluster_df.index.get_level_values(0):
-            print(f"Could not find cluster {cluster} in cluster_df")
+            return None
+
+        # No model for given cluster.
+        if cluster not in self.models.keys():
             return None
 
         cluster_counts = cluster_df[cluster_df.index.get_level_values(0) == cluster].droplevel(0)
@@ -247,15 +251,16 @@ class ForecasterCLI(cli.Application):
 
     output_csv = cli.SwitchAttr("--output-csv", str, mandatory=True)
 
+    pred_horizon = cli.SwitchAttr(["--horizon"], pd.Timedelta, mandatory=True)
+    pred_interval = cli.SwitchAttr(["--interval"], pd.Timedelta, mandatory=True)
+    pred_seqlen = cli.SwitchAttr(["--seqlen"], int, mandatory=True)
+
     def main(self):
-        pred_interval = pd.Timedelta(seconds=1)
-        pred_horizon = pd.Timedelta(seconds=5)
-        pred_seqlen = 5
 
         print(f"Loading preprocessor data from {self.preprocessor_parquet}.")
         preprocessor = Preprocessor(parquet_path=self.preprocessor_parquet)
 
-        df = preprocessor.get_grouped_dataframe_interval(pred_interval)
+        df = preprocessor.get_grouped_dataframe_interval(self.pred_interval)
         df.index.rename(["query_template", "log_time_s"], inplace=1)
 
         print("reading cluster assignments.")
@@ -270,9 +275,9 @@ class ForecasterCLI(cli.Application):
         # clusters (i.e. cluster = -1).
         forecaster = ClusterForecaster(
             clustered_df,
-            prediction_seqlen=pred_seqlen,
-            prediction_interval=pred_interval,
-            prediction_horizon=pred_horizon,
+            prediction_seqlen=self.pred_seqlen,
+            prediction_interval=self.pred_interval,
+            prediction_horizon=self.pred_horizon,
             save_path=self.model_path,
             override=self.override,
         )
@@ -286,6 +291,9 @@ class ForecasterCLI(cli.Application):
             start_time = pd.Timestamp(self.start_ts)
             end_time = pd.Timestamp(self.end_ts)
             pred_df = forecaster.predict(clustered_df, cluster, start_time, end_time)
+            if pred_df is None:
+                # No data or model for cluster.
+                continue
             prediction_count = pred_df["count"].sum()
             print(f"Prediction for {cluster}: {prediction_count}")
             cluster_predictions.append(wg.get_workload(cluster, prediction_count))
