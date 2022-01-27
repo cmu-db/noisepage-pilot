@@ -97,7 +97,7 @@ def task_behavior_microservice():
         experiment_name = experiment_list[-1]
 
         server_cmd = local["python3"]["-m", "behavior", "microservice", "--models-path", experiment_name]
-        dest_stdout = "behavior_microservice.out"
+        dest_stdout = "artifacts/behavior/microservice.out"
         ret = server_cmd.run_nohup(stdout=dest_stdout)
         print(f"Behavior models microservice: {dest_stdout} {ret.pid}")
 
