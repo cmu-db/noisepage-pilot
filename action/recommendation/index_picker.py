@@ -102,10 +102,15 @@ class IndexPickerCLI(cli.Application):
                         # Get the recommended action.
                         # TODO(WAN): Hack. Better interface?
                         action = stdout.strip()
+                        err_lines = set()
                         for line in stderr.split("\n"):
                             if line.startswith("\tFinal returns:"):
                                 val_str = line.split(":")[1].strip()
                                 current_returns = float(val_str)
+                            if line.startswith("ERROR"):
+                                err_lines.add(line)
+                        for line in sorted(err_lines):
+                            print(line)
 
                         # Always remove the recommended action from the
                         # current batch of actions.
