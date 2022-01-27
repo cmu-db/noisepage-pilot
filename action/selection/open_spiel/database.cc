@@ -160,6 +160,7 @@ struct ExplainMicroserviceCost {
     // TODO(WAN): Robustness for checking that node is a Plan from PostgreSQL's EXPLAIN (FORMAT JSON).
 
     std::vector<std::string> args{
+        absl::StrCat("bias=", "1"),
         absl::StrCat("startup_cost=", std::to_string(node["Startup Cost"].GetDouble()).c_str()),
         absl::StrCat("total_cost=", std::to_string(node["Total Cost"].GetDouble()).c_str()),
         absl::StrCat("plan_rows=", std::to_string(node["Plan Rows"].GetInt64()).c_str()),

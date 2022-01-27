@@ -91,7 +91,7 @@ def task_benchbase_overwrite_config():
             lambda: os.chdir(doit.get_initial_workdir()),
         ],
         "file_dep": [*CONFIG_FILES.glob("*")],
-        "uptodate": [True],
+        "uptodate": [False],
         "verbosity": VERBOSITY_DEFAULT,
     }
 

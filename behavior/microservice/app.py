@@ -3,9 +3,11 @@ from pathlib import Path
 from typing import Dict
 
 import numpy as np
+import setproctitle
 from flask import Flask, jsonify, request
 from plumbum import cli
 
+from behavior import DIFFED_TARGET_COLS
 from behavior.modeling.model import BehaviorModel
 
 app = Flask(__name__)
@@ -35,7 +37,7 @@ def infer(model_type, ou_type):
     Y = Y[0]
 
     # Label and return the Y values.
-    Y = dict(zip(behavior_model.targets, Y))
+    Y = dict(zip(DIFFED_TARGET_COLS, Y))
     return jsonify(Y)
 
 
@@ -64,6 +66,7 @@ class ModelMicroserviceCLI(cli.Application):
 
         # Expose the models to the Flask app.
         app.config["model_map"] = model_map
+        setproctitle.setproctitle("Behavior Models Microservice")
         # Run the Flask app.
         app.run()
 
