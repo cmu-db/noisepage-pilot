@@ -257,71 +257,81 @@ def main(config_file, dir_data_train, dir_data_eval, dir_output):
         logger.info("Experiment name was not provided, using experiment: %s", experiment_name)
     else:
         experiment_name = config["experiment_name"]
+   
+    train_exp_root = dir_data_train / experiment_name
+    all_train_names = sorted([d.name for d in train_exp_root.iterdir() if d.is_dir()\
+            and d.name.startswith(train_bench_db)])
 
-    training_data_dir = dir_data_train / experiment_name / train_bench_db
-    eval_data_dir = dir_data_eval / experiment_name / eval_bench_db
+    eval_exp_root = dir_data_eval / experiment_name
+    all_eval_names = sorted([d.name for d in eval_exp_root.iterdir() if d.is_dir()\
+            and d.name.startswith(eval_bench_db)])
 
     # Verify that the training and evaluation data directories exist.
-    for data_dir in [training_data_dir, eval_data_dir]:
-        if not data_dir.exists():
-            raise ValueError(f"Data directory {data_dir} not found for experiment: {experiment_name}")
+    if len(all_train_names) == 0 or len(all_eval_names) == 0:
+        raise ValueError(f"Benchmark data not found for experiment: {experiment_name}")
+    if len(all_train_names) != len(all_eval_names):
+        raise ValueError(f"Train/Eval cases mismatch for experiment: {experiment_name}")
 
-    # Load the data and name the model.
-    train_ou_to_df = load_data(training_data_dir)
-    eval_ou_to_df = load_data(eval_data_dir)
-    base_model_name = f"{config_file.stem}_{training_timestamp}"
-    output_dir = dir_output / base_model_name
+    for train_bench_name, eval_bench_name in zip(all_train_names, all_eval_names):
+        training_data_dir = train_exp_root / train_bench_name
+        eval_data_dir = eval_exp_root / eval_bench_name
 
-    for ou_name, train_df in train_ou_to_df.items():
-        logger.info("Begin Training OU: %s", ou_name)
-        df_train = prep_train_data(train_df)
+        # Load the data and name the model.
+        train_ou_to_df = load_data(training_data_dir)
+        eval_ou_to_df = load_data(eval_data_dir)
+        base_model_name = f"{config_file.stem}_{training_timestamp}_{train_bench_name}"
+        output_dir = dir_output / base_model_name
 
-        # Partition the features and targets.
-        feat_cols = [col for col in df_train.columns if col not in DIFFED_TARGET_COLS]
-        x_train = df_train[feat_cols].values
-        y_train = df_train[DIFFED_TARGET_COLS].values
+        for ou_name, train_df in train_ou_to_df.items():
+            logger.info("Begin Training OU: %s", ou_name)
+            df_train = prep_train_data(train_df)
 
-        # Check if no valid training data was found (for the current operating unit).
-        if x_train.shape[1] == 0 or y_train.shape[1] == 0:
-            logger.warning(
-                "OU: %s has no valid training data, skipping. Feature cols: %s, X_train shape: %s, y_train shape: %s",
-                ou_name,
-                feat_cols,
-                x_train.shape,
-                y_train.shape,
-            )
-            continue
+            # Partition the features and targets.
+            feat_cols = [col for col in df_train.columns if col not in DIFFED_TARGET_COLS]
+            x_train = df_train[feat_cols].values
+            y_train = df_train[DIFFED_TARGET_COLS].values
 
-        # Train one model for each method specified in the modeling configuration.
-        for method in config["methods"]:
-            logger.info("Training OU: %s with model: %s", ou_name, method)
-            ou_model = BehaviorModel(
-                method,
-                ou_name,
-                base_model_name,
-                config,
-                feat_cols,
-            )
+            # Check if no valid training data was found (for the current operating unit).
+            if x_train.shape[1] == 0 or y_train.shape[1] == 0:
+                logger.warning(
+                    "OU: %s has no valid training data, skipping. Feature cols: %s, X_train shape: %s, y_train shape: %s",
+                    ou_name,
+                    feat_cols,
+                    x_train.shape,
+                    y_train.shape,
+                )
+                continue
 
-            # Train the model.
-            ou_model.train(x_train, y_train)
+            # Train one model for each method specified in the modeling configuration.
+            for method in config["methods"]:
+                logger.info("Training OU: %s with model: %s", ou_name, method)
+                ou_model = BehaviorModel(
+                    method,
+                    ou_name,
+                    base_model_name,
+                    config,
+                    feat_cols,
+                )
 
-            # Save and evaluate the model against the training data.
-            full_outdir = output_dir / method / ou_name
-            full_outdir.mkdir(parents=True, exist_ok=True)
-            ou_model.save(dir_output)
-            evaluate(ou_model, train_df, full_outdir, train_bench_db, mode="train")
+                # Train the model.
+                ou_model.train(x_train, y_train)
 
-            if ou_name not in eval_ou_to_df:
-                logger.warning("OU: %s has training data but no evaluation data.", ou_name)
-            else:
-                # Evaluate the model against the evaluation data.
-                df_eval = eval_ou_to_df[ou_name]
+                # Save and evaluate the model against the training data.
+                full_outdir = output_dir / method / ou_name
+                full_outdir.mkdir(parents=True, exist_ok=True)
+                ou_model.save(dir_output)
+                evaluate(ou_model, train_df, full_outdir, train_bench_name, mode="train")
 
-                if "bias" in feat_cols:
-                    df_eval["bias"] = 1
+                if ou_name not in eval_ou_to_df:
+                    logger.warning("OU: %s has training data but no evaluation data.", ou_name)
+                else:
+                    # Evaluate the model against the evaluation data.
+                    df_eval = eval_ou_to_df[ou_name]
 
-                evaluate(ou_model, df_eval, full_outdir, eval_bench_db, mode="eval")
+                    if "bias" in feat_cols:
+                        df_eval["bias"] = 1
+
+                    evaluate(ou_model, df_eval, full_outdir, eval_bench_name, mode="eval")
 
 
 class TrainCLI(cli.Application):
