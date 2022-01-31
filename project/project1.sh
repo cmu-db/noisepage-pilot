@@ -89,6 +89,8 @@ _grade_iteration() {
   timeout ${TIME_ACTION_GENERATION} doit action_generation
   # Restore the database state.
   _restore_database "${dump_folder}"
+  # Remove the temporary dump folder.
+  rm -rf "./${dump_folder}"
   # Apply the generated actions.
   PGPASSWORD=${DB_PASS} psql --host=localhost --username=${DB_USER} --dbname=${DB_NAME} --file="./${actions_file}"
   # Run VACUUM FULL if requested.
