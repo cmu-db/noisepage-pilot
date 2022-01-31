@@ -76,14 +76,19 @@ _grade_iteration() {
   actions_file="./actions.sql"
   config_file="./config.json"
   results_folder="${submission_path}/${benchmark}/iteration_${iteration}"
+  dump_folder="./${benchmark}_dump_tmp"
 
   echo "Grading benchmark ${benchmark} iteration ${iteration}: ${submission_path}"
   set -e
 
   # cd to the student folder.
   cd ${submission_path} || exit 1
+  # Dump the current database state.
+  _dump_database "${dump_folder}"
   # Run action generation with a timeout.
   timeout ${TIME_ACTION_GENERATION} doit action_generation
+  # Restore the database state.
+  _restore_database "${dump_folder}"
   # Apply the generated actions.
   PGPASSWORD=${DB_PASS} psql --host=localhost --username=${DB_USER} --dbname=${DB_NAME} --file="./${actions_file}"
   # Run VACUUM FULL if requested.
@@ -114,7 +119,7 @@ _grade() {
 
   # Unfortunately, timeout doesn't work on special Bash constructs.
   # We export the function and wrap everything in a subshell.
-  export -f _grade_iteration
+  export -f _grade_iteration _dump_database _restore_database
   (
     iteration="1"
     keep_going="true"
@@ -213,8 +218,8 @@ main() {
 
         # Restore the state of the database.
         _restore_database "${benchmark_dump_path}"
-        # Clone the student's submission.
-        git clone --quiet $git_url ${student_submission_path}
+        # Clone the student's submission, if it hasn't been cloned yet.
+        git clone --quiet $git_url ${student_submission_path} || true
         # Grade the student submission in a subshell.
         # This avoids potential cd shenanigans.
         # Additionally, a single student grading fail shouldn't stop the harness.
