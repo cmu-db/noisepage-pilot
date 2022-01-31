@@ -25,8 +25,8 @@ def task_benchbase_clone():
     BenchBase: clone.
     """
 
-    def repo_clone(repo_url):
-        cmd = f"git clone {repo_url} --branch main --single-branch --depth 1 {BUILD_PATH}"
+    def repo_clone(repo_url, branch_name):
+        cmd = f"git clone {repo_url} --branch {branch_name} --single-branch --depth 1 {BUILD_PATH}"
         return cmd
 
     return {
@@ -47,6 +47,12 @@ def task_benchbase_clone():
                 "long": "repo_url",
                 "help": "The repository to clone from.",
                 "default": "https://github.com/cmu-db/benchbase.git",
+            },
+            {
+                "name": "branch_name",
+                "long": "branch_name",
+                "help": "The name of the branch to checkout.",
+                "default": "main",
             },
         ],
     }
