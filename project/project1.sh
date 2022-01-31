@@ -213,8 +213,6 @@ main() {
 
         # Restore the state of the database.
         _restore_database "${benchmark_dump_path}"
-        # Delete the folder for the student, if it exists.
-        rm -rf ./artifacts/project/student/${andrew_id}
         # Clone the student's submission.
         git clone --quiet $git_url ${student_submission_path}
         # Grade the student submission in a subshell.
