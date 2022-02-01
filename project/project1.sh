@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 # This script should be run from the root noisepage-pilot folder.
 
+# TODO(Matt): Update student list.
 # Define all the students, format is "git_url,andrew_id".
 STUDENTS=(
   'git@github.com:lmwnshn/S22-15799.git,wanshenl'
   'git@github.com:lmwnshn/S22-15799.git,wanshenl2'
 )
 
+# TODO(Matt): Update benchmark list with workloads.
 BENCHMARKS=(
   'tpcc'
   'tatp'
@@ -20,6 +22,7 @@ export DB_USER="project1user"
 export DB_PASS="project1pass"
 export DB_NAME="project1db"
 
+# TODO(Matt): Finalize these timeouts.
 # TA: Total time that the grading script can run per (student, benchmark).
 export TIME_GRADING_TOTAL="1m"
 # Student: Maximum time allowed per (student, benchmark, action generation).
@@ -86,7 +89,7 @@ _grade_iteration() {
   # Dump the current database state.
   _dump_database "${dump_folder}"
   # Run action generation with a timeout.
-  timeout ${TIME_ACTION_GENERATION} doit action_generation
+  timeout ${TIME_ACTION_GENERATION} doit project1
   # Restore the database state.
   _restore_database "${dump_folder}"
   # Remove the temporary dump folder.
@@ -193,6 +196,8 @@ main() {
   # Clean up before running.
   rm -rf ./artifacts/
   rm -rf ./build/
+
+  doit benchbase_clone --branch_name="project1"
 
   benchmark_dump_folder="./artifacts/project/dumps"
   # Create the folder for all the benchmark dumps.
