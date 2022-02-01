@@ -469,8 +469,9 @@ def main(data_dir, output_dir, experiment) -> None:
     for mode in ["train", "eval"]:
         experiment_root: Path = data_dir / mode / experiment
         bench_names: list[str] = [
-            d.name for d in experiment_root.iterdir() if d.is_dir()\
-            and d.name.startswith(tuple(BENCHDB_TO_TABLES.keys()))
+            d.name
+            for d in experiment_root.iterdir()
+            if d.is_dir() and d.name.startswith(tuple(BENCHDB_TO_TABLES.keys()))
         ]
 
         for bench_name in bench_names:

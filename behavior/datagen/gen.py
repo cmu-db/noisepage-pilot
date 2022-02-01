@@ -13,10 +13,7 @@ import yaml
 from plumbum import ProcessExecutionError, cli, cmd, local
 
 from behavior import BENCHDB_TO_TABLES
-
-from evaluation.utils import param_sweep_space
-from evaluation.utils import inject_param_xml
-from evaluation.utils import parameter_sweep
+from evaluation.utils import inject_param_xml, param_sweep_space, parameter_sweep
 
 # TODO(WAN): This entire file can probably be replaced with doit somehow.
 
@@ -542,16 +539,20 @@ class DataGeneratorCLI(cli.Application):
             shutil.copy(config_path, mode_dir)
 
             # build sweeping space.
-            ps_space = param_sweep_space(self.config['param_sweep'])
+            ps_space = param_sweep_space(self.config["param_sweep"])
             # For each benchmark, ...
             for benchmark in benchmarks:
                 input_cfg_path = self.dir_benchbase_config / f"{benchmark}_config.xml"
 
                 # func def for recursive sweeping.
-                def sweep_func(params):
+                def sweep_func(params, closure):
+                    # get variables from closure.
                     # assemble the result dir given params
-                    param_suffix = '_'.join([x[0][-1] + '_' + str(x[1]) for x in params])
-                    results_dir = Path(mode_dir / (benchmark + '_' + param_suffix))
+                    mode_dir = closure["mode_dir"]
+                    benchmark = closure["benchmark"]
+                    input_cfg_path = closure["cfg_path"]
+                    param_suffix = "_".join([x[0][-1] + "_" + str(x[1]) for x in params])
+                    results_dir = Path(mode_dir / (benchmark + "_" + param_suffix))
                     results_dir.mkdir()
                     benchbase_results_dir = Path(results_dir / "benchbase")
                     benchbase_results_dir.mkdir(exist_ok=True)
@@ -564,12 +565,18 @@ class DataGeneratorCLI(cli.Application):
 
                     # copy and inject the xml file of benchbase.
                     shutil.copy(input_cfg_path, benchbase_results_dir)
-                    inject_param_xml((
-                        benchbase_results_dir / f"{benchmark}_config.xml").as_posix(), params)
+                    inject_param_xml((benchbase_results_dir / f"{benchmark}_config.xml").as_posix(), params)
 
                     self.run_experiment(benchmark, results_dir, benchbase_results_dir)
+
                 # run OU datagen for every param combination.
-                parameter_sweep(ps_space, sweep_func)
+                closure = {
+                    "mode_dir": mode_dir,
+                    "benchmark": benchmark,
+                    "cfg_path": input_cfg_path,
+                }
+                parameter_sweep(ps_space, sweep_func, closure)
+
 
 if __name__ == "__main__":
     DataGeneratorCLI.run()

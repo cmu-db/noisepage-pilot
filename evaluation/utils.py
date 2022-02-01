@@ -51,18 +51,18 @@ def inject_param_xml(file_path, params):
 # recursive calling routine on parameter space.
 # f is a callback function with closure, it should deside
 # what to do with a permutation list of parameters.
-def parameter_sweep(ps_space, f):
-    parameter_sweep_r(ps_space, [], f)
+def parameter_sweep(ps_space, f, closure=dict()):
+    parameter_sweep_r(ps_space, [], f, closure)
 
-def parameter_sweep_r(ps_space, cur_params, f):
+def parameter_sweep_r(ps_space, cur_params, f, closure):
     if len(cur_params) == len(ps_space):
-        f(cur_params)
+        f(cur_params, closure)
         return
     
     name_level, val_list = ps_space[len(cur_params)]
     for val in val_list:
         cur_params.append((name_level, val))
-        parameter_sweep_r(ps_space, cur_params, f)
+        parameter_sweep_r(ps_space, cur_params, f, closure)
         del cur_params[-1]
 
 if __name__ == '__main__':

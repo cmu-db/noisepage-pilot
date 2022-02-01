@@ -257,14 +257,16 @@ def main(config_file, dir_data_train, dir_data_eval, dir_output):
         logger.info("Experiment name was not provided, using experiment: %s", experiment_name)
     else:
         experiment_name = config["experiment_name"]
-   
+
     train_exp_root = dir_data_train / experiment_name
-    all_train_names = sorted([d.name for d in train_exp_root.iterdir() if d.is_dir()\
-            and d.name.startswith(train_bench_db)])
+    all_train_names = sorted(
+        [d.name for d in train_exp_root.iterdir() if d.is_dir() and d.name.startswith(train_bench_db)]
+    )
 
     eval_exp_root = dir_data_eval / experiment_name
-    all_eval_names = sorted([d.name for d in eval_exp_root.iterdir() if d.is_dir()\
-            and d.name.startswith(eval_bench_db)])
+    all_eval_names = sorted(
+        [d.name for d in eval_exp_root.iterdir() if d.is_dir() and d.name.startswith(eval_bench_db)]
+    )
 
     # Verify that the training and evaluation data directories exist.
     if len(all_train_names) == 0 or len(all_eval_names) == 0:
