@@ -19,6 +19,7 @@ ABSL_FLAG(std::string, actions_path, "./actions.csv", "Path to CSV of possible S
 ABSL_FLAG(int, max_tuning_actions, 1, "Maximum number of tuning actions before the game ends.");
 ABSL_FLAG(bool, use_hypopg, true, "True if hypopg should be used for faking index builds.");
 ABSL_FLAG(bool, use_microservice, false, "True if microservice should be used for inference.");
+ABSL_FLAG(bool, record_predictions, false, "True if query inference results should be stored with the microservice");
 
 // Solver type.
 ABSL_FLAG(std::string, solver_type, "cfr", "Solver to use. {cfr,mcts}.");
@@ -60,6 +61,7 @@ int main(int argc, char **argv) {
   params.emplace("max_tuning_actions", absl::GetFlag(FLAGS_max_tuning_actions));
   params.emplace("use_hypopg", absl::GetFlag(FLAGS_use_hypopg));
   params.emplace("use_microservice", absl::GetFlag(FLAGS_use_microservice));
+  params.emplace("record_predictions", absl::GetFlag(FLAGS_record_predictions));
 
   std::cerr << "Generic game parameters:" << std::endl;
   for (const auto &param : params) {

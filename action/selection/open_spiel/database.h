@@ -66,6 +66,14 @@ class DatabaseState : public State {
  protected:
   void DoApplyAction(Action move) override;
 
+  template<class T>
+  void ApplyHistory(T &txn, bool use_hypopg) const;
+
+  // Gets the actual runtime cost with EXPLAIN(ANALYZE, BUFFERS) of executing query
+  // under the given transaction. The function returns a pair of <success, time>.
+  template<class T>
+  std::pair<bool, double> GetExplainAnalyzeCostUs(T &txn, const std::string &query) const;
+
  private:
   std::shared_ptr<const DatabaseGame> game_;
   std::set<Action> actions_applied_;
@@ -100,6 +108,7 @@ class DatabaseGame : public Game {
   const std::string &GetDatabaseConnectionString() const { return db_conn_string_; }
   bool UseHypoPG() const { return use_hypopg_; }
   bool UseMicroservice() const { return use_microservice_; }
+  bool RecordPredictions() const { return record_predictions_; }
 
   httplib::Client *GetMicroserviceClient() const { return microservice_client_.get(); }
 
@@ -110,6 +119,7 @@ class DatabaseGame : public Game {
   int max_tuning_actions_;
   bool use_hypopg_;
   bool use_microservice_;
+  bool record_predictions_;
 
   // use_microservice_ options.
   std::unique_ptr<httplib::Client> microservice_client_;

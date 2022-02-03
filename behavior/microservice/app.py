@@ -1,17 +1,31 @@
 import pickle
+import pandas as pd
+from statistics import mean, median
 from pathlib import Path
 from typing import Dict
 
 import numpy as np
 import setproctitle
-from flask import Flask, jsonify, request
+from flask import Flask, render_template, jsonify, request, redirect, url_for
 from plumbum import cli
+import threading
 
 from behavior import DIFFED_TARGET_COLS
 from behavior.modeling.model import BehaviorModel
 
 app = Flask(__name__)
 app.config["DEBUG"] = True
+
+# These results are protected with the results_lock. This model works in development
+# but does not work with a wsgi interface (we assume there is only 1 process). This
+# does not survive restarts.
+results_lock = threading.Lock()
+results = []
+
+
+@app.route("/")
+def index():
+    return redirect(url_for("prediction_results"))
 
 
 @app.route("/model/<model_type>/<ou_type>/", methods=["GET"])
@@ -39,6 +53,29 @@ def infer(model_type, ou_type):
     # Label and return the Y values.
     Y = dict(zip(DIFFED_TARGET_COLS, Y))
     return jsonify(Y)
+
+
+@app.route("/prediction_results", methods=["GET", "POST", "DELETE"])
+def prediction_results():
+    global results_lock
+    global results
+    if request.method == 'POST':
+        results_lock.acquire()
+        results.append(request.form)
+        results_lock.release()
+        return "", 200
+
+    elif request.method == 'GET':
+        results_lock.acquire()
+        results_serialized = jsonify(results)
+        results_lock.release()
+        return results_serialized
+
+    elif request.method == 'DELETE':
+        results_lock.acquire()
+        results = []
+        results_lock.release()
+        return "", 200
 
 
 class ModelMicroserviceCLI(cli.Application):
