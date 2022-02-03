@@ -1,5 +1,6 @@
 import numpy as np
 import xml.etree.ElementTree as ET
+from psycopg import cursor
 import yaml
 
 def param_sweep_space(ps_dist):
@@ -94,32 +95,30 @@ def parameter_sweep(ps_space, f, closure=None):
     closure : Dict[str, Any]
         Closure environment passed from caller.
     '''
-    def parameter_sweep_r(ps_space, cur_params, f, closure):
-        '''Recursive helper.
-        
-        Parameters:
-        ------------
-        ps_space : List[Tuple(List[str], List[Any])]
-            Parameter space to sweep. each element is parameter name level + value list.
-        cur_params : List[Tuple(List[str], Any)]
-            Current parameter list selected in recursive space.
-        f : (List[Tuple(List[str], Any)], Dict[str, Any])->Any
-            Callback function to be executed in the sweep, takes parameter combination
-            and closure dict.
-        closure : Dict[str, Any]
-            Closure environment passed from caller.
-        '''
-        if len(cur_params) == len(ps_space):
-            f(cur_params, closure)
-            return
-        
-        name_level, val_list = ps_space[len(cur_params)]
-        for val in val_list:
-            cur_params.append((name_level, val))
-            parameter_sweep_r(ps_space, cur_params, f, closure)
-            del cur_params[-1]
+    assert(len(ps_space) > 0), 'Parameter space should not be empty.\nCheck the configuration file.'
+    # Maintain the traverse states. Initial to the first value on level 0.
+    cursor_stack = [-1]
+    parameters = []
+    while len(cursor_stack) > 0:
+        depth = len(cursor_stack) - 1
+        cursor_stack[depth] += 1
+        name_level, val_list = ps_space[depth]
+        if (cursor_stack[depth] >= len(val_list)):
+            # Backtrace.
+            del cursor_stack[-1]
+            if len(parameters) > 0:
+                del parameters[-1]
+            continue
 
-    parameter_sweep_r(ps_space, [], f, closure)
+        name_level = ps_space[depth][0]
+        value = ps_space[depth][1][cursor_stack[depth]]
+        parameters.append((name_level, value))
+
+        if len(cursor_stack) >= len(ps_space):
+            f(parameters, closure)
+            del parameters[-1]
+        else:
+            cursor_stack.append(-1)
 
 if __name__ == '__main__':
     # This standalone block of code is only used for tests.
