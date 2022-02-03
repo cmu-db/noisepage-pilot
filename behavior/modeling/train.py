@@ -269,10 +269,12 @@ def main(config_file, dir_data_train, dir_data_eval, dir_output):
     )
 
     # Verify that the training and evaluation data directories exist.
-    if len(all_train_names) == 0 or len(all_eval_names) == 0:
-        raise ValueError(f"Benchmark data not found for experiment: {experiment_name}")
-    if len(all_train_names) != len(all_eval_names):
-        raise ValueError(f"Train/Eval cases mismatch for experiment: {experiment_name}")
+    assert (
+        len(all_train_names) > 0 and len(all_eval_names) > 0
+    ), f"Benchmark data not found for experiment: {experiment_name}\nMake sure you generated the full sets of data."
+    assert len(all_train_names) == len(
+        all_eval_names
+    ), f"Train/Eval cases mismatch for experiment: {experiment_name}\nMake sure you generated the full sets of data."
 
     for train_bench_name, eval_bench_name in zip(all_train_names, all_eval_names):
         training_data_dir = train_exp_root / train_bench_name

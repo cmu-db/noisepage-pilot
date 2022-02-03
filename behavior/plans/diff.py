@@ -468,6 +468,8 @@ def main(data_dir, output_dir, experiment) -> None:
 
     for mode in ["train", "eval"]:
         experiment_root: Path = data_dir / mode / experiment
+        # The data folders must have prefix as the selected benchmark names.
+        # Its suffix is the concatenated parameters.
         bench_names: list[str] = [
             d.name
             for d in experiment_root.iterdir()

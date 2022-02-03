@@ -535,41 +535,48 @@ class DataGeneratorCLI(cli.Application):
             # Create the output directory.
             mode_dir = Path(self.dir_output) / mode / experiment_name
             Path(mode_dir).mkdir(parents=True)
-            # Copy the config file to the output directory.
+            # Copy the configuration file to the output directory.
             shutil.copy(config_path, mode_dir)
 
-            # build sweeping space.
+            # Build sweeping space.
             ps_space = param_sweep_space(self.config["param_sweep"])
             # For each benchmark, ...
             for benchmark in benchmarks:
                 input_cfg_path = self.dir_benchbase_config / f"{benchmark}_config.xml"
 
-                # func def for recursive sweeping.
-                def sweep_func(params, closure):
-                    # get variables from closure.
-                    # assemble the result dir given params
+                def sweep_func(parameters, closure):
+                    """Callback to datagen parameter sweep.
+
+                    Parameters:
+                    -----------
+                    parameters: List[Tuple(List[str], Any)]
+                        The parameter combination.
+                    closure : Dict[str, Any]
+                        Closure environment passed from caller.
+                    """
                     mode_dir = closure["mode_dir"]
                     benchmark = closure["benchmark"]
                     input_cfg_path = closure["cfg_path"]
-                    param_suffix = "_".join([x[0][-1] + "_" + str(x[1]) for x in params])
+                    # The suffix is a concatenation of parameter names and their values.
+                    param_suffix = "_".join([name_level[-1] + "_" + str(value) for name_level, value in parameters])
                     results_dir = Path(mode_dir / (benchmark + "_" + param_suffix))
                     results_dir.mkdir()
                     benchbase_results_dir = Path(results_dir / "benchbase")
                     benchbase_results_dir.mkdir(exist_ok=True)
                     logger.info(
-                        "Running experiment %s with benchmark %s and results %s",
+                        "Running experiment %s with benchmark %s and results %s.",
                         experiment_name,
                         benchmark,
                         benchbase_results_dir,
                     )
 
-                    # copy and inject the xml file of benchbase.
+                    # Copy and inject the XML file of benchbase.
                     shutil.copy(input_cfg_path, benchbase_results_dir)
-                    inject_param_xml((benchbase_results_dir / f"{benchmark}_config.xml").as_posix(), params)
+                    inject_param_xml((benchbase_results_dir / f"{benchmark}_config.xml").as_posix(), parameters)
 
                     self.run_experiment(benchmark, results_dir, benchbase_results_dir)
 
-                # run OU datagen for every param combination.
+                # Generate OU training data for every parameter combination.
                 closure = {
                     "mode_dir": mode_dir,
                     "benchmark": benchmark,
