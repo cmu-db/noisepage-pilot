@@ -4,9 +4,10 @@ from statistics import mean, median
 from pathlib import Path
 from typing import Dict
 
+import sqlite3
 import numpy as np
 import setproctitle
-from flask import Flask, render_template, jsonify, request, redirect, url_for
+from flask import Flask, render_template, jsonify, request, redirect, url_for, g
 from plumbum import cli
 import threading
 
@@ -15,18 +16,6 @@ from behavior.modeling.model import BehaviorModel
 
 app = Flask(__name__)
 app.config["DEBUG"] = True
-
-# These results are protected with the results_lock. This model works in development
-# but does not work with a wsgi interface (we assume there is only 1 process). This
-# does not survive restarts.
-results_lock = threading.Lock()
-results = []
-
-
-@app.route("/")
-def index():
-    return redirect(url_for("prediction_results"))
-
 
 @app.route("/model/<model_type>/<ou_type>/", methods=["GET"])
 def infer(model_type, ou_type):
@@ -55,26 +44,105 @@ def infer(model_type, ou_type):
     return jsonify(Y)
 
 
+def connect():
+    db = getattr(g, '__database', None)
+    if db is None:
+        db = g.__database = sqlite3.connect('inference.db')
+    return db
+
+
+@app.teardown_appcontext
+def close_connection(exception):
+    db = getattr(g, '__database', None)
+    if db is not None:
+        db.close()
+
+
+def init_db():
+    with app.app_context():
+        db = connect()
+        db.cursor().execute('''
+            CREATE TABLE IF NOT EXISTS inference_results (
+                query TEXT,
+                predicted_cost REAL,
+                true_cost REAL,
+                true_cost_valid INT,
+                action_state TEXT,
+                predicted_results TEXT)
+        ''')
+        db.commit()
+
+
+def get_inference_results(query):
+    # This by default returns the data sorted by query_id, then ordered
+    # by situations where true costing error'ed, and finally ordered by
+    # abs(true_cost - predicted_cost).
+    #
+    # Ordering by abs(true_cost - predicted_cost) gives us the instances
+    # where our prediction is way off first.
+    query_clause = "ORDER BY query, true_cost_valid, ABS(true_cost - predicted_Cost) DESC"
+    if query is not None:
+        query_clause = query
+
+    def dict_factory(cursor, row):
+        d = {}
+        for idx, col in enumerate(cursor.description):
+            d[col[0]] = row[idx]
+        return d
+
+    db = connect()
+    db.row_factory = dict_factory
+    cursor = db.cursor().execute('SELECT *, ABS(true_cost - predicted_cost) as cost_diff FROM inference_results ' + query_clause)
+    result_set = cursor.fetchall()
+    db.commit()
+    return result_set
+
+
+@app.route("/")
+def index():
+    results = get_inference_results(None)
+    return render_template('index.html', title='Inference Results', results=results)
+
+
 @app.route("/prediction_results", methods=["GET", "POST", "DELETE"])
 def prediction_results():
-    global results_lock
-    global results
     if request.method == 'POST':
-        results_lock.acquire()
-        results.append(request.form)
-        results_lock.release()
+        try:
+            query = request.form['query']
+            predicted_cost = float(request.form['predicted_cost'])
+            true_cost_valid = request.form['true_cost_valid'] == '1'
+            true_cost = float(request.form['true_cost'])
+            predicted_results = request.form['predicted_results']
+            action_state = request.form['action_state']
+        except KeyError as err:
+            return f"KeyError: {err}", 400
+        except ValueError as err:
+            return f"ValueError: {err}", 400
+
+        db = connect()
+        insert_stmt = """
+            INSERT INTO inference_results (
+                query,
+                predicted_cost,
+                true_cost,
+                true_cost_valid,
+                action_state,
+                predicted_results)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """
+        db.cursor().execute(insert_stmt, (query, predicted_cost, true_cost, true_cost_valid, action_state, predicted_results))
+        db.commit()
         return "", 200
 
     elif request.method == 'GET':
-        results_lock.acquire()
-        results_serialized = jsonify(results)
-        results_lock.release()
-        return results_serialized
+        query = request.args['query'] if 'query' in request.args else None
+        result_set = get_inference_results(query)
+        return jsonify(result_set)
 
     elif request.method == 'DELETE':
-        results_lock.acquire()
-        results = []
-        results_lock.release()
+        db = connect()
+        db.cursor().execute('DELETE FROM inference_results')
+        db.commit()
         return "", 200
 
 
@@ -82,6 +150,7 @@ class ModelMicroserviceCLI(cli.Application):
     models_path = cli.SwitchAttr("--models-path", Path, mandatory=True)
 
     def main(self, *args):
+        init_db()
         self.models_path = self.models_path.absolute()
 
         model_map: Dict[str, Dict[str, BehaviorModel]] = {}

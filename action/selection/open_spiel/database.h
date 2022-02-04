@@ -69,6 +69,8 @@ class DatabaseState : public State {
   template<class T>
   void ApplyHistory(T &txn, bool use_hypopg) const;
 
+  std::string GetAppliedStateRepresentation() const;
+
   // Gets the actual runtime cost with EXPLAIN(ANALYZE, BUFFERS) of executing query
   // under the given transaction. The function returns a pair of <success, time>.
   template<class T>
