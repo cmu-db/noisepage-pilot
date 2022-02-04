@@ -1,21 +1,19 @@
 import pickle
-import pandas as pd
-from statistics import mean, median
+import sqlite3
 from pathlib import Path
 from typing import Dict
 
-import sqlite3
 import numpy as np
 import setproctitle
-from flask import Flask, render_template, jsonify, request, redirect, url_for, g
+from flask import Flask, g, jsonify, render_template, request
 from plumbum import cli
-import threading
 
 from behavior import DIFFED_TARGET_COLS
 from behavior.modeling.model import BehaviorModel
 
 app = Flask(__name__)
 app.config["DEBUG"] = True
+
 
 @app.route("/model/<model_type>/<ou_type>/", methods=["GET"])
 def infer(model_type, ou_type):
@@ -45,15 +43,16 @@ def infer(model_type, ou_type):
 
 
 def connect():
-    db = getattr(g, '__database', None)
+    # pylint: disable=assigning-non-slot
+    db = getattr(g, "__database", None)
     if db is None:
-        db = g.__database = sqlite3.connect('inference.db')
+        db = g.__database = sqlite3.connect("inference.db")
     return db
 
 
 @app.teardown_appcontext
-def close_connection(exception):
-    db = getattr(g, '__database', None)
+def close_connection(_):
+    db = getattr(g, "__database", None)
     if db is not None:
         db.close()
 
@@ -61,7 +60,8 @@ def close_connection(exception):
 def init_db():
     with app.app_context():
         db = connect()
-        db.cursor().execute('''
+        db.cursor().execute(
+            """
             CREATE TABLE IF NOT EXISTS inference_results (
                 query TEXT,
                 predicted_cost REAL,
@@ -69,7 +69,8 @@ def init_db():
                 true_cost_valid INT,
                 action_state TEXT,
                 predicted_results TEXT)
-        ''')
+        """
+        )
         db.commit()
 
 
@@ -85,14 +86,16 @@ def get_inference_results(query):
         query_clause = query
 
     def dict_factory(cursor, row):
-        d = {}
+        ret = {}
         for idx, col in enumerate(cursor.description):
-            d[col[0]] = row[idx]
-        return d
+            ret[col[0]] = row[idx]
+        return ret
 
     db = connect()
     db.row_factory = dict_factory
-    cursor = db.cursor().execute('SELECT *, ABS(true_cost - predicted_cost) as cost_diff FROM inference_results ' + query_clause)
+    cursor = db.cursor().execute(
+        "SELECT *, ABS(true_cost - predicted_cost) as cost_diff FROM inference_results " + query_clause
+    )
     result_set = cursor.fetchall()
     db.commit()
     return result_set
@@ -101,19 +104,19 @@ def get_inference_results(query):
 @app.route("/")
 def index():
     results = get_inference_results(None)
-    return render_template('index.html', title='Inference Results', results=results)
+    return render_template("index.html", title="Inference Results", results=results)
 
 
 @app.route("/prediction_results", methods=["GET", "POST", "DELETE"])
 def prediction_results():
-    if request.method == 'POST':
+    if request.method == "POST":
         try:
-            query = request.form['query']
-            predicted_cost = float(request.form['predicted_cost'])
-            true_cost_valid = request.form['true_cost_valid'] == '1'
-            true_cost = float(request.form['true_cost'])
-            predicted_results = request.form['predicted_results']
-            action_state = request.form['action_state']
+            query = request.form["query"]
+            predicted_cost = float(request.form["predicted_cost"])
+            true_cost_valid = request.form["true_cost_valid"] == "1"
+            true_cost = float(request.form["true_cost"])
+            predicted_results = request.form["predicted_results"]
+            action_state = request.form["action_state"]
         except KeyError as err:
             return f"KeyError: {err}", 400
         except ValueError as err:
@@ -130,20 +133,24 @@ def prediction_results():
                 predicted_results)
             VALUES (?, ?, ?, ?, ?, ?)
         """
-        db.cursor().execute(insert_stmt, (query, predicted_cost, true_cost, true_cost_valid, action_state, predicted_results))
+        db.cursor().execute(
+            insert_stmt, (query, predicted_cost, true_cost, true_cost_valid, action_state, predicted_results)
+        )
         db.commit()
         return "", 200
 
-    elif request.method == 'GET':
-        query = request.args['query'] if 'query' in request.args else None
+    if request.method == "GET":
+        query = request.args["query"] if "query" in request.args else None
         result_set = get_inference_results(query)
         return jsonify(result_set)
 
-    elif request.method == 'DELETE':
+    if request.method == "DELETE":
         db = connect()
-        db.cursor().execute('DELETE FROM inference_results')
+        db.cursor().execute("DELETE FROM inference_results")
         db.commit()
         return "", 200
+
+    return "", 405
 
 
 class ModelMicroserviceCLI(cli.Application):
