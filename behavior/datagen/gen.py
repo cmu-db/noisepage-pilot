@@ -575,7 +575,7 @@ class DataGeneratorCLI(cli.Application):
                         benchbase_results_dir,
                     )
 
-                    # Copy and inject the XML file of benchbase.
+                    # Copy and inject the XML file of BenchBase.
                     shutil.copy(input_cfg_path, benchbase_results_dir)
                     inject_param_xml((benchbase_results_dir / f"{benchmark}_config.xml").as_posix(), parameters)
 
