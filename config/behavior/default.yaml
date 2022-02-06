@@ -9,6 +9,12 @@ datagen:
   sqlsmith: False           # Currently ignored because it causes dataset naming conflicts.
   log_level: DEBUG
   debug: False
+  param_sweep:
+    scalefactor: [0.01, 0.1]
+    terminals: [1]
+    works.work.rate: [10000]
+    works.work.time: [60]
+    
 
 # Modeling Configuration
 modeling:

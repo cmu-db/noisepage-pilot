@@ -13,6 +13,7 @@ import yaml
 from plumbum import ProcessExecutionError, cli, cmd, local
 
 from behavior import BENCHDB_TO_TABLES
+from evaluation.utils import inject_param_xml, param_sweep_space, parameter_sweep
 
 # TODO(WAN): This entire file can probably be replaced with doit somehow.
 
@@ -184,9 +185,6 @@ class DataGeneratorCLI(cli.Application):
             Directory for Benchbase results.
         """
         try:
-            # Copy the BenchBase config to the output directory.
-            input_cfg_path = self.dir_benchbase_config / f"{benchmark}_config.xml"
-            shutil.copy(input_cfg_path, benchbase_results_dir)
             cfg_path = (benchbase_results_dir / f"{benchmark}_config.xml").absolute()
 
             old_wd = os.getcwd()
@@ -537,23 +535,59 @@ class DataGeneratorCLI(cli.Application):
             # Create the output directory.
             mode_dir = Path(self.dir_output) / mode / experiment_name
             Path(mode_dir).mkdir(parents=True)
-            # Copy the config file to the output directory.
+            # Copy the configuration file to the output directory.
             shutil.copy(config_path, mode_dir)
 
+            # Build sweeping space.
+            ps_space = param_sweep_space(self.config["param_sweep"])
             # For each benchmark, ...
             for benchmark in benchmarks:
-                # Run BenchBase to generate training data.
-                results_dir = Path(mode_dir / benchmark)
-                results_dir.mkdir()
-                benchbase_results_dir = Path(results_dir / "benchbase")
-                benchbase_results_dir.mkdir(exist_ok=True)
-                logger.info(
-                    "Running experiment %s with benchmark %s and results %s",
-                    experiment_name,
-                    benchmark,
-                    results_dir,
-                )
-                self.run_experiment(benchmark, results_dir, benchbase_results_dir)
+                input_cfg_path = self.dir_benchbase_config / f"{benchmark}_config.xml"
+
+                def sweep_func(parameters, closure):
+                    """Callback to datagen parameter sweep.
+
+                    Given the current set of parameters as part of the sweep, this callback:
+                    - Creates the result directory.
+                    - Creates the configuration XML for BenchBase.
+                    - Invokes BenchBase to generate training data.
+
+                    Parameters:
+                    -----------
+                    parameters: List[Tuple[List[str], Any]]
+                        The parameter combination.
+                    closure : Dict[str, Any]
+                        Closure environment passed from caller.
+                    """
+                    mode_dir = closure["mode_dir"]
+                    benchmark = closure["benchmark"]
+                    input_cfg_path = closure["cfg_path"]
+                    # The suffix is a concatenation of parameter names and their values.
+                    param_suffix = "_".join([name_level[-1] + "_" + str(value) for name_level, value in parameters])
+                    results_dir = Path(mode_dir / (benchmark + "_" + param_suffix))
+                    results_dir.mkdir()
+                    benchbase_results_dir = Path(results_dir / "benchbase")
+                    benchbase_results_dir.mkdir(exist_ok=True)
+                    logger.info(
+                        "Running experiment %s with benchmark %s and results %s.",
+                        experiment_name,
+                        benchmark,
+                        benchbase_results_dir,
+                    )
+
+                    # Copy and inject the XML file of BenchBase.
+                    shutil.copy(input_cfg_path, benchbase_results_dir)
+                    inject_param_xml((benchbase_results_dir / f"{benchmark}_config.xml").as_posix(), parameters)
+
+                    self.run_experiment(benchmark, results_dir, benchbase_results_dir)
+
+                # Generate OU training data for every parameter combination.
+                closure = {
+                    "mode_dir": mode_dir,
+                    "benchmark": benchmark,
+                    "cfg_path": input_cfg_path,
+                }
+                parameter_sweep(ps_space, sweep_func, closure)
 
 
 if __name__ == "__main__":
