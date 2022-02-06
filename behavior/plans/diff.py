@@ -468,8 +468,9 @@ def main(data_dir, output_dir, experiment) -> None:
 
     for mode in ["train", "eval"]:
         experiment_root: Path = data_dir / mode / experiment
-        # The data folders must have prefix as the selected benchmark names.
-        # Its suffix is the concatenated parameters.
+        # The data folders must be prefixed by the name of the benchmark,
+        # and suffixed by the concatenated parameters.
+        # For example, `tpcc_scalefactor_0.1_terminals_1_rate_10000_time_60`.
         bench_names: list[str] = [
             d.name
             for d in experiment_root.iterdir()

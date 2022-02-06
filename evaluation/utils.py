@@ -96,6 +96,10 @@ def parameter_sweep(ps_space, f, closure=None):
         Closure environment passed from caller.
     '''
     assert(len(ps_space) > 0), 'Parameter space should not be empty.\nCheck the configuration file.'
+
+    if closure is None:
+        closure = {}
+
     # Maintain the traverse states. Initial to the first value on level 0.
     cursor_stack = [-1]
     parameters = []

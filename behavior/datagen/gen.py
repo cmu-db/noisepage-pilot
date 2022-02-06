@@ -547,9 +547,14 @@ class DataGeneratorCLI(cli.Application):
                 def sweep_func(parameters, closure):
                     """Callback to datagen parameter sweep.
 
+                    Given the current set of parameters as part of the sweep, this callback:
+                    - Creates the result directory.
+                    - Creates the configuration XML for BenchBase.
+                    - Invokes BenchBase to generate training data.
+
                     Parameters:
                     -----------
-                    parameters: List[Tuple(List[str], Any)]
+                    parameters: List[Tuple[List[str], Any]]
                         The parameter combination.
                     closure : Dict[str, Any]
                         Closure environment passed from caller.
