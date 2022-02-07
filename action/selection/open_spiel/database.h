@@ -12,6 +12,15 @@ class Client;
 namespace open_spiel {
 namespace database {
 
+struct ExplainAnalyzeCostResult {
+  // A boolean flag indicating whether or not the cost_ is valid.
+  // This is set to false if EXPLAIN (ANALYZE) failed.
+  bool cost_valid_;
+
+  // The runtime cost (which is the actual elapsed time in ms).
+  double cost_;
+};
+
 struct ForecastedQuery {
   std::string sql_;
   long long num_arrivals_;
@@ -66,15 +75,12 @@ class DatabaseState : public State {
  protected:
   void DoApplyAction(Action move) override;
 
-  template<class T>
-  void ApplyHistory(T &txn, bool use_hypopg) const;
-
-  std::string GetAppliedStateRepresentation() const;
+  void ApplyHistory(pqxx::dbtransaction &txn) const;
+  void CustomApplyHistory(pqxx::dbtransaction &txn, bool use_hypopg) const;
 
   // Gets the actual runtime cost with EXPLAIN(ANALYZE, BUFFERS) of executing query
-  // under the given transaction. The function returns a pair of <success, time>.
-  template<class T>
-  std::pair<bool, double> GetExplainAnalyzeCostUs(T &txn, const std::string &query) const;
+  // under the given transaction. If the function succeeds, a valid cost is returned.
+  struct ExplainAnalyzeCostResult GetExplainAnalyzeCostUs(pqxx::dbtransaction &txn, const std::string &query) const;
 
  private:
   std::shared_ptr<const DatabaseGame> game_;

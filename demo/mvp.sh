@@ -72,6 +72,6 @@ PGPASSWORD=np_as_spiel_pass ./artifacts/noisepage/psql -h localhost -d np_as_spi
 doit action_generation --args="--min-num-cols 1 --max-num-cols 4 --filter-tables"
 
 # Start picking indexes.
-doit action_recommendation --database_game_args="--use_microservice --record_predictions"
+doit action_recommendation --database_game_args="--use_microservice"
 
 sudo --reset-timestamp

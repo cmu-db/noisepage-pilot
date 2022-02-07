@@ -58,6 +58,9 @@ disable = [
     # has some magic that Wan can't replicate, it is easier to allow
     # defining self.members outside of init. A fix would be welcome.
     "attribute-defined-outside-init",
+
+    # Disable assigning non-slot exception
+    "assigning-non-slot"
 ]
 
 [tool.pylint.similarities]

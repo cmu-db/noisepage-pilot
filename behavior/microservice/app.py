@@ -43,21 +43,20 @@ def infer(model_type, ou_type):
 
 
 def connect():
-    # pylint: disable=assigning-non-slot
-    db = getattr(g, "__database", None)
+    db = getattr(g, "_database", None)
     if db is None:
-        db = g.__database = sqlite3.connect("inference.db")
+        db = g._database = sqlite3.connect("inference.db")
     return db
 
 
 @app.teardown_appcontext
 def close_connection(_):
-    db = getattr(g, "__database", None)
+    db = getattr(g, "_database", None)
     if db is not None:
         db.close()
 
 
-def init_db():
+def _init_db():
     with app.app_context():
         db = connect()
         db.cursor().execute(
@@ -74,28 +73,33 @@ def init_db():
         db.commit()
 
 
-def get_inference_results(query):
-    # This by default returns the data sorted by query_id, then ordered
-    # by situations where true costing error'ed, and finally ordered by
-    # abs(true_cost - predicted_cost).
-    #
-    # Ordering by abs(true_cost - predicted_cost) gives us the instances
-    # where our prediction is way off first.
-    query_clause = "ORDER BY query, true_cost_valid, ABS(true_cost - predicted_Cost) DESC"
-    if query is not None:
-        query_clause = query
+def _get_inference_results(query):
+    """
+    Function to get the inference results from the sqlite database instance.
 
+    Parameters
+    ----------
+    query: str
+        The query to execute against the sqlite database instance.
+
+    Returns
+    -------
+    result_set: list[dict]
+        A list of row dictionaries. Each element in the list represents a tuple from
+        the database in a key-value dictionary access format.
+    """
+
+    # https://docs.python.org/3/library/sqlite3.html#sqlite3.Connection.row_factory
     def dict_factory(cursor, row):
-        ret = {}
+        row_dict = {}
         for idx, col in enumerate(cursor.description):
-            ret[col[0]] = row[idx]
-        return ret
+            col_name = col[0]
+            row_dict[col_name] = row[idx]
+        return row_dict
 
     db = connect()
     db.row_factory = dict_factory
-    cursor = db.cursor().execute(
-        "SELECT *, ABS(true_cost - predicted_cost) as cost_diff FROM inference_results " + query_clause
-    )
+    cursor = db.cursor().execute(query)
     result_set = cursor.fetchall()
     db.commit()
     return result_set
@@ -103,7 +107,14 @@ def get_inference_results(query):
 
 @app.route("/")
 def index():
-    results = get_inference_results(None)
+    results = _get_inference_results(
+        """
+        SELECT *, ABS(true_cost - predicted_cost) as cost_diff
+        FROM inference_results
+        ORDER BY query, true_cost_valid, ABS(true_cost - predicted_cost) DESC
+        """
+    )
+
     return render_template("index.html", title="Inference Results", results=results)
 
 
@@ -141,7 +152,7 @@ def prediction_results():
 
     if request.method == "GET":
         query = request.args["query"] if "query" in request.args else None
-        result_set = get_inference_results(query)
+        result_set = _get_inference_results(query)
         return jsonify(result_set)
 
     if request.method == "DELETE":
@@ -157,7 +168,7 @@ class ModelMicroserviceCLI(cli.Application):
     models_path = cli.SwitchAttr("--models-path", Path, mandatory=True)
 
     def main(self, *args):
-        init_db()
+        _init_db()
         self.models_path = self.models_path.absolute()
 
         model_map: Dict[str, Dict[str, BehaviorModel]] = {}
