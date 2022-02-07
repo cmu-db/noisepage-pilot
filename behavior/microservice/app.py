@@ -5,14 +5,19 @@ from typing import Dict
 
 import numpy as np
 import setproctitle
-from flask import Flask, g, jsonify, render_template, request
+from flask import Flask, g, jsonify, render_template, request, send_from_directory
 from plumbum import cli
 
 from behavior import DIFFED_TARGET_COLS
 from behavior.modeling.model import BehaviorModel
 
-app = Flask(__name__)
+app = Flask(__name__, static_url_path="")
 app.config["DEBUG"] = True
+
+
+@app.route("/static/<path:path>")
+def send_static(path):
+    return send_from_directory("static", path)
 
 
 @app.route("/model/<model_type>/<ou_type>/", methods=["GET"])
