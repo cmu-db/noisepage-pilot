@@ -584,7 +584,7 @@ std::vector<double> DatabaseState::Returns() const {
       }
     }
 
-    // This is conditioned on use_hypopg only that we only support recording predictions
+    // This is conditioned on use_hypopg only because we only support recording predictions
     // in the use_hypopg and use_microservice code-path.
     if (use_hypopg && use_microservice && record_predictions) {
       // Remove all hypothetical indexes.
