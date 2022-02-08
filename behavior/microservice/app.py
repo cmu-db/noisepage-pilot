@@ -1,8 +1,10 @@
 import pickle
 import sqlite3
+import time
 from pathlib import Path
 from typing import Dict
 
+import flask
 import numpy as np
 import setproctitle
 from flask import Flask, g, jsonify, render_template, request, send_from_directory
@@ -20,8 +22,7 @@ def send_static(path):
     return send_from_directory("static", path)
 
 
-@app.route("/model/<model_type>/<ou_type>/", methods=["GET"])
-def infer(model_type, ou_type):
+def _infer_model(model_type, ou_type, features, jsonify_result):
     # Get the behavior model.
     try:
         behavior_model: BehaviorModel = app.config["model_map"][model_type][ou_type]
@@ -29,22 +30,45 @@ def infer(model_type, ou_type):
         return f"Error: {err}"
 
     # Check that all the features are present.
-    diff = set(behavior_model.features).difference(request.args)
+    diff = set(behavior_model.features).difference(features)
     if len(diff) > 0:
-        return f"Features missing: {diff}"
+        return f"{model_type}:{ou_type} Features missing: {diff}"
 
     # Extract the features.
-    X = [request.args[feature] for feature in behavior_model.features]
+    X = [features[feature] for feature in behavior_model.features]
     X = np.array(X).astype(float).reshape(1, -1)
 
     # Predict the Y values.
+    start = time.time()
     Y = behavior_model.predict(X)
     assert Y.shape[0] == 1
     Y = Y[0]
+    end = time.time()
 
-    # Label and return the Y values.
     Y = dict(zip(DIFFED_TARGET_COLS, Y))
-    return jsonify(Y)
+
+    # Modify Y so that we also accountf for inference_time, Model_type, and ou_type
+    Y["model_type"] = model_type
+    Y["ou_type"] = ou_type
+    Y["inference_time"] = end - start
+    return jsonify(Y) if jsonify_result else Y
+
+
+@app.route("/model/<model_type>/<ou_type>/", methods=["GET"])
+def infer(model_type, ou_type):
+    return _infer_model(model_type, ou_type, request.args, jsonify_result=True)
+
+
+@app.route("/batch_infer", methods=["POST"])
+def batch_infer():
+    json_data = flask.request.json
+    infer_results = []
+    for infer_request in json_data:
+        model_type = infer_request["model_type"]
+        ou_type = infer_request["ou_type"]
+        features = infer_request["features"]
+        infer_results.append(_infer_model(model_type, ou_type, features, jsonify_result=False))
+    return jsonify(infer_results)
 
 
 def connect():
