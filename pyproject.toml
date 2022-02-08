@@ -59,7 +59,7 @@ disable = [
     # defining self.members outside of init. A fix would be welcome.
     "attribute-defined-outside-init",
 
-    # Disable assigning non-slot exception
+    # Disable assigning non-slot exception.
     "assigning-non-slot"
 ]
 
