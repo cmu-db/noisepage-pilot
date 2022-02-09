@@ -240,7 +240,7 @@ struct ExplainMicroserviceCost {
         rapidjson::Document doc;
         doc.Parse(res->body.c_str());
         for (rapidjson::Value::ConstValueIterator it = doc.Begin(); it != doc.End(); ++it) {
-          if (it->HasMember("diffed_elapsed_us")) {
+          if (it->IsObject() && it->HasMember("diffed_elapsed_us")) {
             model_cost_ += (*it)["diffed_elapsed_us"].GetDouble();
           } else {
             // We can't write res->body since that is the entire response body. Instead,
@@ -629,6 +629,9 @@ std::vector<double> DatabaseState::Returns() const {
       pqxx::subtransaction subtxn(subtxn_history);
 
       SPIEL_CHECK_EQ(workload.size(), predicted_workloads.size());
+      rapidjson::Document results;
+      results.SetArray();
+
       for (size_t idx = 0; idx < workload.size(); idx++) {
         // Get the true cost of executing this query with the current configuration.
         struct ExplainAnalyzeCostResult true_cost = GetExplainAnalyzeCostUs(subtxn, workload[idx].sql_);
@@ -639,18 +642,24 @@ std::vector<double> DatabaseState::Returns() const {
           new (&subtxn) pqxx::subtransaction(subtxn_history);
         }
 
-        httplib::Params params;
-        params.emplace("predicted_cost", std::to_string(predicted_workloads[idx].first));
-        params.emplace("true_cost_valid", std::to_string(true_cost.cost_valid_));
-        params.emplace("true_cost", std::to_string(true_cost.cost_));
-        params.emplace("query", workload[idx].sql_);
-        params.emplace("predicted_results", predicted_workloads[idx].second);
-        params.emplace("action_state", action_state);
-        if (auto res = client->Post("/prediction_results", params)) {
-          if (res->status != 200) {
-            std::cerr << absl::StrCat("ERROR unknown: status ", res->status, " body ", res->body)
-                      << std::endl;
-          }
+        rapidjson::Value result;
+        result.SetObject();
+        result.AddMember("predicted_cost", predicted_workloads[idx].first, results.GetAllocator());
+        result.AddMember("true_cost_valid", true_cost.cost_valid_, results.GetAllocator());
+        result.AddMember("true_cost", true_cost.cost_, results.GetAllocator());
+        result.AddMember("query", rapidjson::StringRef(workload[idx].sql_.c_str()), results.GetAllocator());
+        result.AddMember("predicted_results", rapidjson::StringRef(predicted_workloads[idx].second.c_str()), results.GetAllocator());
+        result.AddMember("action_state", rapidjson::StringRef(action_state.c_str()), results.GetAllocator());
+        results.PushBack(result, results.GetAllocator());
+      }
+
+      rapidjson::StringBuffer buffer;
+      rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+      results.Accept(writer);
+      if (auto res = client->Post("/prediction_results", buffer.GetString(), buffer.GetSize(), "application/json")) {
+        if (res->status != 200) {
+          std::cerr << absl::StrCat("ERROR unknown: status ", res->status, " body ", res->body)
+                    << std::endl;
         }
       }
     }

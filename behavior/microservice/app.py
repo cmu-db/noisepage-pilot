@@ -27,7 +27,7 @@ def _infer_model(model_type, ou_type, features, jsonify_result):
     try:
         behavior_model: BehaviorModel = app.config["model_map"][model_type][ou_type]
     except KeyError as err:
-        return f"Error: {err}"
+        return f"Error cannot find {model_type} model: {err}"
 
     # Check that all the features are present.
     diff = set(behavior_model.features).difference(features)
@@ -150,18 +150,6 @@ def index():
 @app.route("/prediction_results", methods=["GET", "POST", "DELETE"])
 def prediction_results():
     if request.method == "POST":
-        try:
-            query = request.form["query"]
-            predicted_cost = float(request.form["predicted_cost"])
-            true_cost_valid = request.form["true_cost_valid"] == "1"
-            true_cost = float(request.form["true_cost"])
-            predicted_results = request.form["predicted_results"]
-            action_state = request.form["action_state"]
-        except KeyError as err:
-            return f"KeyError: {err}", 400
-        except ValueError as err:
-            return f"ValueError: {err}", 400
-
         db = connect()
         insert_stmt = """
             INSERT INTO inference_results (
@@ -173,10 +161,27 @@ def prediction_results():
                 predicted_results)
             VALUES (?, ?, ?, ?, ?, ?)
         """
-        db.cursor().execute(
-            insert_stmt, (query, predicted_cost, true_cost, true_cost_valid, action_state, predicted_results)
-        )
-        db.commit()
+
+        try:
+            results = flask.request.json
+            for result in results:
+                query = result["query"]
+                predicted_cost = result["predicted_cost"]
+                true_cost_valid = result["true_cost_valid"] == 1
+                true_cost = result["true_cost"]
+                predicted_results = result["predicted_results"]
+                action_state = result["action_state"]
+
+                db.cursor().execute(
+                    insert_stmt, (query, predicted_cost, true_cost, true_cost_valid, action_state, predicted_results)
+                )
+        except KeyError as err:
+            return f"KeyError: {err}", 400
+        except ValueError as err:
+            return f"ValueError: {err}", 400
+        finally:
+            db.commit()
+
         return "", 200
 
     if request.method == "GET":
