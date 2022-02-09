@@ -22,7 +22,29 @@ def send_static(path):
     return send_from_directory("static", path)
 
 
-def _infer_model(model_type, ou_type, features, jsonify_result):
+def _infer_model(model_type, ou_type, features):
+    """
+    Function to perform a single inference operation.
+
+    Parameters
+    ----------
+    model_type: str
+        Type of model to use for inference (e.g., rf, lr, gb).
+    ou_type: str
+        The OU that we want to perform inference on (e.g., SeqScan).
+    features: dict
+        Dictionary of key value pairs that describe the input X's to the model.
+        An error is thrown if features does not contain all X's required to
+        use the model for inference.
+
+    Returns
+    -------
+    result: string or dict
+        If the model inference succeeded, this function returns a dictionary of the
+        inference result concatenated with inference_time, model_type, and ou_type.
+        If the model inference failed, then the corresponding error is returned.
+    """
+
     # Get the behavior model.
     try:
         behavior_model: BehaviorModel = app.config["model_map"][model_type][ou_type]
@@ -38,7 +60,7 @@ def _infer_model(model_type, ou_type, features, jsonify_result):
     X = [features[feature] for feature in behavior_model.features]
     X = np.array(X).astype(float).reshape(1, -1)
 
-    # Predict the Y values.
+    # Predict the Y values. Record how long it takes to predict Y values.
     start = time.time()
     Y = behavior_model.predict(X)
     assert Y.shape[0] == 1
@@ -47,27 +69,40 @@ def _infer_model(model_type, ou_type, features, jsonify_result):
 
     Y = dict(zip(DIFFED_TARGET_COLS, Y))
 
-    # Modify Y so that we also accountf for inference_time, Model_type, and ou_type
+    # Modify Y so that we also account for inference_time, model_type, and ou_type.
+    Y["inference_time"] = end - start
     Y["model_type"] = model_type
     Y["ou_type"] = ou_type
-    Y["inference_time"] = end - start
-    return jsonify(Y) if jsonify_result else Y
+    return Y
 
 
 @app.route("/model/<model_type>/<ou_type>/", methods=["GET"])
 def infer(model_type, ou_type):
-    return _infer_model(model_type, ou_type, request.args, jsonify_result=True)
+    return jsonify(_infer_model(model_type, ou_type, request.args))
 
 
 @app.route("/batch_infer", methods=["POST"])
 def batch_infer():
+    # flask.request.json automatically de-serializes the request body as a JSON object.
     json_data = flask.request.json
+
+    # The body is expected to be formatted as follows:
+    # [
+    #   {
+    #       "model_type": "rf",
+    #       "ou_type": "SeqScan",
+    #       "features": {"plan_rows": .... }
+    #   },
+    #   {...},
+    #   ...
+    # ]
     infer_results = []
     for infer_request in json_data:
         model_type = infer_request["model_type"]
         ou_type = infer_request["ou_type"]
         features = infer_request["features"]
-        infer_results.append(_infer_model(model_type, ou_type, features, jsonify_result=False))
+        infer_results.append(_infer_model(model_type, ou_type, features))
+
     return jsonify(infer_results)
 
 

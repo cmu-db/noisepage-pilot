@@ -240,6 +240,8 @@ struct ExplainMicroserviceCost {
         rapidjson::Document doc;
         doc.Parse(res->body.c_str());
         for (rapidjson::Value::ConstValueIterator it = doc.Begin(); it != doc.End(); ++it) {
+          // This ensures that we never return `elapsed_us` as a target.
+          SPIEL_CHECK_TRUE(!it->IsObject() || !it->HasMember("elapsed_us"));
           if (it->IsObject() && it->HasMember("diffed_elapsed_us")) {
             model_cost_ += (*it)["diffed_elapsed_us"].GetDouble();
           } else {
