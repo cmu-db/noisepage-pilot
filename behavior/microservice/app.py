@@ -50,7 +50,7 @@ def infer(model_type, ou_type):
 def connect():
     db = getattr(g, "_database", None)
     if db is None:
-        db = g._database = sqlite3.connect("inference.db")
+        db = g._database = sqlite3.connect("./artifacts/behavior/microservice/inference.db")
     return db
 
 
