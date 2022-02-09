@@ -1,0 +1,19 @@
+<!doctype html>
+<html>
+  <head>
+    <title>{{ title }}</title>
+    <link rel="stylesheet" href="static/bootstrap.min.css">
+    <link rel="stylesheet" type="text/css" href="static/dataTables.bootstrap5.min.css">
+  </head>
+  <body>
+    <div class="container">
+      <h1>{{ title }}</h1>
+      <hr>
+      {% block content %}{% endblock %}
+    </div>
+    <script type="text/javascript" charset="utf8" src="static/jquery-3.6.0.min.js"></script>
+    <script type="text/javascript" charset="utf8" src="static/jquery.dataTables.min.js"></script>
+    <script type="text/javascript" charset="utf8" src="static/dataTables.bootstrap5.min.js"></script>
+    {% block scripts %}{% endblock %}
+  </body>
+</html>

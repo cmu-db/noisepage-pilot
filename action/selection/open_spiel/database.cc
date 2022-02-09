@@ -2,6 +2,7 @@
 
 #include <fstream>
 #include <iostream>
+#include <sstream>
 #include <memory>
 #include <pqxx/pqxx>
 #include <regex>
@@ -41,6 +42,7 @@ const GameType kGameType{
         {"max_tuning_actions", GameParameter(1)},
         {"use_hypopg", GameParameter(true)},
         {"use_microservice", GameParameter(false)},
+        {"record_predictions", GameParameter(false)},
     }
 };
 // clang-format on
@@ -97,7 +99,7 @@ struct ExplainCost {
 
 struct ExplainMicroserviceCost {
  public:
-  explicit ExplainMicroserviceCost(httplib::Client *client, pqxx::result *rset) {
+  explicit ExplainMicroserviceCost(httplib::Client *client, pqxx::result *rset, bool record_predictions) {
     for (const auto &r : *rset) {
       for (const auto &f : r) {
         // Parse the JSON result from EXPLAIN (FORMAT JSON).
@@ -114,7 +116,7 @@ struct ExplainMicroserviceCost {
         // Accumulate the cost of each JSON node into model_cost_.
         for (auto &plan_node : doc.GetArray()) {
           rapidjson::Document::Object &&plan_obj = plan_node["Plan"].GetObject();
-          Cost(client, plan_obj);
+          Cost(client, plan_obj, record_predictions);
         }
       }
     }
@@ -156,7 +158,7 @@ struct ExplainMicroserviceCost {
     node.AddMember("Diffed Total Cost", diffed_total_cost, doc.GetAllocator());
   }
 
-  void Cost(httplib::Client *client, rapidjson::Document::Object &node) {
+  void Cost(httplib::Client *client, rapidjson::Document::Object &node, bool record_predictions) {
     // TODO(WAN): Robustness for checking that node is a Plan from PostgreSQL's EXPLAIN (FORMAT JSON).
 
     std::vector<std::string> args{
@@ -223,6 +225,13 @@ struct ExplainMicroserviceCost {
       } else {
         std::cerr << absl::StrCat("ERROR unknown: status ", res->status, " url ", url, " body ", res->body)
                   << std::endl;
+
+      }
+
+      if (record_predictions) {
+        // If we're recording results, then append this particular inference result to the accumulator.
+        // We'll be able to identify this failure since the model_cost_ will show a low prediction.
+        inference_results_ << (res->body.c_str()) << std::endl;
       }
     } else {
       auto err = res.error();
@@ -233,7 +242,7 @@ struct ExplainMicroserviceCost {
     if (node.HasMember("Plans")) {
       for (auto &child_node : node["Plans"].GetArray()) {
         rapidjson::Document::Object &&child = child_node.GetObject();
-        Cost(client, child);
+        Cost(client, child, record_predictions);
       }
     }
   }
@@ -241,6 +250,11 @@ struct ExplainMicroserviceCost {
  public:
   // The model cost is aggregated by making network requests.
   double model_cost_ = 0;
+
+  // std::stringstream used to concatenate together the results from each inference requeired
+  // to process the entire EXPLAIN query tree. Inference results are only gathered when
+  // record_predictions is enabled.
+  std::stringstream inference_results_;
 };
 
 //-- ExplainAnalyzeCost
@@ -263,8 +277,8 @@ struct ExplainAnalyzeCost {
             total_cost_ = std::stod(matches[2].str());
             num_rows_ = std::stol(matches[3].str());
             width_ = std::stol(matches[4].str());
-            actual_startup_time_ = std::stod(matches[5].str());
-            actual_total_time_ = std::stod(matches[6].str());
+            actual_startup_time_ms_ = std::stod(matches[5].str());
+            actual_total_time_ms_ = std::stod(matches[6].str());
             actual_num_rows_ = std::stol(matches[7].str());
             actual_loops_ = std::stol(matches[8].str());
             done[0] = true;
@@ -300,8 +314,8 @@ struct ExplainAnalyzeCost {
     os << cost.total_cost_ << ',';
     os << cost.num_rows_ << ',';
     os << cost.width_ << ',';
-    os << cost.actual_startup_time_ << ',';
-    os << cost.actual_total_time_ << ',';
+    os << cost.actual_startup_time_ms_ << ',';
+    os << cost.actual_total_time_ms_ << ',';
     os << cost.actual_num_rows_ << ',';
     os << cost.actual_loops_ << ',';
     os << cost.actual_planning_time_ms_ << ',';
@@ -314,8 +328,8 @@ struct ExplainAnalyzeCost {
   double total_cost_ = -1;
   long num_rows_ = -1;
   long width_ = -1;
-  double actual_startup_time_ = -1;
-  double actual_total_time_ = -1;
+  double actual_startup_time_ms_ = -1;
+  double actual_total_time_ms_ = -1;
   long actual_num_rows_ = -1;
   long actual_loops_ = -1;
   double actual_planning_time_ms_ = -1;
@@ -441,16 +455,63 @@ std::string DatabaseState::ToString() const {
   std::ostringstream os;
   os << "History[";
   if (!history_.empty()) {
-    os << history_.at(0);
+    os << GetActionSQL(history_.at(0).action);
   }
   for (size_t i = 1; i < history_.size(); ++i) {
-    os << history_.at(i);
+    os << " ";
+    os << GetActionSQL(history_.at(i).action);
   }
   os << "]";
   return os.str();
 }
 
 bool DatabaseState::IsTerminal() const { return finished_; }
+
+void DatabaseState::ApplyHistory(pqxx::dbtransaction &txn) const {
+  CustomApplyHistory(txn, game_->UseHypoPG());
+}
+
+void DatabaseState::CustomApplyHistory(pqxx::dbtransaction &txn, bool use_hypopg) const {
+  // Apply all the tuning actions. This assumes that actions take zero time.
+  for (const auto &player_action : history_) {
+    // Apply the tuning action.
+    {
+      const TuningAction &action = game_->GetTuner()->GetAction(player_action.action);
+      std::string action_sql = action.sql_;
+      // If hypopg is enabled and this is a CREATE INDEX action, we need to modify the action SQL.
+      // TODO(WAN): Be more robust about cReaTE inDeX.
+      bool is_create_index = action_sql.find("CREATE INDEX") == 0 || action_sql.find("create index") == 0;
+      if (use_hypopg && is_create_index) {
+        // hypopg_create_index() is ok with the action_sql ending with a semicolon.
+        action_sql = absl::StrCat("SELECT * FROM hypopg_create_index('", action_sql, "');");
+      }
+      pqxx::result rset{txn.exec(action_sql)};
+    }
+  }
+}
+
+struct ExplainAnalyzeCostResult DatabaseState::GetExplainAnalyzeCostUs(pqxx::dbtransaction &txn, const std::string &query) const {
+  // By default, EXPLAIN() returns timestamps as milliseconds. However, model forecasting for
+  // elapsed time returns timestamps as microseconds instead. As such, this function provides
+  // the explain cost (elapsed time) in microseconds to be consistent with the inference.
+  std::string explain = absl::StrCat("EXPLAIN (ANALYZE, BUFFERS) ", query);
+
+  try {
+    pqxx::result rset{txn.exec(explain)};
+    std::string explain = absl::StrCat("EXPLAIN (ANALYZE, BUFFERS) ", query);
+    ExplainAnalyzeCost cost{&rset};
+    return ExplainAnalyzeCostResult{true, cost.actual_total_time_ms_ * 1000};
+  } catch (const pqxx::integrity_constraint_violation& e) {
+    // EXPLAIN ANALYZE will execute the query that it is provided as part of the workload forecast.
+    // However, this query may abort due to failing integrity constraint check(s) such as uniqueness.
+    // We currently do not model nor handle aborts, therefore all aborted queries will be treated as
+    // if they had zero cost.
+    //
+    // TODO(wz2): Need a graceful way of identifying and possibly modeling aborts.
+    std::cerr << absl::StrCat("ERROR while executing query ", explain, " ", e.what()) << std::endl;
+    return ExplainAnalyzeCostResult{false, 0.0};
+  }
+}
 
 std::vector<double> DatabaseState::Returns() const {
   // Compute the final reward of this game trajectory.
@@ -461,6 +522,7 @@ std::vector<double> DatabaseState::Returns() const {
   const std::string &db_conn_string = game_->GetDatabaseConnectionString();
   bool use_hypopg = game_->UseHypoPG();
   bool use_microservice = game_->UseMicroservice();
+  bool record_predictions = game_->RecordPredictions();
   // Non-owning pointers to Forecast and Tuner.
   Forecast *forecast = game_->GetForecast();
   Tuner *tuner = game_->GetTuner();
@@ -483,28 +545,23 @@ std::vector<double> DatabaseState::Returns() const {
 
   // Simulate the game trajectory.
   {
-    // Apply all the tuning actions. This assumes that actions take zero time.
-    for (const auto &player_action : history_) {
-      // Apply the tuning action.
-      {
-        const TuningAction &action = tuner->GetAction(player_action.action);
-        std::string action_sql = action.sql_;
-        // If hypopg is enabled and this is a CREATE INDEX action, we need to modify the action SQL.
-        // TODO(WAN): Be more robust about cReaTE inDeX.
-        bool is_create_index = action_sql.find("CREATE INDEX") == 0 || action_sql.find("create index") == 0;
-        if (use_hypopg && is_create_index) {
-          // hypopg_create_index() is ok with the action_sql ending with a semicolon.
-          action_sql = absl::StrCat("SELECT * FROM hypopg_create_index('", action_sql, "');");
-        }
-        pqxx::result rset{txn.exec(action_sql)};
-      }
-    }
+    ApplyHistory(txn);
 
     // TODO(WAN): Faking out the forecast time should go here.
     //  e.g., pass the current time as an input into GetForecastWorkload(),
     //  and move this block of code into the above for (history) loop.
     //  Right now, the workload only appears at the very end after all actions are applied.
     const std::vector<ForecastedQuery> &workload = forecast->GetForecastWorkload();
+
+    // TOOD(WAN): If you find yourself needing to declare more flag-specific variables here,
+    // refactor this into an `EvaluateWorkloadCost` function that calls separate costing
+    // functions.
+    //
+    // This vector is used to record predictions. The vector (if valid) corresponds 1:1
+    // with the previous workload vector. The vector stores a pair of the query's
+    // predicted runtime cost and the debug info generated by the inference process.
+    std::vector<std::pair<double, std::string>> predicted_workloads;
+
     // Evaluate the cost of the forecasted queries.
     {
       for (const auto &work : workload) {
@@ -517,13 +574,57 @@ std::vector<double> DatabaseState::Returns() const {
         } else if (use_hypopg && use_microservice) {
           query = absl::StrCat("EXPLAIN (FORMAT JSON) ", query);
           pqxx::result rset{txn.exec(query)};
-          ExplainMicroserviceCost cost{client, &rset};
+          ExplainMicroserviceCost cost{client, &rset, record_predictions};
           total_cost += cost.model_cost_ * work.num_arrivals_;
+          if (record_predictions) {
+            predicted_workloads.emplace_back(cost.model_cost_, cost.inference_results_.str());
+          }
         } else {
-          query = absl::StrCat("EXPLAIN (ANALYZE, BUFFERS) ", query);
-          pqxx::result rset{txn.exec(query)};
-          ExplainAnalyzeCost cost{&rset};
-          total_cost += cost.actual_total_time_ * work.num_arrivals_;
+          total_cost += GetExplainAnalyzeCostUs(txn, query).cost_ * work.num_arrivals_;
+        }
+      }
+    }
+
+    // This is conditioned on use_hypopg only because we only support recording predictions
+    // in the use_hypopg and use_microservice code-path.
+    if (use_hypopg && use_microservice && record_predictions) {
+      // Remove all hypothetical indexes.
+      txn.exec("select hypopg_reset();");
+
+      // Start a sub-transaction. When this sub-transaction goes away, all of the actions
+      // that we apply (which we assume are transactional) will be automatically rolled back.
+      pqxx::subtransaction subtxn_history(txn);
+      CustomApplyHistory(subtxn_history, false);
+      std::string action_state = ToString();
+
+      // This is the sub-transaction that we use to execute the workload. This should see the
+      // the changes introduced by subtxn_history. subtxn is used to execute the workload.
+      // If we encounter an error, we don't need to redo all the work done by subtxn_history.
+      pqxx::subtransaction subtxn(subtxn_history);
+
+      SPIEL_CHECK_EQ(workload.size(), predicted_workloads.size());
+      for (size_t idx = 0; idx < workload.size(); idx++) {
+        // Get the true cost of executing this query with the current configuration.
+        struct ExplainAnalyzeCostResult true_cost = GetExplainAnalyzeCostUs(subtxn, workload[idx].sql_);
+        if (!true_cost.cost_valid_) {
+          // In this case, the subtransaction has failed (e.g., we hit an integrity key
+          // violation). For this case, we need to restart the subtransaction.
+          subtxn.~subtransaction();
+          new (&subtxn) pqxx::subtransaction(subtxn_history);
+        }
+
+        httplib::Params params;
+        params.emplace("predicted_cost", std::to_string(predicted_workloads[idx].first));
+        params.emplace("true_cost_valid", std::to_string(true_cost.cost_valid_));
+        params.emplace("true_cost", std::to_string(true_cost.cost_));
+        params.emplace("query", workload[idx].sql_);
+        params.emplace("predicted_results", predicted_workloads[idx].second);
+        params.emplace("action_state", action_state);
+        if (auto res = client->Post("/prediction_results", params)) {
+          if (res->status != 200) {
+            std::cerr << absl::StrCat("ERROR unknown: status ", res->status, " body ", res->body)
+                      << std::endl;
+          }
         }
       }
     }
@@ -556,10 +657,20 @@ DatabaseGame::DatabaseGame(const GameParameters &params) : Game(kGameType, param
   max_tuning_actions_ = params.at("max_tuning_actions").int_value();
   use_hypopg_ = params.at("use_hypopg").bool_value();
   use_microservice_ = params.at("use_microservice").bool_value();
+  record_predictions_ = params.at("record_predictions").bool_value();
+
+  // Microservice currently assumes HypoPG. There is no reason this has to be the case.
+  SPIEL_CHECK_TRUE(!use_microservice_ || (use_microservice_ && use_hypopg_));
+
+  // Recording currently requires microservice. This is because data is recorded to the microservice.
+  SPIEL_CHECK_TRUE(!record_predictions_ || (record_predictions_ && use_microservice_));
 
   if (use_microservice_) {
     // 127.0.0.1:5000 is the Flask default.
     microservice_client_ = std::make_unique<httplib::Client>("127.0.0.1", 5000);
+    if (record_predictions_) {
+      microservice_client_->Delete("/prediction_results");
+    }
   }
 }
 

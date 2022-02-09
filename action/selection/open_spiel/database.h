@@ -12,6 +12,15 @@ class Client;
 namespace open_spiel {
 namespace database {
 
+struct ExplainAnalyzeCostResult {
+  // A boolean flag indicating whether or not the cost_ is valid.
+  // This is set to false if EXPLAIN (ANALYZE) failed.
+  bool cost_valid_;
+
+  // The runtime cost (which is the actual elapsed time in ms).
+  double cost_;
+};
+
 struct ForecastedQuery {
   std::string sql_;
   long long num_arrivals_;
@@ -66,6 +75,13 @@ class DatabaseState : public State {
  protected:
   void DoApplyAction(Action move) override;
 
+  void ApplyHistory(pqxx::dbtransaction &txn) const;
+  void CustomApplyHistory(pqxx::dbtransaction &txn, bool use_hypopg) const;
+
+  // Gets the actual runtime cost with EXPLAIN(ANALYZE, BUFFERS) of executing query
+  // under the given transaction. If the function succeeds, a valid cost is returned.
+  struct ExplainAnalyzeCostResult GetExplainAnalyzeCostUs(pqxx::dbtransaction &txn, const std::string &query) const;
+
  private:
   std::shared_ptr<const DatabaseGame> game_;
   std::set<Action> actions_applied_;
@@ -100,6 +116,7 @@ class DatabaseGame : public Game {
   const std::string &GetDatabaseConnectionString() const { return db_conn_string_; }
   bool UseHypoPG() const { return use_hypopg_; }
   bool UseMicroservice() const { return use_microservice_; }
+  bool RecordPredictions() const { return record_predictions_; }
 
   httplib::Client *GetMicroserviceClient() const { return microservice_client_.get(); }
 
@@ -110,6 +127,7 @@ class DatabaseGame : public Game {
   int max_tuning_actions_;
   bool use_hypopg_;
   bool use_microservice_;
+  bool record_predictions_;
 
   // use_microservice_ options.
   std::unique_ptr<httplib::Client> microservice_client_;
