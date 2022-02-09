@@ -455,10 +455,11 @@ std::string DatabaseState::ToString() const {
   std::ostringstream os;
   os << "History[";
   if (!history_.empty()) {
-    os << history_.at(0);
+    os << GetActionSQL(history_.at(0).action);
   }
   for (size_t i = 1; i < history_.size(); ++i) {
-    os << history_.at(i);
+    os << " ";
+    os << GetActionSQL(history_.at(i).action);
   }
   os << "]";
   return os.str();
