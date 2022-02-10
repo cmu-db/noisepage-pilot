@@ -5,14 +5,16 @@
 # Define all the students, format is "git_url,andrew_id".
 STUDENTS=(
   'git@github.com:lmwnshn/S22-15799.git,wanshenl'
-  'git@github.com:lmwnshn/S22-15799.git,wanshenl2'
 )
 
 # TODO(Matt): Update benchmark list with workloads.
 BENCHMARKS=(
-  'tpcc'
-  'tatp'
+  'epinions'
+  'indexjungle'
 )
+
+# Set VERBOSITY to 0 for grading, 2 for development.
+VERBOSITY=2
 
 # You should set up a user like this. The script will handle creating the database.
 # postgres=# create user project1user with superuser encrypted password 'project1pass';
@@ -49,7 +51,7 @@ _setup_benchmark() {
   xmlstarlet edit --inplace --update '/parameters/password' --value "${DB_PASS}" ./artifacts/project/${benchmark}_config.xml
 
   # Load the benchmark into the project database.
-  doit --verbosity 0 benchbase_run --benchmark="${benchmark}" --config="./artifacts/project/${benchmark}_config.xml" --args="--create=true --load=true"
+  doit --verbosity ${VERBOSITY} benchbase_run --benchmark="${benchmark}" --config="./artifacts/project/${benchmark}_config.xml" --args="--create=true --load=true"
 }
 
 _dump_database() {
@@ -106,7 +108,7 @@ _grade_iteration() {
   # cd to the original root folder again.
   cd - 1>/dev/null || exit 1
   # Evaluate the performance on the workload.
-  doit --verbosity 0 benchbase_run --benchmark="${benchmark}" --config="./artifacts/project/${benchmark}_config.xml" --args="--execute=true"
+  doit --verbosity ${VERBOSITY} benchbase_run --benchmark="${benchmark}" --config="./artifacts/project/${benchmark}_config.xml" --args="--execute=true"
   # Yoink the result files.
   mkdir -p "${results_folder}"
   mv ./artifacts/benchbase/results/* "${results_folder}"
@@ -197,7 +199,10 @@ main() {
   rm -rf ./artifacts/
   rm -rf ./build/
 
-  doit benchbase_clone --branch_name="project1"
+  # Use Andy's version of BenchBase.
+  doit benchbase_clone --repo_url="https://github.com/apavlo/benchbase.git" --branch_name="main"
+  cp ./build/benchbase/config/postgres/15799_starter_config.xml ./config/behavior/benchbase/epinions_config.xml
+  cp ./build/benchbase/config/postgres/15799_indexjungle_config.xml ./config/behavior/benchbase/indexjungle_config.xml
 
   benchmark_dump_folder="./artifacts/project/dumps"
   # Create the folder for all the benchmark dumps.
