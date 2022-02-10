@@ -58,6 +58,8 @@ def grade_iteration():
 For example, this is how you can collect a workload trace for ePinions with a small scalefactor of 1:
 
 ```bash
+doit project1_reset_db
+
 # Clone Andy's BenchBase.
 doit benchbase_clone --repo_url="https://github.com/apavlo/benchbase.git" --branch_name="main"
 cp ./build/benchbase/config/postgres/15799_starter_config.xml ./config/behavior/benchbase/epinions_config.xml

@@ -47,3 +47,18 @@ def task_project1_disable_logging():
         ],
         "verbosity": VERBOSITY_DEFAULT,
     }
+
+def task_project1_reset_db():
+    """
+    Project1: drop (if exists) and create project1db.
+    """
+
+    return {
+        "actions": [
+            # Drop the project database if it exists.
+            f"PGPASSWORD={DEFAULT_PASS} dropdb --host=localhost --username={DEFAULT_USER} --if-exists {DEFAULT_DB}",
+            # Create the project database.
+            f"PGPASSWORD={DEFAULT_PASS} createdb --host=localhost --username={DEFAULT_USER} {DEFAULT_DB}",
+        ],
+        "verbosity": VERBOSITY_DEFAULT,
+    }
