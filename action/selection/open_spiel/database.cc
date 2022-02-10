@@ -282,6 +282,7 @@ struct ExplainMicroserviceCost {
 
   // The JSON document that is used to construct the request to the microservice. This is used
   // so we can request inference for the entire EXPLAIN tree in a single request.
+  // We observed 2x speedup on dev4 (1 hour -> 30 minutes) by doing so.
   rapidjson::Document inference_doc_;
 };
 
