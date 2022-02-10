@@ -1,9 +1,11 @@
 from plumbum import cmd
+
 from dodos import VERBOSITY_DEFAULT
 
-DEFAULT_DB="project1db"
-DEFAULT_USER="project1user"
-DEFAULT_PASS="project1pass"
+DEFAULT_DB = "project1db"
+DEFAULT_USER = "project1user"
+DEFAULT_PASS = "project1pass"
+
 
 def task_project1_enable_logging():
     """
@@ -47,6 +49,7 @@ def task_project1_disable_logging():
         ],
         "verbosity": VERBOSITY_DEFAULT,
     }
+
 
 def task_project1_reset_db():
     """
