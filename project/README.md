@@ -22,7 +22,7 @@ def task_project1():
         "uptodate": [False],
     }
 ```
-5. Add your GitHub repo to `project1.sh` under the `STUDENTS` section, format `git_url,andrew_id`.
+5. Add your GitHub repo to `./project/project1.sh` under the `STUDENTS` section, format `git_url,andrew_id`.
 6. Run `./project/project1.sh`.
 
 This sets up the same infrastructure used for grading.  
