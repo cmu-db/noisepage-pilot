@@ -1,12 +1,13 @@
 # Quickstart
 
-1. Install PostgreSQL 14.
-2. (Optional but recommended) Tune your PostgreSQL instance with something like `PGTune`.
-3. As the PostgreSQL user,
+1. Clone this NoisePage-Pilot repo.
+2. Install PostgreSQL 14.
+3. (Optional but recommended) Tune your PostgreSQL instance with something like `PGTune`.
+4. As the PostgreSQL user,
    1. `sudo su postgres`
    2. `psql`
    3. `create user project1user with superuser encrypted password 'project1pass';`
-4. Create a new GitHub repo that contains one file, `dodo.py`, which contains the following:
+5. Create a new GitHub repo that contains one file, `dodo.py`, which contains the following:
 ```python
 def task_project1():
     return {
