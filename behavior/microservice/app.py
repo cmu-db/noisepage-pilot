@@ -1,8 +1,10 @@
 import pickle
 import sqlite3
+import time
 from pathlib import Path
 from typing import Dict
 
+import flask
 import numpy as np
 import setproctitle
 from flask import Flask, g, jsonify, render_template, request, send_from_directory
@@ -20,31 +22,88 @@ def send_static(path):
     return send_from_directory("static", path)
 
 
-@app.route("/model/<model_type>/<ou_type>/", methods=["GET"])
-def infer(model_type, ou_type):
+def _infer_model(model_type, ou_type, features):
+    """
+    Function to perform a single inference operation.
+
+    Parameters
+    ----------
+    model_type: str
+        Type of model to use for inference (e.g., rf, lr, gb).
+    ou_type: str
+        The OU that we want to perform inference on (e.g., SeqScan).
+    features: dict
+        Dictionary of key value pairs that describe the input X's to the model.
+        An error is thrown if features does not contain all X's required to
+        use the model for inference.
+
+    Returns
+    -------
+    result: string or dict
+        If the model inference succeeded, this function returns a dictionary of the
+        inference result concatenated with inference_time, model_type, and ou_type.
+        If the model inference failed, then the corresponding error is returned.
+    """
+
     # Get the behavior model.
     try:
         behavior_model: BehaviorModel = app.config["model_map"][model_type][ou_type]
     except KeyError as err:
-        return f"Error: {err}"
+        return f"Error cannot find {model_type} model: {err}"
 
     # Check that all the features are present.
-    diff = set(behavior_model.features).difference(request.args)
+    diff = set(behavior_model.features).difference(features)
     if len(diff) > 0:
-        return f"Features missing: {diff}"
+        return f"{model_type}:{ou_type} Features missing: {diff}"
 
     # Extract the features.
-    X = [request.args[feature] for feature in behavior_model.features]
+    X = [features[feature] for feature in behavior_model.features]
     X = np.array(X).astype(float).reshape(1, -1)
 
-    # Predict the Y values.
+    # Predict the Y values. Record how long it takes to predict Y values.
+    start = time.time()
     Y = behavior_model.predict(X)
     assert Y.shape[0] == 1
     Y = Y[0]
+    end = time.time()
 
-    # Label and return the Y values.
     Y = dict(zip(DIFFED_TARGET_COLS, Y))
-    return jsonify(Y)
+
+    # Modify Y so that we also account for inference_time, model_type, and ou_type.
+    Y["inference_time"] = end - start
+    Y["model_type"] = model_type
+    Y["ou_type"] = ou_type
+    return Y
+
+
+@app.route("/model/<model_type>/<ou_type>/", methods=["GET"])
+def infer(model_type, ou_type):
+    return jsonify(_infer_model(model_type, ou_type, request.args))
+
+
+@app.route("/batch_infer", methods=["POST"])
+def batch_infer():
+    # flask.request.json automatically de-serializes the request body as a JSON object.
+    json_data = flask.request.json
+
+    # The body is expected to be formatted as follows:
+    # [
+    #   {
+    #       "model_type": "rf",
+    #       "ou_type": "SeqScan",
+    #       "features": {"plan_rows": .... }
+    #   },
+    #   {...},
+    #   ...
+    # ]
+    infer_results = []
+    for infer_request in json_data:
+        model_type = infer_request["model_type"]
+        ou_type = infer_request["ou_type"]
+        features = infer_request["features"]
+        infer_results.append(_infer_model(model_type, ou_type, features))
+
+    return jsonify(infer_results)
 
 
 def connect():
@@ -126,18 +185,6 @@ def index():
 @app.route("/prediction_results", methods=["GET", "POST", "DELETE"])
 def prediction_results():
     if request.method == "POST":
-        try:
-            query = request.form["query"]
-            predicted_cost = float(request.form["predicted_cost"])
-            true_cost_valid = request.form["true_cost_valid"] == "1"
-            true_cost = float(request.form["true_cost"])
-            predicted_results = request.form["predicted_results"]
-            action_state = request.form["action_state"]
-        except KeyError as err:
-            return f"KeyError: {err}", 400
-        except ValueError as err:
-            return f"ValueError: {err}", 400
-
         db = connect()
         insert_stmt = """
             INSERT INTO inference_results (
@@ -149,10 +196,27 @@ def prediction_results():
                 predicted_results)
             VALUES (?, ?, ?, ?, ?, ?)
         """
-        db.cursor().execute(
-            insert_stmt, (query, predicted_cost, true_cost, true_cost_valid, action_state, predicted_results)
-        )
-        db.commit()
+
+        try:
+            results = flask.request.json
+            for result in results:
+                query = result["query"]
+                predicted_cost = result["predicted_cost"]
+                true_cost_valid = result["true_cost_valid"] == 1
+                true_cost = result["true_cost"]
+                predicted_results = result["predicted_results"]
+                action_state = result["action_state"]
+
+                db.cursor().execute(
+                    insert_stmt, (query, predicted_cost, true_cost, true_cost_valid, action_state, predicted_results)
+                )
+        except KeyError as err:
+            return f"KeyError: {err}", 400
+        except ValueError as err:
+            return f"ValueError: {err}", 400
+        finally:
+            db.commit()
+
         return "", 200
 
     if request.method == "GET":

@@ -100,6 +100,8 @@ struct ExplainCost {
 struct ExplainMicroserviceCost {
  public:
   explicit ExplainMicroserviceCost(httplib::Client *client, pqxx::result *rset, bool record_predictions) {
+    inference_doc_.SetArray();
+
     for (const auto &r : *rset) {
       for (const auto &f : r) {
         // Parse the JSON result from EXPLAIN (FORMAT JSON).
@@ -116,7 +118,8 @@ struct ExplainMicroserviceCost {
         // Accumulate the cost of each JSON node into model_cost_.
         for (auto &plan_node : doc.GetArray()) {
           rapidjson::Document::Object &&plan_obj = plan_node["Plan"].GetObject();
-          Cost(client, plan_obj, record_predictions);
+          PrepareCostRequest(inference_doc_, plan_obj);
+          SendCostRequest(client, inference_doc_, record_predictions);
         }
       }
     }
@@ -158,28 +161,25 @@ struct ExplainMicroserviceCost {
     node.AddMember("Diffed Total Cost", diffed_total_cost, doc.GetAllocator());
   }
 
-  void Cost(httplib::Client *client, rapidjson::Document::Object &node, bool record_predictions) {
+  void PrepareCostRequest(rapidjson::Document &target, rapidjson::Document::Object &node) {
+    rapidjson::Value node_element;
+    node_element.SetObject();
+
+    rapidjson::Value features;
+    features.SetObject();
+
     // TODO(WAN): Robustness for checking that node is a Plan from PostgreSQL's EXPLAIN (FORMAT JSON).
-
-    std::vector<std::string> args{
-        absl::StrCat("bias=", "1"),
-        absl::StrCat("startup_cost=", std::to_string(node["Startup Cost"].GetDouble()).c_str()),
-        absl::StrCat("total_cost=", std::to_string(node["Total Cost"].GetDouble()).c_str()),
-        absl::StrCat("plan_rows=", std::to_string(node["Plan Rows"].GetInt64()).c_str()),
-        absl::StrCat("plan_width=", std::to_string(node["Plan Width"].GetInt64()).c_str()),
-        absl::StrCat("diffed_startup_cost=", std::to_string(node["Diffed Startup Cost"].GetDouble()).c_str()),
-        absl::StrCat("diffed_total_cost=", std::to_string(node["Diffed Total Cost"].GetDouble()).c_str()),
-    };
-
-    // Determine which behavior model type to use.
-    std::string model_type = "rf";
-    // Just kidding. No choice allowed, random forests only.
-    // TODO(WAN): More seriously, we should expose this as a parameter.
+    features.AddMember("bias", 1, target.GetAllocator());
+    features.AddMember("startup_cost", node["Startup Cost"].GetDouble(), target.GetAllocator());
+    features.AddMember("total_cost", node["Total Cost"].GetDouble(), target.GetAllocator());
+    features.AddMember("plan_rows", node["Plan Rows"].GetInt64(), target.GetAllocator());
+    features.AddMember("plan_width", node["Plan Width"].GetInt64(), target.GetAllocator());
+    features.AddMember("diffed_startup_cost", node["Diffed Startup Cost"].GetDouble(), target.GetAllocator());
+    features.AddMember("diffed_total_cost", node["Diffed Total Cost"].GetDouble(), target.GetAllocator());
 
     // Determine which behavior model this is.
     // Currently, names mostly match if you strip out spaces.
     std::string model_name = std::regex_replace(node["Node Type"].GetString(), std::regex("\\s+"), "");
-
     // Model-specific hacks.
     if (model_name == "Aggregate") {
       model_name = "Agg";
@@ -197,35 +197,67 @@ struct ExplainMicroserviceCost {
       } else if (opstr == "Delete") {
         opnum = "4";
       }
-      args.emplace_back(absl::StrCat("ModifyTable_operation=", opnum));
+
+      rapidjson::Value opnum_val(opnum.c_str(), target.GetAllocator());
+      features.AddMember("ModifyTable_operation", opnum_val, target.GetAllocator());
     } else if (model_name == "NestedLoop") {
       model_name = "NestLoop";
     }
 
-    // Construct the URL.
-    std::string url_params = absl::StrCat("?", absl::StrJoin(args, "&"));
-    std::string url = absl::StrJoin({"/model", model_type.c_str(), model_name.c_str(), url_params.c_str()}, "/");
+    // Determine which behavior model type to use.
+    node_element.AddMember("model_type", "rf", target.GetAllocator());
+    // Just kidding. No choice allowed, random forests only.
+    // TODO(WAN): More seriously, we should expose this as a parameter.
 
-    // Invoke inference.
-    if (auto res = client->Get(url.c_str())) {
+    rapidjson::Value model_name_val(model_name.c_str(), target.GetAllocator());
+    node_element.AddMember("ou_type", model_name_val, target.GetAllocator());
+    node_element.AddMember("features", features, target.GetAllocator());
+    target.PushBack(node_element, target.GetAllocator());
+
+    // Repeat the costing process for all children.
+    if (node.HasMember("Plans")) {
+      for (auto &child_node : node["Plans"].GetArray()) {
+        rapidjson::Document::Object &&child = child_node.GetObject();
+        PrepareCostRequest(target, child);
+      }
+    }
+  }
+
+  void SendCostRequest(httplib::Client *client, rapidjson::Document &doc, bool record_predictions) {
+    rapidjson::StringBuffer buffer;
+    {
+      // Serialize the document into the buffer so we can attach it as JSON to the
+      // HTTP POST request to the microservice.
+      rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+      doc.Accept(writer);
+    }
+
+    std::string url = "/batch_infer";
+    if (auto res = client->Post(url.c_str(), buffer.GetString(), buffer.GetSize(), "application/json")) {
       // If it looks like we got a JSON response, we're probably fine.
-      if (res->status == 200 && absl::StartsWith(res->body, "{")) {
+      if (res->status == 200 && absl::StartsWith(res->body, "[")) {
         // Parse the JSON response and add the relevant attributes to our cost.
         rapidjson::Document doc;
         doc.Parse(res->body.c_str());
-        // TODO(WAN): Pending discussion in #self-driving on Slack re: inconsistent labels.
-        if (doc.HasMember("elapsed_us")) {
-          model_cost_ += doc["elapsed_us"].GetDouble();
-        } else if (doc.HasMember("diffed_elapsed_us")) {
-          model_cost_ += doc["diffed_elapsed_us"].GetDouble();
-        } else {
-          std::cerr << absl::StrCat("ERROR bad result: status ", res->status, " url ", url, " body ", res->body)
-                    << std::endl;
+        for (rapidjson::Value::ConstValueIterator it = doc.Begin(); it != doc.End(); ++it) {
+          // This ensures that we never return `elapsed_us` as a target.
+          SPIEL_CHECK_TRUE(!it->IsObject() || !it->HasMember("elapsed_us"));
+          if (it->IsObject() && it->HasMember("diffed_elapsed_us")) {
+            model_cost_ += (*it)["diffed_elapsed_us"].GetDouble();
+          } else {
+            // We can't write res->body since that is the entire response body. Instead,
+            // we just take this particular element, serialize it, and output it.
+            buffer.Clear();
+            rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+            it->Accept(writer);
+
+            std::cerr << absl::StrCat("ERROR bad result: status ", res->status, " url ", url, " body ", buffer.GetString())
+                      << std::endl;
+          }
         }
       } else {
         std::cerr << absl::StrCat("ERROR unknown: status ", res->status, " url ", url, " body ", res->body)
                   << std::endl;
-
       }
 
       if (record_predictions) {
@@ -235,15 +267,7 @@ struct ExplainMicroserviceCost {
       }
     } else {
       auto err = res.error();
-      std::cerr << absl::StrCat("ERROR bad URL: status ", err, " url ", url) << std::endl;
-    }
-
-    // Repeat the costing process for all children.
-    if (node.HasMember("Plans")) {
-      for (auto &child_node : node["Plans"].GetArray()) {
-        rapidjson::Document::Object &&child = child_node.GetObject();
-        Cost(client, child, record_predictions);
-      }
+      std::cerr << absl::StrCat("ERROR bad URL: status ", err, " url /batch_infer") << std::endl;
     }
   }
 
@@ -255,6 +279,11 @@ struct ExplainMicroserviceCost {
   // to process the entire EXPLAIN query tree. Inference results are only gathered when
   // record_predictions is enabled.
   std::stringstream inference_results_;
+
+  // The JSON document that is used to construct the request to the microservice. This is used
+  // so we can request inference for the entire EXPLAIN tree in a single request.
+  // We observed 2x speedup on dev4 (1 hour -> 30 minutes) by doing so.
+  rapidjson::Document inference_doc_;
 };
 
 //-- ExplainAnalyzeCost
@@ -603,6 +632,9 @@ std::vector<double> DatabaseState::Returns() const {
       pqxx::subtransaction subtxn(subtxn_history);
 
       SPIEL_CHECK_EQ(workload.size(), predicted_workloads.size());
+      rapidjson::Document results;
+      results.SetArray();
+
       for (size_t idx = 0; idx < workload.size(); idx++) {
         // Get the true cost of executing this query with the current configuration.
         struct ExplainAnalyzeCostResult true_cost = GetExplainAnalyzeCostUs(subtxn, workload[idx].sql_);
@@ -613,18 +645,24 @@ std::vector<double> DatabaseState::Returns() const {
           new (&subtxn) pqxx::subtransaction(subtxn_history);
         }
 
-        httplib::Params params;
-        params.emplace("predicted_cost", std::to_string(predicted_workloads[idx].first));
-        params.emplace("true_cost_valid", std::to_string(true_cost.cost_valid_));
-        params.emplace("true_cost", std::to_string(true_cost.cost_));
-        params.emplace("query", workload[idx].sql_);
-        params.emplace("predicted_results", predicted_workloads[idx].second);
-        params.emplace("action_state", action_state);
-        if (auto res = client->Post("/prediction_results", params)) {
-          if (res->status != 200) {
-            std::cerr << absl::StrCat("ERROR unknown: status ", res->status, " body ", res->body)
-                      << std::endl;
-          }
+        rapidjson::Value result;
+        result.SetObject();
+        result.AddMember("predicted_cost", predicted_workloads[idx].first, results.GetAllocator());
+        result.AddMember("true_cost_valid", true_cost.cost_valid_, results.GetAllocator());
+        result.AddMember("true_cost", true_cost.cost_, results.GetAllocator());
+        result.AddMember("query", rapidjson::StringRef(workload[idx].sql_.c_str()), results.GetAllocator());
+        result.AddMember("predicted_results", rapidjson::StringRef(predicted_workloads[idx].second.c_str()), results.GetAllocator());
+        result.AddMember("action_state", rapidjson::StringRef(action_state.c_str()), results.GetAllocator());
+        results.PushBack(result, results.GetAllocator());
+      }
+
+      rapidjson::StringBuffer buffer;
+      rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+      results.Accept(writer);
+      if (auto res = client->Post("/prediction_results", buffer.GetString(), buffer.GetSize(), "application/json")) {
+        if (res->status != 200) {
+          std::cerr << absl::StrCat("ERROR unknown: status ", res->status, " body ", res->body)
+                    << std::endl;
         }
       }
     }
