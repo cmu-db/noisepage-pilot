@@ -265,9 +265,23 @@ class Preprocessor:
         """
 
         def substitute(query, params):
-            for k, v in params.items():
-                query = query.replace(k, v)
-            return query
+            # Consider '$2' -> "abc'def'ghi".
+            # This necessitates the use of a SQL-aware substitution,
+            # even if this is much slower than naive string substitution.
+            new_sql, last_end = [], 0
+            for token in pglast.parser.scan(query):
+                token_str = str(query[token.start : token.end + 1])
+                if token.start > last_end:
+                    new_sql.append(" ")
+                if token.name == "PARAM":
+                    assert token_str.startswith("$")
+                    assert token_str[1:].isdigit()
+                    new_sql.append(params[token_str])
+                else:
+                    new_sql.append(token_str)
+                last_end = token.end + 1
+            new_sql = "".join(new_sql)
+            return new_sql
 
         def subst(row):
             return substitute(row[query_col], row[params_col])
