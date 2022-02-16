@@ -6,8 +6,6 @@ datagen:
   log_level: DEBUG
   debug: False
   param_sweep:
-    url: ["jdbc:postgresql://localhost:5432/benchbase?preferQueryMode=extended"]
-    isolation: [TRANSACTION_READ_COMMITTED]
     scalefactor: [0.01, 0.1]
     terminals: [1]
     works.work.rate: [10000]
