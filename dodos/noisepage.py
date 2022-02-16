@@ -113,6 +113,7 @@ def task_noisepage_init():
 
     sql_list = [
         f"CREATE ROLE {DEFAULT_USER} WITH LOGIN SUPERUSER ENCRYPTED PASSWORD '{DEFAULT_PASS}'",
+        "LOAD 'hutch_extension'",
     ]
 
     return {
