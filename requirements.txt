@@ -1,5 +1,7 @@
 black
 doit
+xlrd
+featurewiz==0.1.0
 flake8
 flask
 isort
@@ -13,6 +15,7 @@ psycopg
 psutil
 pyarrow # Forecast. Parquet support.
 pydotplus
+pygments>=2.4.1
 pylint
 pyyaml
 scikit-learn>=1.0.0 # Behavior models.
