@@ -10,8 +10,9 @@ ARTIFACTS_PATH = default_artifacts_path()
 BUILD_PATH = default_build_path()
 
 # Input: various configuration files.
-CONFIG_FILE = Path("config/behavior/default.yaml").absolute()
-POSTGRESQL_CONF = Path("config/behavior/postgres/postgresql.conf").absolute()
+DATAGEN_CONFIG_FILE = Path("config/behavior/datagen.yaml").absolute()
+MODELING_CONFIG_FILE = Path("config/behavior/modeling.yaml").absolute()
+POSTGRESQL_CONF = Path("config/postgres/default_postgresql.conf").absolute()
 
 # Scratch work.
 BUILD_DATAGEN_PATH = BUILD_PATH / "datagen"
@@ -31,7 +32,7 @@ def task_behavior_datagen():
     datagen_args = (
         f"--benchbase-user {dodos.benchbase.DEFAULT_USER} "
         f"--benchbase-pass {dodos.benchbase.DEFAULT_PASS} "
-        f"--config-file {CONFIG_FILE} "
+        f"--config-file {DATAGEN_CONFIG_FILE} "
         f"--dir-benchbase {dodos.benchbase.ARTIFACTS_PATH} "
         f"--dir-benchbase-config {dodos.benchbase.CONFIG_FILES} "
         f"--dir-noisepage-bin {dodos.noisepage.ARTIFACTS_PATH} "
@@ -68,7 +69,7 @@ def task_behavior_train():
     Behavior modeling: train OU models.
     """
     train_args = (
-        f"--config-file {CONFIG_FILE} "
+        f"--config-file {MODELING_CONFIG_FILE} "
         f"--dir-data-train {ARTIFACT_DATA_DIFF / 'diff/train'} "
         f"--dir-data-eval {ARTIFACT_DATA_DIFF / 'diff/eval'} "
         f"--dir-output {ARTIFACT_MODELS} "

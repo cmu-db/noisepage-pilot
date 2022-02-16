@@ -150,22 +150,9 @@ class DataGeneratorCLI(cli.Application):
 
             # Set up extensions.
             logger.debug("NoisePage: Extension setup.")
-            if self.config["auto_explain"]:
-                logger.debug("NoisePage: auto_explain.")
-                self.query("benchbase", "ALTER SYSTEM SET auto_explain.log_min_duration = 0;")
-                self.pg_ctl["reload", "-D", pg_data_dir]()
-
             if self.config["pg_prewarm"]:
                 logger.debug("NoisePage: pg_prewarm.")
                 self.query("benchbase", "CREATE EXTENSION pg_prewarm;")
-
-            if self.config["pg_stat_statements"]:
-                logger.debug("NoisePage: pg_stat_statements.")
-                self.query("benchbase", "CREATE EXTENSION pg_stat_statements;")
-
-            if self.config["pg_store_plans"]:
-                logger.debug("NoisePage: pg_store_plans.")
-                self.query("benchbase", "CREATE EXTENSION pg_store_plans;")
 
             # Turn off pager to avoid needing tty interaction.
             self.query("benchbase", "SELECT 1;", ["--pset", "pager=off"])
@@ -221,12 +208,6 @@ class DataGeneratorCLI(cli.Application):
             Directory for experiment outputs.
         """
         try:
-            if self.config["pg_stat_statements"]:
-                self.query("benchbase", "SELECT pg_stat_statements_reset();")
-
-            if self.config["pg_store_plans"]:
-                self.query("benchbase", "SELECT pg_store_plans_reset();")
-
             cfg_path = (benchbase_results_dir / f"{benchmark}_config.xml").absolute()
 
             old_wd = os.getcwd()
@@ -247,28 +228,6 @@ class DataGeneratorCLI(cli.Application):
             logger.debug("BenchBase completed execute: %s", benchmark)
             os.chdir(old_wd)
 
-            if self.config["pg_stat_statements"]:
-                with (output_dir / "pg_stat_statements.csv").open("w") as f:
-                    pg_stat_statements_result = self.psql[
-                        "--dbname",
-                        "benchbase",
-                        "--csv",
-                        "--command",
-                        "SELECT * FROM pg_stat_statements ORDER BY calls DESC;",
-                    ]()
-                    f.write(pg_stat_statements_result)
-
-            if self.config["pg_store_plans"]:
-                with (output_dir / "pg_store_plans.csv").open("w") as f:
-                    plans_result = self.psql[
-                        "--dbname",
-                        "benchbase",
-                        "--csv",
-                        "--command",
-                        "SELECT queryid, planid, plan FROM pg_store_plans ORDER BY queryid, planid;",
-                    ]()
-                    f.write(plans_result)
-
             with (output_dir / "pg_stats.csv").open("w") as f:
                 pg_stats_results = self.psql[
                     "--dbname",
@@ -283,41 +242,6 @@ class DataGeneratorCLI(cli.Application):
             shutil.move(str(self.dir_benchbase / "results"), benchbase_results_dir)
         except (KeyboardInterrupt, FileNotFoundError, ProcessExecutionError) as err:
             self.clean(err, terminate=True, message="Error running BenchBase.")
-
-    @staticmethod
-    def exec_sqlsmith(benchmark):
-        """Run SQLSmith queries over the specific benchmark database."""
-        raise Exception("Wan needs to fix this.")
-        # try:
-        #     # Add SQLSmith user to benchbase DB with non-superuser privileges
-        #     self.query(
-        #         "benchbase",
-        #         "CREATE ROLE sqlsmith WITH PASSWORD 'password' INHERIT LOGIN;",
-        #     )
-        #
-        #     for table in BENCHDB_TO_TABLES[benchmark]:
-        #         logger.info("Granting SQLSmith permissions on table: %s", table)
-        #         self.query(
-        #             "benchbase",
-        #             "CREATE ROLE sqlsmith WITH PASSWORD 'password' INHERIT LOGIN;",
-        #         )
-        #         self.query(
-        #             "benchbase",
-        #             f"GRANT SELECT, INSERT, UPDATE, DELETE ON {table} TO sqlsmith;",
-        #         )
-        #
-        #     logger.info("Begin SQLSmith Execution")
-        #     # os.chdir(SQLSMITH_DIR)
-        #     (
-        #         local["./sqlsmith"][
-        #             '''--target="host=localhost port=5432 dbname=benchbase connect_timeout=10"''',
-        #             "--seed=42",
-        #             "--max-queries=10000",
-        #             "--exclude-catalog",
-        #         ]()
-        #     )
-        # except (KeyboardInterrupt, FileNotFoundError, ProcessExecutionError) as err:
-        #     self.clean(err, terminate=True, message="Error running SQLSmith.")
 
     @staticmethod
     def _assert_no_orphans():

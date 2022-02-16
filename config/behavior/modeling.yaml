@@ -1,21 +1,3 @@
-# DataGeneratorCLI configuration.
-datagen:
-  pg_prewarm: True
-  pg_analyze: True
-  pg_stat_statements: False # Intended for debugging only, as it affects benchmark and modeling results.
-  pg_store_plans: False     # Currently not installed.
-  auto_explain: False       # Intended for debugging only, as it affects benchmark and modeling results.
-  benchmarks: [tpcc]        # Benchmarks include: [auctionmark, epinions, seats, sibench, smallbank, tatp, tpcc, tpch, twitter, voter, wikipedia, ycsb]
-  sqlsmith: False           # Currently ignored because it causes dataset naming conflicts.
-  log_level: DEBUG
-  debug: False
-  param_sweep:
-    scalefactor: [0.01, 0.1]
-    terminals: [1]
-    works.work.rate: [10000]
-    works.work.time: [60]
-    
-
 # Modeling Configuration
 modeling:
   train_bench_db: tpcc

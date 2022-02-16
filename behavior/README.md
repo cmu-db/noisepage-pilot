@@ -69,8 +69,6 @@ Caveats:
 
 - Various benchmarks yield slightly different OUs for a BenchBase run with the same configuration. Cause unknown.
 - If the BenchBase experiment duration is too short, you may not get data for all OUs.
-- Using pg_stat_statements and auto_explain will affect benchmark statistics and model performance.
-    - These are only intended for debugging.
 - TPC-H support is blocked on the [native loader](https://github.com/cmu-db/benchbase/pull/99) being merged.
 - Epinions is missing results for the Materialize OU in the plan generated for `GetReviewsByUser`.
     - `SELECT * FROM review r, useracct u WHERE u.u_id = r.u_id AND r.u_id=$1 ORDER BY rating LIMIT 10`
