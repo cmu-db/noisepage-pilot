@@ -9,7 +9,6 @@ lightgbm
 numpy>=1.20 # numpy.typing.
 pandarallel # Forecast. Parallelize pandas computations.
 pandas
-pathlib
 plumbum
 psycopg
 psutil
