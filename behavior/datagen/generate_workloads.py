@@ -51,7 +51,7 @@ def datagen_sweep_callback(parameters, closure):
     inject_param_xml(benchbase_config_file.as_posix(), parameters)
 
     # Copy the default postgresql.conf file.
-    # TODO(wz2): Rewrite the postgresql.conf based on knob tweaks.
+    # TODO(wz2): Rewrite the postgresql.conf based on knob tweaks and modify the param_suffix above.
     benchbase_postgresql_config_file = Path(results_dir / "postgresql.conf")
     shutil.copy(postgresql_config_file, benchbase_postgresql_config_file)
 

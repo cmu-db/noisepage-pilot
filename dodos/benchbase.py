@@ -108,6 +108,8 @@ def task_benchbase_bootstrap_dbms():
     """
     sql_list = [
         f"CREATE ROLE {DEFAULT_USER} WITH LOGIN SUPERUSER ENCRYPTED PASSWORD '{DEFAULT_PASS}'",
+        f"ALTER DATABASE {DEFAULT_DB} SET compute_query_id = 'ON';",
+        "CREATE EXTENSION pg_prewarm;",
     ]
 
     return {
