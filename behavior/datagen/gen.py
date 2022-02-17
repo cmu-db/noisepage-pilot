@@ -452,7 +452,7 @@ class DataGeneratorCLI(cli.Application):
 
         # Setup experiment directory.
         experiment_name = f"experiment-{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
-        modes = ["train", "eval"] if not self.config["debug"] else ["debug"]
+        modes = ["train", "eval"]
 
         # For each training mode, ...
         for mode in modes:

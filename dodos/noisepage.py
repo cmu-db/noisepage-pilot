@@ -72,11 +72,10 @@ def task_noisepage_build():
             "doit np_config --build_type=release",
             # Compile NoisePage.
             "doit np_build",
-            "doit hutch_install",
             # Move artifacts out.
             lambda: os.chdir(doit.get_initial_workdir()),
             f"mkdir -p {ARTIFACTS_PATH}",
-            f"mv {BUILD_PATH / 'build/bin/*'} {ARTIFACTS_PATH}",
+            f"cp {BUILD_PATH / 'build/bin/*'} {ARTIFACTS_PATH}",
             "sudo apt-get install --yes bpfcc-tools linux-headers-$(uname -r)",
             f"sudo pip3 install -r {BUILD_PATH / 'cmudb/tscout/requirements.txt'}",
             # Reset working directory.
@@ -104,16 +103,12 @@ def task_noisepage_init():
     """
 
     def run_noisepage_detached(config):
-        if config is None:
-            config = DEFAULT_POSTGRESQL_CONF_PATH
-
         local["cp"][f"{config}", f"{DEFAULT_PGDATA}/postgresql.conf"].run_nohup()
         ret = local["./pg_ctl"]["start", "-D", DEFAULT_PGDATA].run_nohup(stdout="noisepage.out")
         print(f"NoisePage PID: {ret.pid}")
 
     sql_list = [
         f"CREATE ROLE {DEFAULT_USER} WITH LOGIN SUPERUSER ENCRYPTED PASSWORD '{DEFAULT_PASS}'",
-        "LOAD 'hutch_extension'",
     ]
 
     return {
@@ -136,10 +131,39 @@ def task_noisepage_init():
             {
                 "name": "config",
                 "long": "config",
-                "help": "Path to the postgresql.conf configuration file",
-                "default": None,
+                "help": "Path to the postgresql.conf configuration file.",
+                "default": DEFAULT_POSTGRESQL_CONF_PATH,
             },
         ],
+    }
+
+
+def task_noisepage_hutch_install():
+    """
+    NoisePage: install hutch to support EXPLAIN (format tscout)
+    """
+    sql_list = [
+        # Note that this will overwrite any existing settings of shared_preload_libraries.
+        "ALTER SYSTEM SET shared_preload_libraries='hutch_extension'",
+    ]
+
+    return {
+        "actions": [
+            lambda: os.chdir(BUILD_PATH),
+            # Compile Hutch.
+            "doit hutch_install",
+            lambda: os.chdir(ARTIFACTS_PATH),
+            *[
+                f'PGPASSWORD={DEFAULT_PASS} ./psql --dbname={DEFAULT_DB} --username={DEFAULT_USER} --command="{sql}"'
+                for sql in sql_list
+            ],
+            lambda: local["./pg_ctl"]["restart", "-D", DEFAULT_PGDATA].run_fg(),
+            # Reset working directory.
+            lambda: os.chdir(doit.get_initial_workdir()),
+        ],
+        "uptodate": [False],
+        "file_dep": [ARTIFACT_postgres],
+        "verbosity": VERBOSITY_DEFAULT,
     }
 
 

@@ -4,7 +4,6 @@ datagen:
   pg_analyze: True
   benchmarks: [tpcc]        # Benchmarks include: [auctionmark, epinions, seats, sibench, smallbank, tatp, tpcc, tpch, twitter, voter, wikipedia, ycsb]
   log_level: DEBUG
-  debug: False
   param_sweep:
     scalefactor: [0.01, 0.1]
     terminals: [1]
