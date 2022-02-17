@@ -18,9 +18,50 @@ POSTGRESQL_CONF = Path("config/postgres/default_postgresql.conf").absolute()
 BUILD_DATAGEN_PATH = BUILD_PATH / "datagen"
 
 # Output: model directory.
+ARTIFACT_WORKLOADS = ARTIFACTS_PATH / "workloads"
 ARTIFACT_DATA_TRAIN = ARTIFACTS_PATH / "data/train"
 ARTIFACT_DATA_DIFF = ARTIFACTS_PATH / "data/diff"
 ARTIFACT_MODELS = ARTIFACTS_PATH / "models"
+
+
+def task_behavior_generate_workloads():
+    """
+    Behavior modeling: generate the workloads that we plan to execute for training data.
+    """
+    generate_workloads_args = (
+        f"--config-file {DATAGEN_CONFIG_FILE} "
+        f"--postgresql-config-file {POSTGRESQL_CONF} "
+        f"--dir-benchbase-config {dodos.benchbase.CONFIG_FILES} "
+        f"--dir-output {ARTIFACT_WORKLOADS} "
+    )
+
+    def conditional_clear(clear_existing):
+        if clear_existing != "False":
+            local["rm"]["-rf"][f"{ARTIFACT_WORKLOADS}"].run()
+
+        return None
+
+    return {
+        "actions": [
+            conditional_clear,
+            f"python3 -m behavior generate_workloads {generate_workloads_args}",
+        ],
+        "file_dep": [
+            dodos.benchbase.ARTIFACT_benchbase,
+            dodos.noisepage.ARTIFACT_postgres,
+        ],
+        "targets": [ARTIFACT_WORKLOADS],
+        "uptodate": [False],
+        "verbosity": VERBOSITY_DEFAULT,
+        "params": [
+            {
+                "name": "clear_existing",
+                "long": "clear_existing",
+                "help": "Remove existing generated workloads.",
+                "default": True,
+            },
+        ],
+    }
 
 
 def task_behavior_datagen():
