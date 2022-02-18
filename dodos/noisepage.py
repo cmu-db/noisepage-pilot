@@ -150,7 +150,7 @@ def task_noisepage_hutch_install():
     return {
         "actions": [
             lambda: os.chdir(BUILD_PATH),
-            # Compile Hutch.
+            # Compile and install Hutch.
             "doit hutch_install",
             lambda: os.chdir(ARTIFACTS_PATH),
             *[
