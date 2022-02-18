@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 import doit
 from doit.action import CmdAction
@@ -8,6 +9,7 @@ from dodos import VERBOSITY_DEFAULT, default_artifacts_path, default_build_path
 
 ARTIFACTS_PATH = default_artifacts_path()
 BUILD_PATH = default_build_path()
+DEFAULT_POSTGRESQL_CONF_PATH = Path("config/postgres/default_postgresql.conf").absolute()
 
 DEFAULT_DB = "noisepage"
 DEFAULT_USER = "terrier"
@@ -67,14 +69,13 @@ def task_noisepage_build():
         "actions": [
             lambda: os.chdir(BUILD_PATH),
             # Configure NoisePage.
-            "./cmudb/build/configure.sh release",
+            "doit np_config --build_type=release",
             # Compile NoisePage.
-            "make -j world-bin",
-            "make install-world-bin",
+            "doit np_build",
             # Move artifacts out.
             lambda: os.chdir(doit.get_initial_workdir()),
             f"mkdir -p {ARTIFACTS_PATH}",
-            f"mv {BUILD_PATH / 'build/bin/*'} {ARTIFACTS_PATH}",
+            f"cp {BUILD_PATH / 'build/bin/*'} {ARTIFACTS_PATH}",
             "sudo apt-get install --yes bpfcc-tools linux-headers-$(uname -r)",
             f"sudo pip3 install -r {BUILD_PATH / 'cmudb/tscout/requirements.txt'}",
             # Reset working directory.
@@ -101,7 +102,8 @@ def task_noisepage_init():
     NoisePage: run NoisePage in detached mode.
     """
 
-    def run_noisepage_detached():
+    def run_noisepage_detached(config):
+        local["cp"][f"{config}", f"{DEFAULT_PGDATA}/postgresql.conf"].run_nohup()
         ret = local["./pg_ctl"]["start", "-D", DEFAULT_PGDATA].run_nohup(stdout="noisepage.out")
         print(f"NoisePage PID: {ret.pid}")
 
@@ -125,6 +127,43 @@ def task_noisepage_init():
         "file_dep": [ARTIFACT_pg_ctl],
         "uptodate": [False],
         "verbosity": VERBOSITY_DEFAULT,
+        "params": [
+            {
+                "name": "config",
+                "long": "config",
+                "help": "Path to the postgresql.conf configuration file.",
+                "default": DEFAULT_POSTGRESQL_CONF_PATH,
+            },
+        ],
+    }
+
+
+def task_noisepage_hutch_install():
+    """
+    NoisePage: install hutch extension to support EXPLAIN (format tscout).
+    """
+    sql_list = [
+        # Note that this will overwrite any existing settings of shared_preload_libraries.
+        "ALTER SYSTEM SET shared_preload_libraries='hutch_extension'",
+    ]
+
+    return {
+        "actions": [
+            lambda: os.chdir(BUILD_PATH),
+            # Compile and install Hutch.
+            "doit hutch_install",
+            lambda: os.chdir(ARTIFACTS_PATH),
+            *[
+                f'PGPASSWORD={DEFAULT_PASS} ./psql --dbname={DEFAULT_DB} --username={DEFAULT_USER} --command="{sql}"'
+                for sql in sql_list
+            ],
+            lambda: local["./pg_ctl"]["restart", "-D", DEFAULT_PGDATA].run_fg(),
+            # Reset working directory.
+            lambda: os.chdir(doit.get_initial_workdir()),
+        ],
+        "uptodate": [False],
+        "file_dep": [ARTIFACT_postgres],
+        "verbosity": VERBOSITY_DEFAULT,
     }
 
 
@@ -141,7 +180,6 @@ def task_noisepage_enable_logging():
     return {
         "actions": [
             lambda: os.chdir(ARTIFACTS_PATH),
-            lambda: local["./pg_ctl"]["start", "-D", DEFAULT_PGDATA].run_fg(retcode=None),
             *[
                 f'PGPASSWORD={DEFAULT_PASS} ./psql --dbname={DEFAULT_DB} --username={DEFAULT_USER} --command="{sql}"'
                 for sql in sql_list
@@ -167,7 +205,6 @@ def task_noisepage_disable_logging():
     return {
         "actions": [
             lambda: os.chdir(ARTIFACTS_PATH),
-            lambda: local["./pg_ctl"]["start", "-D", DEFAULT_PGDATA].run_fg(retcode=None),
             *[
                 f'PGPASSWORD={DEFAULT_PASS} ./psql --dbname={DEFAULT_DB} --username={DEFAULT_USER} --command="{sql}"'
                 for sql in sql_list

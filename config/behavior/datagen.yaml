@@ -1,0 +1,11 @@
+# DataGeneratorCLI configuration.
+datagen:
+  pg_prewarm: True
+  pg_analyze: True
+  benchmarks: [tpcc]        # Benchmarks include: [auctionmark, epinions, seats, sibench, smallbank, tatp, tpcc, tpch, twitter, voter, wikipedia, ycsb]
+  log_level: DEBUG
+  param_sweep:
+    scalefactor: [0.01, 0.1]
+    terminals: [1]
+    works.work.rate: [10000]
+    works.work.time: [60]
