@@ -140,7 +140,7 @@ def task_noisepage_init():
 
 def task_noisepage_hutch_install():
     """
-    NoisePage: install hutch to support EXPLAIN (format tscout)
+    NoisePage: install hutch extension to support EXPLAIN (format tscout).
     """
     sql_list = [
         # Note that this will overwrite any existing settings of shared_preload_libraries.
