@@ -24,6 +24,7 @@ def task_project1_enable_logging():
                 for sql in sql_list
             ],
             lambda: cmd.sudo["systemctl"]["restart", "postgresql"].run_fg(),
+            "until pg_isready ; do sleep 1 ; done",
         ],
         "verbosity": VERBOSITY_DEFAULT,
     }
@@ -46,6 +47,7 @@ def task_project1_disable_logging():
                 for sql in sql_list
             ],
             lambda: cmd.sudo["systemctl"]["restart", "postgresql"].run_fg(),
+            "until pg_isready ; do sleep 1 ; done",
         ],
         "verbosity": VERBOSITY_DEFAULT,
     }
@@ -62,6 +64,7 @@ def task_project1_reset_db():
             f"PGPASSWORD={DEFAULT_PASS} dropdb --host=localhost --username={DEFAULT_USER} --if-exists {DEFAULT_DB}",
             # Create the project database.
             f"PGPASSWORD={DEFAULT_PASS} createdb --host=localhost --username={DEFAULT_USER} {DEFAULT_DB}",
+            "until pg_isready ; do sleep 1 ; done",
         ],
         "verbosity": VERBOSITY_DEFAULT,
     }
