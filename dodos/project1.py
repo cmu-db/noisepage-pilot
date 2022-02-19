@@ -6,6 +6,20 @@ DEFAULT_DB = "project1db"
 DEFAULT_USER = "project1user"
 DEFAULT_PASS = "project1pass"
 
+# Note that pgreplay requires the following configuration:
+#
+# log_min_messages=error (or more)
+# log_min_error_statement=log (or more)
+# log_connections=on
+# log_disconnections=on
+# log_line_prefix='%m|%u|%d|%c|' (if you don't use CSV logging)
+# log_statement='all'
+# lc_messages must be set to English (encoding does not matter)
+# bytea_output=escape (from version 9.0 on, only if you want to replay the log on 8.4 or earlier)
+#
+# Additionally, doit has a bit of an anti-feature with command substitution,
+# so you have to escape %'s by Python %-formatting rules (no way to disable this behavior).
+
 
 def task_project1_enable_logging():
     """
@@ -15,6 +29,9 @@ def task_project1_enable_logging():
         "ALTER SYSTEM SET log_destination='csvlog'",
         "ALTER SYSTEM SET logging_collector='on'",
         "ALTER SYSTEM SET log_statement='all'",
+        # For pgreplay.
+        "ALTER SYSTEM SET log_connections='on'",
+        "ALTER SYSTEM SET log_disconnections='on'",
     ]
 
     return {
@@ -38,6 +55,9 @@ def task_project1_disable_logging():
         "ALTER SYSTEM SET log_destination='stderr'",
         "ALTER SYSTEM SET logging_collector='off'",
         "ALTER SYSTEM SET log_statement='none'",
+        # For pgreplay.
+        "ALTER SYSTEM SET log_connections='off'",
+        "ALTER SYSTEM SET log_disconnections='off'",
     ]
 
     return {
