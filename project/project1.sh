@@ -8,9 +8,10 @@ STUDENTS=(
 )
 
 # TODO(Matt): Update benchmark list with workloads.
+# Define all the benchmarks, format is "benchmark,workload_csv".
 BENCHMARKS=(
-  'epinions'
-  'indexjungle'
+  'epinions,/tmp/epinions.csv'
+  #'indexjungle,/tmp/indexjungle.csv'
 )
 
 # Set VERBOSITY to 0 for grading, 2 for development.
@@ -76,17 +77,32 @@ _restore_database() {
   echo "Restored database from: ${dump_path}"
 }
 
+_clear_log_folder() {
+  sudo bash -c "rm -rf /var/lib/postgresql/14/main/log/*"
+  echo "Cleared all query logs."
+}
+
+_copy_logs() {
+  save_path="${1}"
+
+  # TODO(WAN): Is there a way to ensure all flushed?
+  sleep 10
+  sudo bash -c "cat /var/lib/postgresql/14/main/log/*.csv > ${save_path}"
+  echo "Copied all query logs to: ${save_path}"
+}
+
 _grade_iteration() {
   submission_path="${1}"
   benchmark="${2}"
-  iteration="${3}"
+  workload_csv="${3}"
+  iteration="${4}"
 
   actions_file="./actions.sql"
   config_file="./config.json"
   results_folder="${submission_path}/${benchmark}/iteration_${iteration}"
   dump_folder="./${benchmark}_dump_tmp"
 
-  echo "Grading benchmark ${benchmark} iteration ${iteration}: ${submission_path}"
+  echo "Grading benchmark ${benchmark} workload ${workload_csv} iteration ${iteration}: ${submission_path}"
   set -e
 
   # cd to the student folder.
@@ -94,7 +110,7 @@ _grade_iteration() {
   # Dump the current database state.
   _dump_database "${dump_folder}"
   # Run action generation with a timeout.
-  timeout ${TIME_ACTION_GENERATION} doit project1
+  timeout ${TIME_ACTION_GENERATION} doit project1 --workload_csv="${workload_csv}"
   # Restore the database state.
   _restore_database "${dump_folder}"
   # Remove the temporary dump folder.
@@ -111,13 +127,22 @@ _grade_iteration() {
   # cd to the original root folder again.
   cd - 1>/dev/null || exit 1
   # Evaluate the performance on the workload.
+  _clear_log_folder
+  doit project1_enable_logging
   doit --verbosity ${VERBOSITY} benchbase_run --benchmark="${benchmark}" --config="./artifacts/project/${benchmark}_config.xml" --args="--execute=true"
+  doit project1_disable_logging
+
   # Yoink the result files.
   mkdir -p "${results_folder}"
   mv ./artifacts/benchbase/results/* "${results_folder}"
   # Yoink the student stuff too because why not.
   mv "./${submission_path}/${actions_file}" "${results_folder}"
   mv "./${submission_path}/${config_file}" "${results_folder}"
+  # Save the workload trace for the next iteration.
+  _copy_logs "${results_folder}/workload.csv"
+
+  # IF YOU WANT TO SAVE DISK SPACE, YOU SHOULD UNCOMMENT THE FOLLOWING LINE.
+  # rm ${workload_csv}
 
   # Return cleanly.
   return 0
@@ -126,6 +151,13 @@ _grade_iteration() {
 _grade() {
   submission_path="${1}"
   benchmark="${2}"
+  workload_csv="${3}"
+
+  # Make a private copy of workload CSV.
+  bootstrap_folder="${submission_path}/${benchmark}/bootstrap"
+  mkdir -p ${bootstrap_folder}
+  cp ${workload_csv} ${bootstrap_folder}/workload.csv
+  workload_csv="${bootstrap_folder}/workload.csv"
 
   # Unfortunately, timeout doesn't work on special Bash constructs.
   # We export the function and wrap everything in a subshell.
@@ -141,7 +173,7 @@ _grade() {
     trap stop_grading SIGINT
 
     while [ "${keep_going}" == "true" ]; do
-      _grade_iteration "${submission_path}" "${benchmark}" "${iteration}"
+      _grade_iteration "${submission_path}" "${benchmark}" "${workload_csv}" "${iteration}"
       case $? in
       0)
         # Program exited normally, looping for another iteration.
@@ -153,6 +185,7 @@ _grade() {
         break
         ;;
       esac
+      workload_csv="${submission_path}/${benchmark}/iteration_${iteration}/workload.csv"
       iteration=$((iteration + 1))
     done
   ) &
@@ -211,39 +244,51 @@ main() {
   # Create the folder for all the benchmark dumps.
   mkdir -p "./${benchmark_dump_folder}"
 
-  for benchmark in "${BENCHMARKS[@]}"; do
-    benchmark_dump_path="./${benchmark_dump_folder}/${benchmark}_primary"
+  for benchmark_spec in "${BENCHMARKS[@]}"; do
+    while IFS=',' read -r benchmark workload_csv; do
+      benchmark_dump_path="./${benchmark_dump_folder}/${benchmark}_primary"
 
-    # Create the project database.
-    _setup_database
-    # Load the benchmark data.
-    _setup_benchmark "${benchmark}"
-    # Dump the project database to benchmark_primary.
-    _dump_database "${benchmark_dump_path}"
+      # Create the project database.
+      _setup_database
+      # Load the benchmark data.
+      _setup_benchmark "${benchmark}"
+      # Dump the project database to benchmark_primary.
+      _dump_database "${benchmark_dump_path}"
+      # Generate the base workload CSV.
+      _clear_log_folder
+      doit project1_enable_logging
+      doit benchbase_run --benchmark="${benchmark}" --config="./artifacts/project/${benchmark}_config.xml" --args="--execute=true"
+      doit project1_disable_logging
+      _copy_logs "/tmp/${benchmark}.csv"
+      _clear_log_folder
+      # Restore the project database.
+      _restore_database "${benchmark_dump_path}"
 
-    # Create a folder for student submissions, if it doesn't exist yet.
-    student_submission_folder="./artifacts/project/student"
-    mkdir -p "./${student_submission_folder}"
+      # Create a folder for student submissions, if it doesn't exist yet.
+      student_submission_folder="./artifacts/project/student"
+      mkdir -p "./${student_submission_folder}"
 
-    # Preliminaries done!
-    # Time to test student submissions.
-    for student in "${STUDENTS[@]}"; do
-      while IFS=',' read -r git_url andrew_id; do
-        student_submission_path="./${student_submission_folder}/${andrew_id}"
+      # Preliminaries done!
+      # Time to test student submissions.
+      for student in "${STUDENTS[@]}"; do
+        while IFS=',' read -r git_url andrew_id; do
+          student_submission_path="${student_submission_folder}/${andrew_id}"
+          student_submission_path="${student_submission_folder}/${andrew_id}"
 
-        # Restore the state of the database.
-        _restore_database "${benchmark_dump_path}"
-        # Clone the student's submission, if it hasn't been cloned yet.
-        git clone --quiet $git_url ${student_submission_path} || true
-        # Grade the student submission in a subshell.
-        # This avoids potential cd shenanigans.
-        # Additionally, a single student grading fail shouldn't stop the harness.
-        set +e
-        (_grade ${student_submission_path} ${benchmark})
-        set -e
-        # TODO(WAN): Export grades?
-      done <<<"$student"
-    done
+          # Restore the state of the database.
+          _restore_database "${benchmark_dump_path}"
+          # Clone the student's submission, if it hasn't been cloned yet.
+          git clone --quiet $git_url ${student_submission_path} || true
+          # Grade the student submission in a subshell.
+          # This avoids potential cd shenanigans.
+          # Additionally, a single student grading fail shouldn't stop the harness.
+          set +e
+          (_grade ${student_submission_path} ${benchmark} ${workload_csv})
+          set -e
+          # TODO(WAN): Export grades?
+        done <<<"$student"
+      done
+    done <<<"$benchmark_spec"
   done
 }
 
