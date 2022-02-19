@@ -50,6 +50,11 @@ def task_project1_enable_logging():
 def task_project1_disable_logging():
     """
     Project1: disable logging. (will cause a restart)
+
+    This function will reset to the default parameters on PostgreSQL 14,
+    which is not necessarily the right thing to do -- for example, if you
+    had custom settings before enable/disable, those custom settings
+    will not be restored.
     """
     sql_list = [
         "ALTER SYSTEM SET log_destination='stderr'",
