@@ -49,6 +49,9 @@ _setup_benchmark() {
   xmlstarlet edit --inplace --update '/parameters/url' --value "jdbc:postgresql://localhost:5432/${DB_NAME}?preferQueryMode=simple" ./artifacts/project/${benchmark}_config.xml
   xmlstarlet edit --inplace --update '/parameters/username' --value "${DB_USER}" ./artifacts/project/${benchmark}_config.xml
   xmlstarlet edit --inplace --update '/parameters/password' --value "${DB_PASS}" ./artifacts/project/${benchmark}_config.xml
+  xmlstarlet edit --inplace --update '/parameters/scalefactor' --value "1" ./artifacts/project/${benchmark}_config.xml
+  xmlstarlet edit --inplace --update '/parameters/works/work/time' --value "30" ./artifacts/project/${benchmark}_config.xml
+  xmlstarlet edit --inplace --update '/parameters/works/work/rate' --value "unlimited" ./artifacts/project/${benchmark}_config.xml
 
   # Load the benchmark into the project database.
   doit --verbosity ${VERBOSITY} benchbase_run --benchmark="${benchmark}" --config="./artifacts/project/${benchmark}_config.xml" --args="--create=true --load=true"
