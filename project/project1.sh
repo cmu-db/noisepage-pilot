@@ -27,7 +27,7 @@ export DB_NAME="project1db"
 
 # TODO(Matt): Finalize these timeouts.
 # TA: Total time that the grading script can run per (student, benchmark).
-export TIME_GRADING_TOTAL="1m"
+export TIME_GRADING_TOTAL="3m"
 # Student: Maximum time allowed per (student, benchmark, action generation).
 export TIME_ACTION_GENERATION="10m"
 
@@ -110,7 +110,7 @@ _grade_iteration() {
   # Dump the current database state.
   _dump_database "${dump_folder}"
   # Run action generation with a timeout.
-  timeout ${TIME_ACTION_GENERATION} doit project1 --workload_csv="${workload_csv}"
+  timeout ${TIME_ACTION_GENERATION} doit project1 --workload_csv="${workload_csv}" --timeout="${TIME_ACTION_GENERATION}"
   # Restore the database state.
   _restore_database "${dump_folder}"
   # Remove the temporary dump folder.
