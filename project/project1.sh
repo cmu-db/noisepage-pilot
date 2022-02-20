@@ -96,11 +96,11 @@ _grade_iteration() {
   submission_path="${1}"
   benchmark="${2}"
   workload_csv="${3}"
-  iteration="${4}"
+  results_folder="${4}"
+  iteration="${5}"
 
   actions_file="./actions.sql"
   config_file="./config.json"
-  results_folder="${submission_path}/${benchmark}/iteration_${iteration}"
   dump_folder="./${benchmark}_dump_tmp"
 
   echo "Grading benchmark ${benchmark} workload ${workload_csv} iteration ${iteration}: ${submission_path}"
@@ -127,6 +127,7 @@ _grade_iteration() {
 
   # cd to the original root folder again.
   cd - 1>/dev/null || exit 1
+
   # Evaluate the performance on the workload.
   _clear_log_folder
   doit project1_enable_logging
@@ -153,6 +154,7 @@ _grade() {
   submission_path="${1}"
   benchmark="${2}"
   workload_csv="${3}"
+  evaluations_folder="${4}"
 
   # Make a private copy of workload CSV.
   bootstrap_folder="${submission_path}/${benchmark}/bootstrap"
@@ -174,7 +176,9 @@ _grade() {
     trap stop_grading SIGINT
 
     while [ "${keep_going}" == "true" ]; do
-      _grade_iteration "${submission_path}" "${benchmark}" "${workload_csv}" "${iteration}"
+      results_folder="$(pwd)/${evaluations_folder}/${benchmark}/$(basename ${submission_path})/iteration_${iteration}"
+
+      _grade_iteration "${submission_path}" "${benchmark}" "${workload_csv}" "${results_folder}" "${iteration}"
       case $? in
       0)
         # Program exited normally, looping for another iteration.
@@ -186,7 +190,9 @@ _grade() {
         break
         ;;
       esac
-      workload_csv="$(pwd)/${submission_path}/${benchmark}/iteration_${iteration}/workload.csv"
+
+      # TODO(WAN): This definition of workload_csv is disconnected from where _grade_iteration writes it.
+      workload_csv="${results_folder}/workload.csv"
       iteration=$((iteration + 1))
     done
   ) &
@@ -244,10 +250,14 @@ main() {
   benchmark_dump_folder="./artifacts/project/dumps"
   # Create the folder for all the benchmark dumps.
   mkdir -p "./${benchmark_dump_folder}"
+  # Create the folder for all evaluation summaries.
+  evaluations_folder="./artifacts/project/evaluations"
+  mkdir -p "./${evaluations_folder}"
 
   for benchmark_spec in "${BENCHMARKS[@]}"; do
     while IFS=',' read -r benchmark workload_csv; do
       benchmark_dump_path="./${benchmark_dump_folder}/${benchmark}_primary"
+      evaluation_baseline_path="${evaluations_folder}/${benchmark}/baseline/"
 
       # Create the project database.
       _setup_database
@@ -262,6 +272,9 @@ main() {
       doit project1_disable_logging
       _copy_logs "${workload_csv}"
       _clear_log_folder
+      # Copy out the base workload results.
+      mkdir -p "${evaluation_baseline_path}"
+      mv ./artifacts/benchbase/results/* "${evaluation_baseline_path}"
       # Restore the project database.
       _restore_database "${benchmark_dump_path}"
 
@@ -284,7 +297,7 @@ main() {
           # This avoids potential cd shenanigans.
           # Additionally, a single student grading fail shouldn't stop the harness.
           set +e
-          (_grade ${student_submission_path} ${benchmark} ${workload_csv})
+          (_grade ${student_submission_path} ${benchmark} ${workload_csv} ${evaluations_folder})
           set -e
           # TODO(WAN): Export grades?
         done <<<"$student"
