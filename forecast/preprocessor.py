@@ -1,3 +1,4 @@
+import csv
 import glob
 import re
 import time
@@ -322,7 +323,7 @@ class Preprocessor:
 
         return query_series.parallel_apply(parse)
 
-    def _from_csvlogs(self, csvlogs, log_columns):
+    def _from_csvlogs(self, csvlogs, log_columns, store_query_subst=False):
         """
         Glue code for initializing the Preprocessor from CSVLOGs.
 
@@ -332,6 +333,8 @@ class Preprocessor:
             List of PostgreSQL CSVLOG files.
         log_columns : List[str]
             List of columns in the csv log.
+        store_query_subst: bool
+            True if the "query_subst" column should be stored.
 
         Returns
         -------
@@ -369,23 +372,36 @@ class Preprocessor:
         df[["query_template", "query_params"]] = pd.DataFrame(parsed.tolist(), index=df.index)
         clock("Parse query")
 
-        # only keep the relevant columns for storage
-        return df[["log_time", "query_template", "query_params"]]
+        # Only keep the relevant columns to optimize for storage, unless otherwise specified.
+        stored_columns = ["log_time", "query_template", "query_params"]
+        if store_query_subst:
+            stored_columns.append("query_subst")
+        return df[stored_columns]
 
-    def __init__(self, csvlogs=None, log_columns=None, parquet_path=None):
+    def __init__(self, parquet_path=None, csvlogs=None, log_columns=None, store_query_subst=False):
         """
-        Initialize the preprocessor with either CSVLOGs or a HDF dataframe.
+        Initialize the preprocessor with either CSVLOGs or a Parquet dataframe.
 
         Parameters
         ----------
+        parquet_path : str | None
+            Path to a Parquet file containing a Preprocessor's get_dataframe().
+            If specified, none of the other keyword arguments have any effect.
+
         csvlogs : List[str] | None
             List of PostgreSQL CSVLOG files.
 
-        hdf_path : str | None
-            Path to a .h5 file containing a Preprocessor's get_dataframe().
+        log_columns : List[str] | None
+            List of columns for the PostgreSQL CSVLOG format.
+
+        store_query_subst : bool
+            True if the "query_subst" column should be stored.
+            This stores an approximation of the "raw SQL query" used to generate the query template and parameters.
+            This is not necessarily the raw SQL query itself since that may exist in various forms depending on the
+            query protocol format.
         """
         if csvlogs is not None:
-            df = self._from_csvlogs(csvlogs, log_columns)
+            df = self._from_csvlogs(csvlogs, log_columns, store_query_subst=store_query_subst)
             df.set_index("log_time", inplace=True)
         else:
             assert parquet_path is not None
@@ -393,7 +409,7 @@ class Preprocessor:
             # convert params from array back to tuple so it is hashable
             df["query_params"] = df["query_params"].map(lambda x: tuple(x))
 
-        # grouping queries by template-parameters count.
+        # Grouping queries by template-parameters count.
         gbp = df.groupby(["query_template", "query_params"]).size()
         grouped_by_params = pd.DataFrame(gbp, columns=["count"])
         # grouped_by_params.drop('', axis=0, level=0, inplace=True)
@@ -436,15 +452,30 @@ class PreprocessorCLI(cli.Application):
         "backend_type",
     ]
 
-    query_log_folder = cli.SwitchAttr("--query-log-folder", str, mandatory=True)
-    output_parquet = cli.SwitchAttr("--output-parquet", str, mandatory=True)
-    output_timestamp = cli.SwitchAttr("--output-timestamp", str, default=None)
+    query_log_folder = cli.SwitchAttr(
+        "--query-log-folder", str, mandatory=True, help="The location containing postgresql*.csv query logs."
+    )
+    output_parquet = cli.SwitchAttr(
+        "--output-parquet", str, mandatory=True, help="The location to write the output Parquet to."
+    )
+    output_timestamp = cli.SwitchAttr(
+        "--output-timestamp",
+        str,
+        default=None,
+        help="If specified, the min and max timestamps will be output to this file.",
+    )
+    output_query_templates = cli.SwitchAttr(
+        "--output-query-templates", str, default=None, help="If specified, output location for SQL query templates."
+    )
+    output_queries = cli.SwitchAttr(
+        "--output-queries", str, default=None, help="If specified, output location for SQL queries."
+    )
 
     log_type = cli.SwitchAttr(
         "--log-type",
         argtype=str,
         default="pg14",
-        help="Defines What the columns of the csvlog are. Can be the following options: pg14, pg12, tiramisu",
+        help="Defines what the columns of the csvlog are. Can be the following options: {pg14, pg12, tiramisu}.",
     )
 
     def main(self):
@@ -470,17 +501,28 @@ class PreprocessorCLI(cli.Application):
                 "detail",
             ]
 
-        print("Preprocessing CSV logs...")
-        preprocessor = Preprocessor(pgfiles, log_columns)
-        print("Storing parquet")
+        print(f"Preprocessing CSV logs in: {self.query_log_folder}")
+        preprocessor = Preprocessor(
+            csvlogs=pgfiles, log_columns=log_columns, store_query_subst=self.output_queries is not None
+        )
+        print(f"Storing Parquet: {self.output_parquet}.")
         preprocessor.get_dataframe().to_parquet(self.output_parquet, compression="gzip")
 
         # Optionally write min and max timestamps of queries to infer forecast window.
-        if self.output_timestamp is None:
-            return
-        with open(self.output_timestamp, "w") as ts_file:
-            ts_file.write(preprocessor.get_dataframe().index.min().isoformat() + "\n")
-            ts_file.write(preprocessor.get_dataframe().index.max().isoformat() + "\n")
+        if self.output_timestamp is not None:
+            with open(self.output_timestamp, "w") as ts_file:
+                ts_file.write(preprocessor.get_dataframe().index.min().isoformat() + "\n")
+                ts_file.write(preprocessor.get_dataframe().index.max().isoformat() + "\n")
+
+        # Optionally write out the query templates and queries out to a file.
+        if self.output_query_templates is not None:
+            templates = preprocessor.get_dataframe()["query_template"]
+            templates = pd.Series(templates[templates != ""].unique())
+            templates.to_csv(self.output_query_templates, header=False, index=False, quoting=csv.QUOTE_ALL)
+        if self.output_queries is not None:
+            queries = preprocessor.get_dataframe()["query_subst"]
+            queries = queries[queries != ""]
+            queries.to_csv(self.output_queries, header=False, index=False, quoting=csv.QUOTE_ALL)
 
 
 if __name__ == "__main__":
