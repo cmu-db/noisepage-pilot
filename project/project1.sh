@@ -144,7 +144,7 @@ _grade_iteration() {
   _copy_logs "${results_folder}/workload.csv"
 
   # IF YOU WANT TO SAVE DISK SPACE, YOU SHOULD UNCOMMENT THE FOLLOWING LINE.
-  # rm ${workload_csv}
+  rm ${workload_csv}
 
   # Return cleanly.
   return 0
