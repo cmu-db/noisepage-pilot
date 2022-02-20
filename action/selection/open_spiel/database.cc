@@ -380,19 +380,11 @@ Forecast::Forecast(const std::string &forecast_path) {
   std::string line;
   long long num_queries_total = 0;
   while (std::getline(forecast_csv, line)) {
-    std::string query;
-    long long num_times;
     // TODO(WAN): Fragile, but we control the output format + we may replace this code with SQL.
-    std::string token;
-    std::istringstream ss(line);
-    std::getline(ss, token, '"');
-    std::getline(ss, token, '"');
-    query = token;
-    std::getline(ss, token, '"');
-    std::getline(ss, token, '"');
-    num_times = std::stoll(token);
-    num_queries_total += num_times;
-
+    // Current format: "query","count". It looks horrible because CSV quotes " with "".
+    size_t split_index = line.rfind("\",\"");
+    std::string query = line.substr(1, split_index - 1);
+    long long num_times = std::stoll(line.substr(split_index + 3, line.length() - (split_index + 3) - 1));
     workload_.emplace_back(query, num_times);
   }
   std::cerr << "\tRead " << workload_.size() << " distinct queries, total " << num_queries_total << "." << std::endl;
