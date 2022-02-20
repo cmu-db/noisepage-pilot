@@ -157,7 +157,7 @@ _grade() {
   bootstrap_folder="${submission_path}/${benchmark}/bootstrap"
   mkdir -p ${bootstrap_folder}
   cp ${workload_csv} ${bootstrap_folder}/workload.csv
-  workload_csv="${bootstrap_folder}/workload.csv"
+  workload_csv="$(pwd)/${bootstrap_folder}/workload.csv"
 
   # Unfortunately, timeout doesn't work on special Bash constructs.
   # We export the function and wrap everything in a subshell.
@@ -185,7 +185,7 @@ _grade() {
         break
         ;;
       esac
-      workload_csv="${submission_path}/${benchmark}/iteration_${iteration}/workload.csv"
+      workload_csv="$(pwd)/${submission_path}/${benchmark}/iteration_${iteration}/workload.csv"
       iteration=$((iteration + 1))
     done
   ) &
