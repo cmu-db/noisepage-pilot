@@ -138,8 +138,8 @@ _grade_iteration() {
   mkdir -p "${results_folder}"
   mv ./artifacts/benchbase/results/* "${results_folder}"
   # Yoink the student stuff too because why not.
-  mv "./${submission_path}/${actions_file}" "${results_folder}"
-  mv "./${submission_path}/${config_file}" "${results_folder}"
+  cp "./${submission_path}/${actions_file}" "${results_folder}"
+  cp "./${submission_path}/${config_file}" "${results_folder}"
   # Save the workload trace for the next iteration.
   _copy_logs "${results_folder}/workload.csv"
 
