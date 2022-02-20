@@ -384,6 +384,9 @@ Forecast::Forecast(const std::string &forecast_path) {
     // Current format: "query","count". It looks horrible because CSV quotes " with "".
     size_t split_index = line.rfind("\",\"");
     std::string query = line.substr(1, split_index - 1);
+    // We have to replace the double-quotes though, otherwise we can hit length limits.
+    std::regex unescape_double_quotes("\"\"");
+    query = std::regex_replace(query, unescape_double_quotes, "\"");
     long long num_times = std::stoll(line.substr(split_index + 3, line.length() - (split_index + 3) - 1));
     workload_.emplace_back(query, num_times);
   }
