@@ -67,7 +67,7 @@ cp ./build/benchbase/config/postgres/15799_starter_config.xml ./config/behavior/
 # Generate the ePinions config file.
 mkdir -p artifacts/project/
 cp ./config/behavior/benchbase/epinions_config.xml ./artifacts/project/epinions_config.xml
-xmlstarlet edit --inplace --update '/parameters/url' --value "jdbc:postgresql://localhost:5432/project1db?preferQueryMode=extended" ./artifacts/project/epinions_config.xml
+xmlstarlet edit --inplace --update '/parameters/url' --value "jdbc:postgresql://localhost:5432/project1db?preferQueryMode=simple" ./artifacts/project/epinions_config.xml
 xmlstarlet edit --inplace --update '/parameters/username' --value "project1user" ./artifacts/project/epinions_config.xml
 xmlstarlet edit --inplace --update '/parameters/password' --value "project1pass" ./artifacts/project/epinions_config.xml
 xmlstarlet edit --inplace --update '/parameters/scalefactor' --value "1" ./artifacts/project/epinions_config.xml
