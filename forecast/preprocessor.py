@@ -126,7 +126,8 @@ class Preprocessor:
         assert type(query_template) == str
         query = query_template
         keys = [f"${i}" for i in range(1, len(params) + 1)]
-        for k, v in zip(keys, params):
+        for k, v in reversed(list(zip(keys, params))):
+            # The reversing is crucial! Note that $1 is a prefix of $10.
             query = query.replace(k, v)
         return query
 
