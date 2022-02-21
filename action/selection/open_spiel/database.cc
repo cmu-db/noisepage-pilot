@@ -2,10 +2,10 @@
 
 #include <fstream>
 #include <iostream>
-#include <sstream>
 #include <memory>
 #include <pqxx/pqxx>
 #include <regex>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 
@@ -111,13 +111,13 @@ struct ExplainMicroserviceCost {
 
         // Augment the JSON tree by computing additional properties, e.g., differencing.
         for (auto &plan_node : doc.GetArray()) {
-          rapidjson::Document::Object &&plan_obj = plan_node["Plan"].GetObject();
+          rapidjson::Document::Object &&plan_obj = plan_node["TScout"].GetObject();
           Augment(doc, plan_obj);
         }
 
         // Accumulate the cost of each JSON node into model_cost_.
         for (auto &plan_node : doc.GetArray()) {
-          rapidjson::Document::Object &&plan_obj = plan_node["Plan"].GetObject();
+          rapidjson::Document::Object &&plan_obj = plan_node["TScout"].GetObject();
           PrepareCostRequest(inference_doc_, plan_obj);
           SendCostRequest(client, inference_doc_, record_predictions);
         }
@@ -149,13 +149,13 @@ struct ExplainMicroserviceCost {
       for (auto &child_node : node["Plans"].GetArray()) {
         rapidjson::Document::Object &&child = child_node.GetObject();
         Augment(doc, child);
-        children_startup_cost += child["Startup Cost"].GetDouble();
-        children_total_cost += child["Total Cost"].GetDouble();
+        children_startup_cost += GetValue(child, "startup_cost").GetDouble();
+        children_total_cost += GetValue(child, "total_cost").GetDouble();
       }
     }
     // Compute the diffed features.
-    double diffed_startup_cost = node["Startup Cost"].GetDouble() - children_startup_cost;
-    double diffed_total_cost = node["Total Cost"].GetDouble() - children_total_cost;
+    double diffed_startup_cost = GetValue(node, "startup_cost").GetDouble() - children_startup_cost;
+    double diffed_total_cost = GetValue(node, "total_cost").GetDouble() - children_total_cost;
     // Add the diffed features back to the JSON object.
     node.AddMember("Diffed Startup Cost", diffed_startup_cost, doc.GetAllocator());
     node.AddMember("Diffed Total Cost", diffed_total_cost, doc.GetAllocator());
@@ -170,16 +170,18 @@ struct ExplainMicroserviceCost {
 
     // TODO(WAN): Robustness for checking that node is a Plan from PostgreSQL's EXPLAIN (FORMAT JSON).
     features.AddMember("bias", 1, target.GetAllocator());
-    features.AddMember("startup_cost", node["Startup Cost"].GetDouble(), target.GetAllocator());
-    features.AddMember("total_cost", node["Total Cost"].GetDouble(), target.GetAllocator());
-    features.AddMember("plan_rows", node["Plan Rows"].GetInt64(), target.GetAllocator());
-    features.AddMember("plan_width", node["Plan Width"].GetInt64(), target.GetAllocator());
+    features.AddMember("startup_cost", GetValue(node, "startup_cost").GetDouble(), target.GetAllocator());
+    features.AddMember("total_cost", GetValue(node, "total_cost").GetDouble(), target.GetAllocator());
+    features.AddMember("plan_rows", GetValue(node, "plan_rows").GetInt64(), target.GetAllocator());
+    features.AddMember("plan_width", GetValue(node, "plan_width").GetInt64(), target.GetAllocator());
     features.AddMember("diffed_startup_cost", node["Diffed Startup Cost"].GetDouble(), target.GetAllocator());
     features.AddMember("diffed_total_cost", node["Diffed Total Cost"].GetDouble(), target.GetAllocator());
 
     // Determine which behavior model this is.
     // Currently, names mostly match if you strip out spaces.
-    std::string model_name = std::regex_replace(node["Node Type"].GetString(), std::regex("\\s+"), "");
+    // TODO (Karthik): Currently the "tag" returns the OU name.
+    // Make the output from Hutch play nicely with this.
+    std::string model_name = std::regex_replace(node["tag"].GetString(), std::regex("\\s+"), "");
     // Model-specific hacks.
     if (model_name == "Aggregate") {
       model_name = "Agg";
@@ -251,7 +253,8 @@ struct ExplainMicroserviceCost {
             rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
             it->Accept(writer);
 
-            std::cerr << absl::StrCat("ERROR bad result: status ", res->status, " url ", url, " body ", buffer.GetString())
+            std::cerr << absl::StrCat("ERROR bad result: status ", res->status, " url ", url, " body ",
+                                      buffer.GetString())
                       << std::endl;
           }
         }
@@ -269,6 +272,24 @@ struct ExplainMicroserviceCost {
       auto err = res.error();
       std::cerr << absl::StrCat("ERROR bad URL: status ", err, " url /batch_infer") << std::endl;
     }
+  }
+
+  bool EndsWith(std::string const &fullString, std::string const &suffix) {
+    if (fullString.length() >= suffix.length()) {
+      return (0 == fullString.compare(fullString.length() - suffix.length(), suffix.length(), suffix));
+    }
+
+    return false;
+  }
+
+  const rapidjson::Value &GetValue(rapidjson::Value &node, std::string key) {
+    for (rapidjson::Value::ConstMemberIterator itr = node.MemberBegin(); itr != node.MemberEnd(); itr++) {
+      if (EndsWith(itr->name.GetString(), key)) {
+        return itr->value;
+      }
+    }
+
+    throw std::runtime_error(absl::StrCat("Could not fetch key: ", key, "from document"));
   }
 
  public:
@@ -496,9 +517,7 @@ std::string DatabaseState::ToString() const {
 
 bool DatabaseState::IsTerminal() const { return finished_; }
 
-void DatabaseState::ApplyHistory(pqxx::dbtransaction &txn) const {
-  CustomApplyHistory(txn, game_->UseHypoPG());
-}
+void DatabaseState::ApplyHistory(pqxx::dbtransaction &txn) const { CustomApplyHistory(txn, game_->UseHypoPG()); }
 
 void DatabaseState::CustomApplyHistory(pqxx::dbtransaction &txn, bool use_hypopg) const {
   // Apply all the tuning actions. This assumes that actions take zero time.
@@ -519,7 +538,8 @@ void DatabaseState::CustomApplyHistory(pqxx::dbtransaction &txn, bool use_hypopg
   }
 }
 
-struct ExplainAnalyzeCostResult DatabaseState::GetExplainAnalyzeCostUs(pqxx::dbtransaction &txn, const std::string &query) const {
+struct ExplainAnalyzeCostResult DatabaseState::GetExplainAnalyzeCostUs(pqxx::dbtransaction &txn,
+                                                                       const std::string &query) const {
   // By default, EXPLAIN() returns timestamps as milliseconds. However, model forecasting for
   // elapsed time returns timestamps as microseconds instead. As such, this function provides
   // the explain cost (elapsed time) in microseconds to be consistent with the inference.
@@ -530,7 +550,7 @@ struct ExplainAnalyzeCostResult DatabaseState::GetExplainAnalyzeCostUs(pqxx::dbt
     std::string explain = absl::StrCat("EXPLAIN (ANALYZE, BUFFERS) ", query);
     ExplainAnalyzeCost cost{&rset};
     return ExplainAnalyzeCostResult{true, cost.actual_total_time_ms_ * 1000};
-  } catch (const pqxx::integrity_constraint_violation& e) {
+  } catch (const pqxx::integrity_constraint_violation &e) {
     // EXPLAIN ANALYZE will execute the query that it is provided as part of the workload forecast.
     // However, this query may abort due to failing integrity constraint check(s) such as uniqueness.
     // We currently do not model nor handle aborts, therefore all aborted queries will be treated as
@@ -651,7 +671,8 @@ std::vector<double> DatabaseState::Returns() const {
         result.AddMember("true_cost_valid", true_cost.cost_valid_, results.GetAllocator());
         result.AddMember("true_cost", true_cost.cost_, results.GetAllocator());
         result.AddMember("query", rapidjson::StringRef(workload[idx].sql_.c_str()), results.GetAllocator());
-        result.AddMember("predicted_results", rapidjson::StringRef(predicted_workloads[idx].second.c_str()), results.GetAllocator());
+        result.AddMember("predicted_results", rapidjson::StringRef(predicted_workloads[idx].second.c_str()),
+                         results.GetAllocator());
         result.AddMember("action_state", rapidjson::StringRef(action_state.c_str()), results.GetAllocator());
         results.PushBack(result, results.GetAllocator());
       }
@@ -661,8 +682,7 @@ std::vector<double> DatabaseState::Returns() const {
       results.Accept(writer);
       if (auto res = client->Post("/prediction_results", buffer.GetString(), buffer.GetSize(), "application/json")) {
         if (res->status != 200) {
-          std::cerr << absl::StrCat("ERROR unknown: status ", res->status, " body ", res->body)
-                    << std::endl;
+          std::cerr << absl::StrCat("ERROR unknown: status ", res->status, " body ", res->body) << std::endl;
         }
       }
     }
