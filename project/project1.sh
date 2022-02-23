@@ -29,6 +29,8 @@ export DB_NAME="project1db"
 # TODO(Matt): Finalize these timeouts.
 # TA: Total time that the grading script can run per (student, benchmark).
 export TIME_GRADING_TOTAL="3m"
+# TA: Maximum time allowed for student setup.
+export TIME_SETUP="10m"
 # Student: Maximum time allowed per (student, benchmark, action generation).
 export TIME_ACTION_GENERATION="10m"
 
@@ -102,6 +104,7 @@ _grade_iteration() {
   actions_file="./actions.sql"
   config_file="./config.json"
   dump_folder="./${benchmark}_dump_tmp"
+  local_results_folder="./${submission_path}/grading/iteration_${iteration}/"
 
   echo "Grading benchmark ${benchmark} workload ${workload_csv} iteration ${iteration}: ${submission_path}"
   set -e
@@ -136,6 +139,8 @@ _grade_iteration() {
 
   # Yoink the result files.
   mkdir -p "${results_folder}"
+  mkdir -p "${local_results_folder}"
+  cp ./artifacts/benchbase/results/* "${local_results_folder}"
   mv ./artifacts/benchbase/results/* "${results_folder}"
   # Yoink the student stuff too because why not.
   cp "./${submission_path}/${actions_file}" "${results_folder}"
@@ -161,6 +166,26 @@ _grade() {
   mkdir -p ${bootstrap_folder}
   cp ${workload_csv} ${bootstrap_folder}/workload.csv
   workload_csv="$(pwd)/${bootstrap_folder}/workload.csv"
+
+  # Perform one-time setup for the student.
+  # This time is not charged against them.
+  # TODO(WAN): We don't actually check that students are being "reasonable" in what they do with this time.
+  # Though I suppose you could view it as an offline bootstrap "do whatever you want!" phase.
+  cd ${submission_path} || exit 1
+  timeout ${TIME_SETUP} doit project1_setup
+  setup_timed_out=$?
+  cd -
+
+  # If the student setup timed out, there's nothing else we can do.
+  if [ "${setup_timed_out}" = "124" ]; then
+    echo "Timed out during setup: ${submission_path}"
+    return
+  fi
+
+  # Otherwise, copy the bootstrap results into their folder and get ready to grade.
+  # TODO(WAN): Fragile path.
+  mkdir -p "${submission_path}/grading/baseline/"
+  cp -r ${evaluations_folder}/${benchmark}/baseline/* "${submission_path}/grading/baseline/"
 
   # Unfortunately, timeout doesn't work on special Bash constructs.
   # We export the function and wrap everything in a subshell.
