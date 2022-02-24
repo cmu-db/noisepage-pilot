@@ -33,7 +33,7 @@ sudo --validate
 
 # Check that the file descriptor limit is at least 8096.
 limit=$(ulimit -n)
-if [ $limit -lt 8096 ];
+if [ "$limit" -lt 8096 ];
 then
     echo "TScout requires [ulimit -n] to return at least 8096."
     exit 1
@@ -78,7 +78,7 @@ arg_parse() {
                 PSQL_LOCATION="${PG_BINARIES_LOCATION}/psql"
                 shift # past argument with no value
                 ;;
-            -*|--*)
+            -*)
                 echo "Unknown option $i"
                 help
                 ;;
@@ -94,26 +94,26 @@ arg_validate() {
        [ -z ${PGDATA_LOCATION+x} ] ||
        [ -z ${BENCHBASE_LOCATION+x} ];
     then
-        $(help)
+        help
         exit 1
     fi
 
-    if [ ! -d ${WORKLOADS_DIRECTORY} ];
+    if [ ! -d "${WORKLOADS_DIRECTORY}" ];
     then
         echo "Specified workload directory ${WORKLOADS_DIRECTORY} does not exist."
     fi
 
-    if [ ! -d ${BENCHBASE_LOCATION} ];
+    if [ ! -d "${BENCHBASE_LOCATION}" ];
     then
         echo "Specified benchbase ${BENCHBASE_LOCATION} does not exist."
     fi
 
-    if [ ! -f ${PG_CTL_LOCATION} ];
+    if [ ! -f "${PG_CTL_LOCATION}" ];
     then
         echo "Specified pg_ctl ${PG_CTL_LOCATION} does not exist."
     fi
 
-    if [ ! -f ${PSQL_LOCATION} ];
+    if [ ! -f "${PSQL_LOCATION}" ];
     then
         echo "Specified pg_ctl ${PSQL_LOCATION} does not exist."
     fi
@@ -121,7 +121,7 @@ arg_validate() {
 
 
 # Parse all the input arguments to the bash script.
-arg_parse $@
+arg_parse "$@"
 # Validate all the input arguments passed to the bash script.
 arg_validate
 # Record the current timestamp
@@ -129,31 +129,32 @@ ts=$(date '+%Y-%m-%d_%H-%M-%S')
 echo "Starting workload execution ${ts}"
 
 # Get the absolute file path to the pg_ctl executable
-pg_ctl=$(realpath ${PG_CTL_LOCATION})
-psql=$(realpath ${PSQL_LOCATION})
+pg_ctl=$(realpath "${PG_CTL_LOCATION}")
+psql=$(realpath "${PSQL_LOCATION}")
 
 # Kill any running postgres and/or TScout instances.
 pkill -i postgres || true
 pkill -i tscout || true
 
 modes=("train" "eval")
-for mode in ${modes[@]}; do
+for mode in "${modes[@]}"; do
     output_folder="${OUTPUT_DIRECTORY}/experiment-${ts}/${mode}"
     workload_directory="${WORKLOADS_DIRECTORY}/${mode}"
-    for workload in ${workload_directory}/*; do
+    for workload in "${workload_directory}"/*; do
         echo "Executing ${workload} for ${mode}"
 
         # Create the output directory for this particular benchmark invocation.
-        benchmark_suffix=$(basename ${workload})
+        benchmark_suffix=$(basename "${workload}")
         benchmark_output="${output_folder}/${benchmark_suffix}"
         mkdir -p "${benchmark_output}"
 
         # Parse the config.yaml file that describes the experiment.
         # The description for the config.yaml and the keys populated are described
         # in behavior/datagen/generate_workloads.py.
-        config_yaml=$(realpath ${workload}/config.yaml)
-        eval $(niet -f eval . ${config_yaml})
+        config_yaml=$(realpath "${workload}"/config.yaml)
+        eval "$(niet -f eval . "${config_yaml}")"
 
+        # shellcheck disable=2154 # populated by niet
         if [ ${#benchbase_configs[@]} != ${#pg_configs[@]} ];
         then
             echo "Found configuration file ${config_yaml} where configurations are not aligned."
@@ -166,71 +167,74 @@ for mode in ${modes[@]}; do
             exit 1
         fi
 
-        for i in ${!benchbase_configs[@]};
+        for i in "${!benchbase_configs[@]}";
         do
-            postgresql_path=$(realpath ${pg_configs[$i]})
-            benchbase_config_path=$(realpath ${benchbase_configs[$i]})
+            postgresql_path=$(realpath "${pg_configs[$i]}")
+            benchbase_config_path=$(realpath "${benchbase_configs[$i]}")
 
-            if [ $i -eq 0 ];
+            if [ "$i" -eq 0 ];
             then
                 # If we're executing a new experiment, then we want to completely
                 # the database instance. This is done by invoking `noisepage_init`.
-                doit noisepage_init --config=${postgresql_path}
+                doit noisepage_init --config="${postgresql_path}"
                 doit benchbase_bootstrap_dbms
 
                 # Create the database and load the database
-                doit benchbase_run --benchmark=${benchmark} --config=${benchbase_config_path} --args="--create=true --load=true --execute=false"
+                # shellcheck disable=2154 # populated by niet
+                doit benchbase_run --benchmark="${benchmark}" --config="${benchbase_config_path}" --args="--create=true --load=true --execute=false"
 
                 # Remove existing logfiles, if any exist.
-                ${pg_ctl} stop -D ${PGDATA_LOCATION} -m smart
+                ${pg_ctl} stop -D "${PGDATA_LOCATION}" -m smart
                 rm -rf "${PGDATA_LOCATION}/log/*.csv"
                 rm -rf "${PGDATA_LOCATION}/log/*.log"
                 rm -rf "${BENCHMARK_LOCATION}/results/*"
 
                 # Then restart the instance.
-                ${pg_ctl} start -D ${PGDATA_LOCATION}
+                ${pg_ctl} start -D "${PGDATA_LOCATION}"
             else
-                doit noisepage_swap_config --config='${postgresql_path}'
+                doit noisepage_swap_config --config="${postgresql_path}"
 
                 # We don't need to bootstrap the benchbase database here because
                 # recovery should reload the entire benchbase database state.
             fi
 
-            if [ $pg_prewarm != 'False' ];
+            # shellcheck disable=2154 # populated by niet
+            if [ "$pg_prewarm" != 'False' ];
             then
                 # If pg_prewarm is specified, then invoke pg_prewarm on the benchmark's tables.
                 doit benchbase_prewarm_install
-                doit behavior_pg_prewarm_benchmark --benchmark=${benchmark}
+                doit behavior_pg_prewarm_benchmark --benchmark="${benchmark}"
             fi
 
-            if [ $pg_analyze != 'False' ];
+            # shellcheck disable=2154 # populated by niet
+            if [ "$pg_analyze" != 'False' ];
             then
                 # If pg_analyze is specified, then run ANALYZE on the benchmark's tables.
-                doit behavior_pg_analyze_benchmark --benchmark=${benchmark}
+                doit behavior_pg_analyze_benchmark --benchmark="${benchmark}"
             fi
 
             # Initialize TScout. We currently don't have a means by which to check whether
             # TScout has successfully attached to the instance. As such, we (wait) 5 seconds.
             append=$( [[ $i != "0" ]] && echo "True" || echo "False" )
-            doit tscout_init --output_dir=${benchmark_output} --wait_time=5 --append=${append}
+            doit tscout_init --output_dir="${benchmark_output}" --wait_time=5 --append="${append}"
 
             # Execute the benchmark
-            doit benchbase_run --benchmark=${benchmark} --config=${benchbase_config_path} --args="--execute=true"
+            doit benchbase_run --benchmark="${benchmark}" --config="${benchbase_config_path}" --args="--execute=true"
 
             # Shutdown TScout and take ownership of the results.
-            doit tscout_shutdown --output_dir=${benchmark_output} --wait_time=10 --flush_time=5
+            doit tscout_shutdown --output_dir="${benchmark_output}" --wait_time=10 --flush_time=5
 
             # Since pg_stats can change in between benchmark invocations, pg_stats is written out
             # to a file after each benchmark invocation within an experiment. The CSV file is
             # suffixed by the benchmark index.
             stats_file="${benchmark_output}/pg_stats.csv.${i}"
-            ${psql} --dbname=benchbase --csv --command="SELECT * FROM pg_stats;" > ${stats_file}
+            ${psql} --dbname=benchbase --csv --command="SELECT * FROM pg_stats;" > "${stats_file}"
 
             # Similarly, we move the postgres log file to the experiment output directory if it
             # exists. The log file is also suffixed by this benchmark index.
             log=${PGDATA_LOCATION}/log
-            ${pg_ctl} stop -D ${PGDATA_LOCATION} -m smart
-            if [ -d ${log} ];
+            ${pg_ctl} stop -D "${PGDATA_LOCATION}" -m smart
+            if [ -d "${log}" ];
             then
                 mv "${PGDATA_LOCATION}/log" "${benchmark_output}/log.${i}"
             fi
