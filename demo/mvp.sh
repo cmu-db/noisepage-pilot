@@ -12,12 +12,9 @@ sudo pkill postgres || true
 doit behavior_microservice_kill
 
 # Behavior models need to be trained.
-# Because the behavior code was written prior to pilot/dodo,
-# datagen in particular doesn't quite fit the rest of the framework
-# in that it opaquely wraps the data generation pipeline.
-# This prevents it from composing with new dodo tasks.
-# It's not a big deal; probably not worth refactoring right now.
-doit behavior_datagen
+doit behavior_generate_workloads
+doit behavior_execute_workloads
+doit behavior_perform_plan_diff
 doit behavior_train
 
 # Forecast: generate training data.
@@ -26,6 +23,7 @@ doit behavior_train
 doit noisepage_init
 doit benchbase_overwrite_config
 doit benchbase_bootstrap_dbms
+doit benchbase_prewarm_install
 doit benchbase_run --benchmark="tpcc" --args="--create=true --load=true"
 doit noisepage_enable_logging
 doit benchbase_run --benchmark="tpcc" --args="--execute=true"

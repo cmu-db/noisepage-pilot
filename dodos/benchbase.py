@@ -109,7 +109,6 @@ def task_benchbase_bootstrap_dbms():
     sql_list = [
         f"CREATE ROLE {DEFAULT_USER} WITH LOGIN SUPERUSER ENCRYPTED PASSWORD '{DEFAULT_PASS}'",
         f"ALTER DATABASE {DEFAULT_DB} SET compute_query_id = 'ON';",
-        "CREATE EXTENSION pg_prewarm;",
     ]
 
     return {
@@ -123,6 +122,24 @@ def task_benchbase_bootstrap_dbms():
             dodos.noisepage.ARTIFACT_dropdb,
             dodos.noisepage.ARTIFACT_dropuser,
             dodos.noisepage.ARTIFACT_createdb,
+            dodos.noisepage.ARTIFACT_psql,
+        ],
+        "verbosity": VERBOSITY_DEFAULT,
+        "uptodate": [False],
+    }
+
+
+def task_benchbase_prewarm_install():
+    """
+    BenchBase: install pg_prewarm for BenchBase benchmarks.
+    """
+    sql_list = ["CREATE EXTENSION IF NOT EXISTS pg_prewarm"]
+
+    return {
+        "actions": [
+            *[f'{dodos.noisepage.ARTIFACT_psql} --dbname={DEFAULT_DB} --command="{sql}"' for sql in sql_list],
+        ],
+        "file_dep": [
             dodos.noisepage.ARTIFACT_psql,
         ],
         "verbosity": VERBOSITY_DEFAULT,

@@ -22,6 +22,8 @@ def datagen_sweep_callback(parameters, closure):
         benchmark: `benchmark`
         pg_prewarm: `True/False`
         pg_analyze: `True/False`
+        pg_configs: [postgresql1.conf, postgresq2.conf, ...]
+        benchbase_configs: [benchbase1.xml, benchbase2.xml, ...]
     - Creates the postgresql.conf file that should be used.
     - Creates the configuration XML for BenchBase.
 
@@ -38,6 +40,7 @@ def datagen_sweep_callback(parameters, closure):
     postgresql_config_file = closure["postgresql_config_file"]
     pg_analyze = closure["pg_analyze"]
     pg_prewarm = closure["pg_prewarm"]
+    pg_configs = [str(postgresql_config_file.resolve())]
 
     # The suffix is a concatenation of parameter names and their values.
     param_suffix = "_".join([name_level[-1] + "_" + str(value) for name_level, value in parameters])
@@ -49,6 +52,7 @@ def datagen_sweep_callback(parameters, closure):
     benchbase_config_file = Path(results_dir / "benchbase_config.xml")
     shutil.copy(benchbase_config_path, benchbase_config_file)
     inject_param_xml(benchbase_config_file.as_posix(), parameters)
+    benchbase_configs = [str(benchbase_config_file.resolve())]
 
     # Copy the default postgresql.conf file.
     # TODO(wz2): Rewrite the postgresql.conf based on knob tweaks and modify the param_suffix above.
@@ -56,7 +60,13 @@ def datagen_sweep_callback(parameters, closure):
     shutil.copy(postgresql_config_file, benchbase_postgresql_config_file)
 
     # Create the config.yaml file
-    config = {"benchmark": benchmark, "pg_analyze": pg_analyze, "pg_prewarm": pg_prewarm}
+    config = {
+        "benchmark": benchmark,
+        "pg_analyze": pg_analyze,
+        "pg_prewarm": pg_prewarm,
+        "pg_configs": pg_configs,
+        "benchbase_configs": benchbase_configs,
+    }
 
     with (results_dir / "config.yaml").open("w") as f:
         yaml.dump(config, f)

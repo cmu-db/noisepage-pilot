@@ -467,7 +467,7 @@ def main(data_dir, output_dir, experiment) -> None:
     logger.info("Differencing experiment: %s", experiment)
 
     for mode in ["train", "eval"]:
-        experiment_root: Path = data_dir / mode / experiment
+        experiment_root: Path = data_dir / experiment / mode
         # The data folders must be prefixed by the name of the benchmark,
         # and suffixed by the concatenated parameters.
         # For example, `tpcc_scalefactor_0.1_terminals_1_rate_10000_time_60`.
@@ -481,11 +481,11 @@ def main(data_dir, output_dir, experiment) -> None:
             logger.info("Mode: %s | Benchmark: %s", mode, bench_name)
             bench_root = experiment_root / bench_name
             tscout_data_dir = bench_root / "tscout"
-            diff_data_dir: Path = output_dir / "diff" / mode / experiment / bench_name
+            diff_data_dir: Path = output_dir / "diff" / experiment / mode / bench_name
             if diff_data_dir.exists():
                 shutil.rmtree(diff_data_dir)
             diff_data_dir.mkdir(parents=True, exist_ok=True)
-            logdir = output_dir / "log" / mode / experiment / bench_name
+            logdir = output_dir / "log" / experiment / mode / bench_name
             logdir.mkdir(parents=True, exist_ok=True)
 
             tscout_dfs, unified = load_tscout_data(tscout_data_dir, logdir)
@@ -506,13 +506,22 @@ class DataDiffCLI(cli.Application):
         mandatory=True,
         help="Directory to output differenced CSV files to.",
     )
+    glob_pattern = cli.SwitchAttr(
+        "--glob-pattern", mandatory=False, help="Glob pattern to use for selecting valid experiments."
+    )
 
     def main(self):
-        train_folder = self.dir_datagen_data / "train"
-        experiments = sorted(path.name for path in train_folder.glob("*"))
+        train_folder = self.dir_datagen_data
+
+        pattern = "*" if self.glob_pattern is None else self.glob_pattern
+        experiments = sorted(path.name for path in train_folder.glob(pattern))
         assert len(experiments) > 0, "No training data found?"
-        latest_experiment = experiments[-1]
-        main(self.dir_datagen_data, self.dir_output, latest_experiment)
+
+        if self.glob_pattern is None:
+            experiments = [experiments[-1]]
+
+        for experiment in experiments:
+            main(self.dir_datagen_data, self.dir_output, experiment)
 
 
 if __name__ == "__main__":

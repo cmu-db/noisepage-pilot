@@ -22,18 +22,13 @@ from sklearn.metrics import (
     r2_score,
 )
 
-from behavior import (
-    BASE_TARGET_COLS,
-    BENCHDB_TO_TABLES,
-    DIFFED_TARGET_COLS,
-    PLAN_NODE_NAMES,
-)
+from behavior import BASE_TARGET_COLS, DIFFED_TARGET_COLS, PLAN_NODE_NAMES
 from behavior.modeling.model import BehaviorModel
 
 logger = logging.getLogger(__name__)
 
 
-def evaluate(model, df, output_dir, dataset, mode):
+def evaluate(model, df, output_dir, mode):
     """Evaluate the model.
 
     Parameters
@@ -44,8 +39,6 @@ def evaluate(model, df, output_dir, dataset, mode):
         Evaluation data.
     output_dir : Path
         Results output directory.
-    dataset : str
-        Benchmark name.
     mode : str
         Training or evaluation.
 
@@ -70,7 +63,7 @@ def evaluate(model, df, output_dir, dataset, mode):
     reordered_cols = model.features + list(itertools.chain.from_iterable(paired_cols))
 
     # Save the inference results (including features and predictions).
-    preds_path = output_dir / f"{model.ou_name}_{model.method}_{dataset}_{mode}_preds.csv"
+    preds_path = output_dir / f"{model.ou_name}_{model.method}_{mode}_preds.csv"
     with preds_path.open("w+") as preds_file:
         temp: NDArray[Any] = np.concatenate((X, y, y_pred), axis=1)  # type: ignore [no-untyped-call]
         test_result_df = pd.DataFrame(
@@ -95,7 +88,7 @@ def evaluate(model, df, output_dir, dataset, mode):
             graphviz.graph_from_dot_data(dot).write_png(dt_file)
 
     # Evaluate the model performance and write the results to disk.
-    ou_eval_path = output_dir / f"summary_{mode}_{dataset}.txt"
+    ou_eval_path = output_dir / f"summary_{mode}.txt"
     with ou_eval_path.open("w+") as f:
         f.write(
             f"\n============= {mode.title()}: Model Summary for {model.ou_name} Model: {model.method} =============\n"
@@ -123,13 +116,13 @@ def evaluate(model, df, output_dir, dataset, mode):
         f.write("======================== END SUMMARY ========================\n")
 
 
-def load_data(data_dir):
+def load_data(data_dirs):
     """Load the training data.
 
     Parameters
     ----------
-    data_dir : Path
-        Directory from which to load data.
+    data_dir : List[Path]
+        Directories from which to load data.
 
     Returns
     -------
@@ -144,9 +137,11 @@ def load_data(data_dir):
     # Load all the OU data from disk given the data directory.
     # We filter all files with zero results because it is common to only have data for
     # a few operating units.
-    result_paths: list[Path] = [fp for fp in data_dir.glob("*.csv") if os.stat(fp).st_size > 0]
-    ou_name_to_df: dict[str, DataFrame] = {}
+    result_paths = []
+    for data_dir in data_dirs:
+        result_paths.extend([fp for fp in Path(data_dir).glob("*.csv") if os.stat(fp).st_size > 0])
 
+    ou_name_to_df: dict[str, DataFrame] = {}
     for ou_name in PLAN_NODE_NAMES:
         ou_results = [fp for fp in result_paths if fp.name.startswith(ou_name)]
         if len(ou_results) > 0:
@@ -155,7 +150,7 @@ def load_data(data_dir):
 
     # We should always have data for at least one operating unit.
     if len(ou_name_to_df) == 0:
-        raise Exception(f"No data found in data_dir: {data_dir}")
+        raise Exception(f"No data found in data_dirs: {data_dirs}")
 
     return ou_name_to_df
 
@@ -229,7 +224,31 @@ def prep_train_data(df):
     return df
 
 
-def main(config_file, dir_data_train, dir_data_eval, dir_output):
+def glob_files(base_dir, experiment_names, benchmark_names, train):
+    mode = "train" if train else "eval"
+    if experiment_names is None:
+        experiment_list = sorted([exp_path.name for exp_path in base_dir.glob("*")])
+        assert len(experiment_list) > 0, f"No experiments found {base_dir}"
+        experiment_names = [experiment_list[-1]]
+
+    glob_results = set()
+    for experiment_name in experiment_names:
+        exp_root = base_dir / experiment_name / mode
+        for benchmark_name in benchmark_names:
+            glob_results.update([str(exp_root / path.name) for path in exp_root.glob(benchmark_name)])
+
+    return list(glob_results)
+
+
+def main(
+    config_file,
+    dir_data,
+    dir_output,
+    train_experiment_names,
+    train_benchmark_names,
+    eval_experiment_names,
+    eval_benchmark_names,
+):
     # Load modeling configuration.
     if not config_file.exists():
         raise ValueError(f"Config file: {config_file} does not exist")
@@ -240,102 +259,72 @@ def main(config_file, dir_data_train, dir_data_eval, dir_output):
     # Mark this training-evaluation run with a timestamp for identification.
     training_timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
-    # Identify which database benchmark(s) to use for training and evaluation.
-    train_bench_db = config["train_bench_db"]
-    eval_bench_db = config["eval_bench_db"]
+    # Derive all the relevant directories for training data and evaluation data.
+    train_files = glob_files(dir_data, train_experiment_names, train_benchmark_names, True)
+    eval_files = glob_files(dir_data, eval_experiment_names, eval_benchmark_names, False)
+    assert len(train_files) > 0, "No matching data files for training could be found."
+    assert len(eval_files) > 0, "No matching data files for evaluating could be found."
 
-    for bench_db in [train_bench_db, eval_bench_db]:
-        if bench_db not in BENCHDB_TO_TABLES:
-            raise ValueError(f"Benchmark DB {bench_db} not supported")
+    # Load the data and name the model.
+    train_ou_to_df = load_data(train_files)
+    eval_ou_to_df = load_data(eval_files)
+    base_model_name = f"{config_file.stem}_{training_timestamp}"
+    output_dir = dir_output / base_model_name
+    output_dir.mkdir(parents=True, exist_ok=True)
+    with (output_dir / "source.txt").open("w+") as f:
+        f.write(f"Train: {train_files}\n")
+        f.write(f"Eval: {eval_files}\n")
 
-    # Default to the latest experiment if none is provided.
-    if config["experiment_name"] is None:
-        experiment_list = sorted([exp_path.name for exp_path in dir_data_train.glob("*")])
-        logger.info("%s experiments: %s", train_bench_db, experiment_list)
-        assert len(experiment_list) > 0, "No experiments found"
-        experiment_name = experiment_list[-1]
-        logger.info("Experiment name was not provided, using experiment: %s", experiment_name)
-    else:
-        experiment_name = config["experiment_name"]
+    for ou_name, train_df in train_ou_to_df.items():
+        logger.info("Begin Training OU: %s", ou_name)
+        df_train = prep_train_data(train_df)
 
-    train_exp_root = dir_data_train / experiment_name
-    all_train_names = sorted(
-        [d.name for d in train_exp_root.iterdir() if d.is_dir() and d.name.startswith(train_bench_db)]
-    )
+        # Partition the features and targets.
+        feat_cols = [col for col in df_train.columns if col not in DIFFED_TARGET_COLS]
+        x_train = df_train[feat_cols].values
+        y_train = df_train[DIFFED_TARGET_COLS].values
 
-    eval_exp_root = dir_data_eval / experiment_name
-    all_eval_names = sorted(
-        [d.name for d in eval_exp_root.iterdir() if d.is_dir() and d.name.startswith(eval_bench_db)]
-    )
+        # Check if no valid training data was found (for the current operating unit).
+        if x_train.shape[1] == 0 or y_train.shape[1] == 0:
+            logger.warning(
+                "OU: %s has no valid training data, skipping. Feature cols: %s, X_train shape: %s, y_train shape: %s",
+                ou_name,
+                feat_cols,
+                x_train.shape,
+                y_train.shape,
+            )
+            continue
 
-    # Verify that the training and evaluation data directories exist.
-    assert (
-        len(all_train_names) > 0 and len(all_eval_names) > 0
-    ), f"Benchmark data not found for experiment: {experiment_name}\nMake sure you generated the full sets of data."
-    assert len(all_train_names) == len(
-        all_eval_names
-    ), f"Train/Eval cases mismatch for experiment: {experiment_name}\nMake sure you generated the full sets of data."
+        # Train one model for each method specified in the modeling configuration.
+        for method in config["methods"]:
+            logger.info("Training OU: %s with model: %s", ou_name, method)
+            ou_model = BehaviorModel(
+                method,
+                ou_name,
+                base_model_name,
+                config,
+                feat_cols,
+            )
 
-    for train_bench_name, eval_bench_name in zip(all_train_names, all_eval_names):
-        training_data_dir = train_exp_root / train_bench_name
-        eval_data_dir = eval_exp_root / eval_bench_name
+            # Train the model.
+            ou_model.train(x_train, y_train)
 
-        # Load the data and name the model.
-        train_ou_to_df = load_data(training_data_dir)
-        eval_ou_to_df = load_data(eval_data_dir)
-        base_model_name = f"{config_file.stem}_{training_timestamp}_{train_bench_name}"
-        output_dir = dir_output / base_model_name
+            # Save and evaluate the model against the training data.
+            full_outdir = output_dir / method / ou_name
+            full_outdir.mkdir(parents=True, exist_ok=True)
+            ou_model.save(dir_output)
+            evaluate(ou_model, train_df, full_outdir, mode="train")
 
-        for ou_name, train_df in train_ou_to_df.items():
-            logger.info("Begin Training OU: %s", ou_name)
-            df_train = prep_train_data(train_df)
+            if ou_name not in eval_ou_to_df:
+                logger.warning("OU: %s has training data but no evaluation data.", ou_name)
+            else:
+                # Evaluate the model against the evaluation data.
+                df_eval = eval_ou_to_df[ou_name]
 
-            # Partition the features and targets.
-            feat_cols = [col for col in df_train.columns if col not in DIFFED_TARGET_COLS]
-            x_train = df_train[feat_cols].values
-            y_train = df_train[DIFFED_TARGET_COLS].values
+                if "bias" in feat_cols:
+                    df_eval["bias"] = 1
 
-            # Check if no valid training data was found (for the current operating unit).
-            if x_train.shape[1] == 0 or y_train.shape[1] == 0:
-                logger.warning(
-                    "OU: %s has no valid training data, skipping. Feature cols: %s, X_train shape: %s, y_train shape: %s",
-                    ou_name,
-                    feat_cols,
-                    x_train.shape,
-                    y_train.shape,
-                )
-                continue
-
-            # Train one model for each method specified in the modeling configuration.
-            for method in config["methods"]:
-                logger.info("Training OU: %s with model: %s", ou_name, method)
-                ou_model = BehaviorModel(
-                    method,
-                    ou_name,
-                    base_model_name,
-                    config,
-                    feat_cols,
-                )
-
-                # Train the model.
-                ou_model.train(x_train, y_train)
-
-                # Save and evaluate the model against the training data.
-                full_outdir = output_dir / method / ou_name
-                full_outdir.mkdir(parents=True, exist_ok=True)
-                ou_model.save(dir_output)
-                evaluate(ou_model, train_df, full_outdir, train_bench_name, mode="train")
-
-                if ou_name not in eval_ou_to_df:
-                    logger.warning("OU: %s has training data but no evaluation data.", ou_name)
-                else:
-                    # Evaluate the model against the evaluation data.
-                    df_eval = eval_ou_to_df[ou_name]
-
-                    if "bias" in feat_cols:
-                        df_eval["bias"] = 1
-
-                    evaluate(ou_model, df_eval, full_outdir, eval_bench_name, mode="eval")
+                evaluate(ou_model, df_eval, full_outdir, mode="eval")
 
 
 class TrainCLI(cli.Application):
@@ -345,17 +334,11 @@ class TrainCLI(cli.Application):
         mandatory=True,
         help="Path to configuration YAML containing modeling parameters.",
     )
-    dir_data_train = cli.SwitchAttr(
-        "--dir-data-train",
+    dir_data = cli.SwitchAttr(
+        "--dir-data",
         Path,
         mandatory=True,
-        help="Folder containing training data.",
-    )
-    dir_data_eval = cli.SwitchAttr(
-        "--dir-data-eval",
-        Path,
-        mandatory=True,
-        help="Folder containing evaluation data.",
+        help="Folder containing all training and evaluation data.",
     )
     dir_output = cli.SwitchAttr(
         "--dir-output",
@@ -363,9 +346,52 @@ class TrainCLI(cli.Application):
         mandatory=True,
         help="Folder to output models to.",
     )
+    train_experiment_names = cli.SwitchAttr(
+        "--train-experiment-names",
+        str,
+        mandatory=False,
+        default=None,
+        help="Comma separated list of experiments and/or experiments glob patterns to train models from.",
+    )
+    train_benchmark_names = cli.SwitchAttr(
+        "--train-benchmark-names",
+        str,
+        mandatory=False,
+        default="*",
+        help="Comma separated list of benchmarks and/or benchmarks glob patterns to train models from.",
+    )
+    eval_experiment_names = cli.SwitchAttr(
+        "--eval-experiment-names",
+        str,
+        mandatory=False,
+        default=None,
+        help="Comma separated list of experiments and/or experiments glob patterns to evaluate models on.",
+    )
+    eval_benchmark_names = cli.SwitchAttr(
+        "--eval-benchmark-names",
+        str,
+        mandatory=False,
+        default="*",
+        help="Comma separated list of benchmarks and/or benchmarks glob patterns to evaluate models on.",
+    )
 
     def main(self):
-        main(self.config_file, self.dir_data_train, self.dir_data_eval, self.dir_output)
+        self.train_experiment_names = (
+            None if not self.train_experiment_names else self.train_experiment_names.split(",")
+        )
+        self.train_benchmark_names = None if not self.train_benchmark_names else self.train_benchmark_names.split(",")
+        self.eval_experiment_names = None if not self.eval_experiment_names else self.eval_experiment_names.split(",")
+        self.eval_benchmark_names = None if not self.eval_benchmark_names else self.eval_benchmark_names.split(",")
+
+        main(
+            self.config_file,
+            self.dir_data,
+            self.dir_output,
+            self.train_experiment_names,
+            self.train_benchmark_names,
+            self.eval_experiment_names,
+            self.eval_benchmark_names,
+        )
 
 
 if __name__ == "__main__":

@@ -14,7 +14,7 @@ def task_tscout_init():
     TScout: attach TScout to a running NoisePage instance
     """
 
-    def start_tscout(output_dir, wait_time):
+    def start_tscout(output_dir, wait_time, append):
         if output_dir is None:
             print("Unable to start tscout without an output directory")
             return False
@@ -27,14 +27,19 @@ def task_tscout_init():
 
         dir_tscout = BUILD_PATH / "cmudb/tscout"
         os.chdir(dir_tscout)
-        cmd.sudo["python3"]["tscout.py", postmaster_pid, "--outdir", dir_tscout_output].run_bg(
+
+        arguments = ["tscout.py", postmaster_pid, "--outdir", dir_tscout_output]
+        if append == "True":
+            arguments.append("--append")
+
+        cmd.sudo["python3"][arguments].run_bg(
             # sys.stdout will actually give the doit writer. Here we need the actual
             # underlying output stream.
             stdout=sys.__stdout__,
             stderr=sys.__stderr__,
         )
 
-        time.sleep(wait_time)
+        time.sleep(int(wait_time))
 
     return {
         "actions": [start_tscout],
@@ -54,6 +59,7 @@ def task_tscout_init():
                 "help": "Time to wait (seconds) after TScout has been started.",
                 "default": 5,
             },
+            {"name": "append", "long": "append", "help": "Whether to pass --append to TScout.", "default": False},
         ],
     }
 
@@ -63,16 +69,16 @@ def task_tscout_shutdown():
     TScout: shutdown the running TScout instance
     """
 
-    def shutdown_tscout(output_dir, wait_time):
+    def shutdown_tscout(output_dir, wait_time, flush_time):
         if output_dir is None:
             print("Unable to start tscout without an output directory")
             return False
 
+        time.sleep(int(wait_time))
         cmd.sudo["pkill", "-i", "tscout"](retcode=None)
-        time.sleep(wait_time)
+        time.sleep(int(flush_time))
 
-        # Because TScout has to execute with sudo,
-        # the results are owned by root.
+        # Because TScout has to execute with sudo, the results are owned by root.
         # Take ownership of TScout's results.
         owner = Path(__file__).owner()
         training_data_dir = Path(output_dir)
@@ -100,6 +106,12 @@ def task_tscout_shutdown():
                 "name": "wait_time",
                 "long": "wait_time",
                 "help": "Time to wait (seconds) before shutting down TScout.",
+                "default": 10,
+            },
+            {
+                "name": "flush_time",
+                "long": "flush_time",
+                "help": "Time to wait (seconds) before taking ownership of the TScout data.",
                 "default": 5,
             },
         ],
