@@ -230,6 +230,12 @@ def glob_files(base_dir, experiment_names, benchmark_names, train):
         experiment_list = sorted([exp_path.name for exp_path in base_dir.glob("*")])
         assert len(experiment_list) > 0, f"No experiments found {base_dir}"
         experiment_names = [experiment_list[-1]]
+    else:
+        experiment_list = []
+        for pattern in experiment_names:
+            experiment_list.extend([exp_path.name for exp_path in base_dir.glob(pattern)])
+        assert len(experiment_list) > 0, f"No experiments found {base_dir} with {experiment_names}"
+        experiment_names = experiment_list
 
     glob_results = set()
     for experiment_name in experiment_names:
