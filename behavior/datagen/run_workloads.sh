@@ -1,6 +1,33 @@
 #!/bin/bash
 set -ex
 
+###
+#
+# A given workload folder contains the following pieces of information.
+#
+# 1. A `config.yaml` file that is structured as follows:
+#       benchmark: [name of the benchmark to execute]
+#       pg_prewarm: True/False [whether to pg_prewarm prior to each benchbase run]
+#       pg_analyze: True/False [whether to pg_analyze prior to each benchbase run]
+#       pg_configs: [List of files to posgresql.conf files to switch]
+#       benchbase_configs: [List of benchbase XML configs for each run]
+#
+# 2. Relevant postgresql.conf files that should be used for execution
+# 3. Relevant BenchBase configuration XMLs that should be used for execution
+#
+# KNOWN CAVEAT:
+#
+# 1. `run_workloads.sh` does not handle scale factor shifting between benchbase_configs.
+# The benchmark database is loaded with the first benchbase config and then reused
+# afterwards. As such, this script does not respect the scale factor of later
+# BenchBase configurations (workload distribution & other parameters are respected).
+#
+# 2. `run_workloads.sh` does not currently support loading multiple databases and having
+# benchbase_configs execute differente benchmarks. However, support for this is not difficult
+# to add if needed.
+#
+###
+
 # Various steps may require sudo.
 sudo --validate
 

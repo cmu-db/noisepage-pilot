@@ -17,15 +17,9 @@ def datagen_sweep_callback(parameters, closure):
     """
     Callback to datagen parameter sweep.
 
-    Given the current set of parameters as part of the sweep, this callback:
-    - Creates a `config.yaml` file that describes the benchmark to be executed:
-        benchmark: `benchmark`
-        pg_prewarm: `True/False`
-        pg_analyze: `True/False`
-        pg_configs: [postgresql1.conf, postgresq2.conf, ...]
-        benchbase_configs: [benchbase1.xml, benchbase2.xml, ...]
-    - Creates the postgresql.conf file that should be used.
-    - Creates the configuration XML for BenchBase.
+    Given the current set of parameters as part of the sweep, this callback generates
+    the correct output workload format. Workload formats are described in more detail
+    in behavior/datagen/run_workloads.sh
 
     Parameters:
     -----------
