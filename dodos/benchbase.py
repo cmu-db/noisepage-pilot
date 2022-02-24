@@ -96,7 +96,7 @@ def task_benchbase_overwrite_config():
             # Reset working directory.
             lambda: os.chdir(doit.get_initial_workdir()),
         ],
-        "file_dep": [*CONFIG_FILES.glob("*")],
+        "file_dep": [ARTIFACT_benchbase, *CONFIG_FILES.glob("*")],
         "uptodate": [False],
         "verbosity": VERBOSITY_DEFAULT,
     }

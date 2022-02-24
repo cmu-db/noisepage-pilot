@@ -1,5 +1,9 @@
 set -ex
 
+# Install all dependencies in case requirements.txt has changed since last run.
+# TODO(wz2): We may want to lock the versions.
+pip3 install --upgrade -r requirements.txt
+
 # Various steps may require sudo.
 sudo --validate
 

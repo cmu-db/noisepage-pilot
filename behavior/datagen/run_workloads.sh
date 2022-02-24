@@ -99,6 +99,7 @@ arg_parse $@
 arg_validate
 # Record the current timestamp
 ts=$(date '+%Y-%m-%d_%H-%M-%S')
+echo "Starting workload execution ${ts}"
 
 # Get the absolute file path to the pg_ctl executable
 pg_ctl=$(realpath ${PG_CTL_LOCATION})
@@ -113,6 +114,8 @@ for mode in ${modes[@]}; do
     output_folder="${OUTPUT_DIRECTORY}/experiment-${ts}/${mode}"
     workload_directory="${WORKLOADS_DIRECTORY}/${mode}"
     for workload in ${workload_directory}/*; do
+        echo "Executing ${workload} for ${mode}"
+
         # Create the output directory for this particular benchmark invocation.
         benchmark_suffix=$(basename ${workload})
         benchmark_output="${output_folder}/${benchmark_suffix}"
@@ -198,15 +201,21 @@ for mode in ${modes[@]}; do
 
             # Similarly, we move the postgres log file to the experiment output directory if it
             # exists. The log file is also suffixed by this benchmark index.
-            log=${PGDATA_LOCATION}/log/postgres.log
-            if [ -f ${log} ];
+            log=${PGDATA_LOCATION}/log
+            ${pg_ctl} stop -D ${PGDATA_LOCATION} -m smart
+            if [ -d ${log} ];
             then
-                mv "${PGDATA_LOCATION}/log/postgres.log" "${benchmark_output}/postgresql.log.${i}"
+                mv "${PGDATA_LOCATION}/log" "${benchmark_output}/log.${i}"
             fi
 
             # Similarly, we move the corresponding benchmark's execution log from BenchBase to the
             # experiment output directory, with the results folder suffixed by the benchmark index.
             mv "${BENCHBASE_LOCATION}/results" "${benchmark_output}/results.${i}"
         done
+
+        echo "Executed ${workload} for ${mode}"
     done
 done
+
+ts=$(date '+%Y-%m-%d_%H-%M-%S')
+echo "Finished workload execution ${ts}"
