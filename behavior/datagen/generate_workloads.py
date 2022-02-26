@@ -34,7 +34,6 @@ def datagen_sweep_callback(parameters, closure):
     postgresql_config_file = closure["postgresql_config_file"]
     pg_analyze = closure["pg_analyze"]
     pg_prewarm = closure["pg_prewarm"]
-    pg_configs = [str(postgresql_config_file.resolve())]
 
     # The suffix is a concatenation of parameter names and their values.
     param_suffix = "_".join([name_level[-1] + "_" + str(value) for name_level, value in parameters])
@@ -52,6 +51,7 @@ def datagen_sweep_callback(parameters, closure):
     # TODO(wz2): Rewrite the postgresql.conf based on knob tweaks and modify the param_suffix above.
     benchbase_postgresql_config_file = Path(results_dir / "postgresql.conf")
     shutil.copy(postgresql_config_file, benchbase_postgresql_config_file)
+    pg_configs = [str(benchbase_postgresql_config_file.resolve())]
 
     # Create the config.yaml file
     config = {
