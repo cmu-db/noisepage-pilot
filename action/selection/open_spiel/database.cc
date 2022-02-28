@@ -111,15 +111,19 @@ struct ExplainMicroserviceCost {
 
         // Augment the JSON tree by computing additional properties, e.g., differencing.
         for (auto &plan_node : doc.GetArray()) {
-          rapidjson::Document::Object &&plan_obj = plan_node["TScout"].GetObject();
-          Augment(doc, plan_obj);
+          if (plan_node.HasMember("Tscout")) {
+            rapidjson::Document::Object &&plan_obj = plan_node["Tscout"].GetObject();
+            Augment(doc, plan_obj);
+          }
         }
 
         // Accumulate the cost of each JSON node into model_cost_.
         for (auto &plan_node : doc.GetArray()) {
-          rapidjson::Document::Object &&plan_obj = plan_node["TScout"].GetObject();
-          PrepareCostRequest(inference_doc_, plan_obj);
-          SendCostRequest(client, inference_doc_, record_predictions);
+          if (plan_node.HasMember("Tscout")) {
+            rapidjson::Document::Object &&plan_obj = plan_node["Tscout"].GetObject();
+            PrepareCostRequest(inference_doc_, plan_obj);
+            SendCostRequest(client, inference_doc_, record_predictions);
+          }
         }
       }
     }
@@ -172,7 +176,7 @@ struct ExplainMicroserviceCost {
     features.AddMember("bias", 1, target.GetAllocator());
     features.AddMember("startup_cost", GetValue(node, "startup_cost").GetDouble(), target.GetAllocator());
     features.AddMember("total_cost", GetValue(node, "total_cost").GetDouble(), target.GetAllocator());
-    features.AddMember("plan_rows", GetValue(node, "plan_rows").GetInt64(), target.GetAllocator());
+    features.AddMember("plan_rows", uint64_t(GetValue(node, "plan_rows").GetDouble()), target.GetAllocator());
     features.AddMember("plan_width", GetValue(node, "plan_width").GetInt64(), target.GetAllocator());
     features.AddMember("diffed_startup_cost", node["Diffed Startup Cost"].GetDouble(), target.GetAllocator());
     features.AddMember("diffed_total_cost", node["Diffed Total Cost"].GetDouble(), target.GetAllocator());
@@ -181,7 +185,7 @@ struct ExplainMicroserviceCost {
     // Currently, names mostly match if you strip out spaces.
     // TODO (Karthik): Currently the "tag" returns the OU name.
     // Make the output from Hutch play nicely with this.
-    std::string model_name = std::regex_replace(node["tag"].GetString(), std::regex("\\s+"), "");
+    std::string model_name = std::regex_replace(node["node_type"].GetString(), std::regex("\\s+"), "");
     // Model-specific hacks.
     if (model_name == "Aggregate") {
       model_name = "Agg";
@@ -621,7 +625,7 @@ std::vector<double> DatabaseState::Returns() const {
           ExplainCost cost{&rset};
           total_cost += cost.total_cost_ * work.num_arrivals_;
         } else if (use_hypopg && use_microservice) {
-          query = absl::StrCat("EXPLAIN (FORMAT JSON) ", query);
+          query = absl::StrCat("EXPLAIN (FORMAT tscout) ", query);
           pqxx::result rset{txn.exec(query)};
           ExplainMicroserviceCost cost{client, &rset, record_predictions};
           total_cost += cost.model_cost_ * work.num_arrivals_;
