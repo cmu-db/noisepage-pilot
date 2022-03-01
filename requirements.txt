@@ -1,5 +1,7 @@
 black
 doit
+xlrd
+featurewiz==0.1.0
 flake8
 flask
 isort
@@ -7,12 +9,12 @@ lightgbm
 numpy>=1.20 # numpy.typing.
 pandarallel # Forecast. Parallelize pandas computations.
 pandas
-pathlib
 plumbum
 psycopg
 psutil
 pyarrow # Forecast. Parquet support.
 pydotplus
+pygments>=2.4.1
 pylint
 pyyaml
 scikit-learn>=1.0.0 # Behavior models.
