@@ -49,6 +49,9 @@ doit behavior_microservice
 # Start with a fresh copy of NoisePage.
 doit noisepage_init
 
+# Install Hutch.
+doit noisepage_hutch_install
+
 # Install HypoPG.
 doit action_selection_hypopg_install
 # Bootstrap the DBMS for action recommendation.
