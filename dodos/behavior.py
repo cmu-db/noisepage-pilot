@@ -1,10 +1,19 @@
+import os
 from pathlib import Path
 
+from doit.action import CmdAction
 from plumbum import local
 
 import dodos.benchbase
 import dodos.noisepage
+from behavior import BENCHDB_TO_TABLES
 from dodos import VERBOSITY_DEFAULT, default_artifacts_path, default_build_path
+from dodos.benchbase import ARTIFACTS_PATH as BENCHBASE_ARTIFACTS_PATH
+from dodos.noisepage import (
+    ARTIFACTS_PATH as NOISEPAGE_ARTIFACTS_PATH,
+    ARTIFACT_pgdata,
+    ARTIFACT_psql,
+)
 
 ARTIFACTS_PATH = default_artifacts_path()
 BUILD_PATH = default_build_path()
@@ -14,53 +23,114 @@ DATAGEN_CONFIG_FILE = Path("config/behavior/datagen.yaml").absolute()
 MODELING_CONFIG_FILE = Path("config/behavior/modeling.yaml").absolute()
 POSTGRESQL_CONF = Path("config/postgres/default_postgresql.conf").absolute()
 
-# Scratch work.
-BUILD_DATAGEN_PATH = BUILD_PATH / "datagen"
-
 # Output: model directory.
-ARTIFACT_DATA_TRAIN = ARTIFACTS_PATH / "data/train"
+ARTIFACT_WORKLOADS = ARTIFACTS_PATH / "workloads"
+ARTIFACT_DATA_RAW = ARTIFACTS_PATH / "data/raw"
 ARTIFACT_DATA_DIFF = ARTIFACTS_PATH / "data/diff"
 ARTIFACT_MODELS = ARTIFACTS_PATH / "models"
 
 
-def task_behavior_datagen():
+def task_behavior_generate_workloads():
     """
-    Behavior modeling: generate training data and perform plan differencing.
+    Behavior modeling: generate the workloads that we plan to execute for training data.
     """
-    # There should be no scenario in which you do NOT want plan differencing.
-    # So it doesn't make sense to expose a separate task just for that.
-    datagen_args = (
-        f"--benchbase-user {dodos.benchbase.DEFAULT_USER} "
-        f"--benchbase-pass {dodos.benchbase.DEFAULT_PASS} "
+    generate_workloads_args = (
         f"--config-file {DATAGEN_CONFIG_FILE} "
-        f"--dir-benchbase {dodos.benchbase.ARTIFACTS_PATH} "
+        f"--postgresql-config-file {POSTGRESQL_CONF} "
         f"--dir-benchbase-config {dodos.benchbase.CONFIG_FILES} "
-        f"--dir-noisepage-bin {dodos.noisepage.ARTIFACTS_PATH} "
-        f"--dir-tscout {dodos.noisepage.BUILD_PATH / 'cmudb/tscout'} "
-        f"--dir-output {ARTIFACT_DATA_TRAIN} "
-        f"--dir-tmp {BUILD_DATAGEN_PATH} "
-        f"--path-noisepage-conf {POSTGRESQL_CONF} "
-        "--tscout-wait-sec 2 "
+        f"--dir-output {ARTIFACT_WORKLOADS} "
     )
-    datadiff_args = f"--dir-datagen-data {ARTIFACT_DATA_TRAIN} --dir-output {ARTIFACT_DATA_DIFF} "
+
+    def conditional_clear(clear_existing):
+        if clear_existing != "False":
+            local["rm"]["-rf"][f"{ARTIFACT_WORKLOADS}"].run()
+
+        return None
 
     return {
         "actions": [
-            f"mkdir -p {ARTIFACT_DATA_TRAIN}",
-            f"mkdir -p {ARTIFACT_DATA_DIFF}",
-            f"mkdir -p {BUILD_DATAGEN_PATH}",
-            f"python3 -m behavior datagen {datagen_args}",
-            # Immediately perform plan differencing here since the models
-            # suck without differencing anyway.
-            f"python3 -m behavior datadiff {datadiff_args}",
+            conditional_clear,
+            f"python3 -m behavior generate_workloads {generate_workloads_args}",
         ],
         "file_dep": [
             dodos.benchbase.ARTIFACT_benchbase,
             dodos.noisepage.ARTIFACT_postgres,
         ],
-        "targets": [ARTIFACT_DATA_TRAIN, ARTIFACT_DATA_DIFF],
+        "targets": [ARTIFACT_WORKLOADS],
         "uptodate": [False],
         "verbosity": VERBOSITY_DEFAULT,
+        "params": [
+            {
+                "name": "clear_existing",
+                "long": "clear_existing",
+                "help": "Remove existing generated workloads.",
+                "default": True,
+            },
+        ],
+    }
+
+
+def task_behavior_execute_workloads():
+    """
+    Behavior modeling: execute workloads to generate training data.
+    """
+    execute_args = (
+        f"--workloads={ARTIFACT_WORKLOADS} "
+        f"--output-dir={ARTIFACT_DATA_RAW} "
+        f"--pgdata={ARTIFACT_pgdata} "
+        f"--benchbase={BENCHBASE_ARTIFACTS_PATH} "
+        f"--pg_binaries={NOISEPAGE_ARTIFACTS_PATH} "
+    )
+
+    return {
+        "actions": [
+            f"mkdir -p {ARTIFACT_DATA_RAW}",
+            f"behavior/datagen/run_workloads.sh {execute_args}",
+        ],
+        "file_dep": [
+            dodos.benchbase.ARTIFACT_benchbase,
+            dodos.noisepage.ARTIFACT_postgres,
+            dodos.noisepage.ARTIFACT_pg_ctl,
+        ],
+        "targets": [ARTIFACT_DATA_RAW],
+        "uptodate": [False],
+        "verbosity": VERBOSITY_DEFAULT,
+    }
+
+
+def task_behavior_perform_plan_diff():
+    """
+    Behavior modeling: perform plan differencing.
+    """
+
+    def datadiff_action(glob_pattern):
+        datadiff_args = f"--dir-datagen-data {ARTIFACT_DATA_RAW} " f"--dir-output {ARTIFACT_DATA_DIFF} "
+
+        if glob_pattern is not None:
+            datadiff_args = datadiff_args + f"--glob-pattern '{glob_pattern}'"
+
+        return f"python3 -m behavior datadiff {datadiff_args}"
+
+    return {
+        "actions": [
+            f"mkdir -p {ARTIFACT_DATA_DIFF}",
+            CmdAction(datadiff_action),
+        ],
+        "file_dep": [
+            dodos.benchbase.ARTIFACT_benchbase,
+            dodos.noisepage.ARTIFACT_postgres,
+        ],
+        "targets": [ARTIFACT_DATA_DIFF],
+        "uptodate": [False],
+        "verbosity": VERBOSITY_DEFAULT,
+        "params": [
+            {
+                "name": "glob_pattern",
+                "long": "glob_pattern",
+                "help": "Glob pattern for selecting which experiments to perform differencing.",
+                "default": None,
+            },
+        ],
     }
 
 
@@ -68,20 +138,57 @@ def task_behavior_train():
     """
     Behavior modeling: train OU models.
     """
-    train_args = (
-        f"--config-file {MODELING_CONFIG_FILE} "
-        f"--dir-data-train {ARTIFACT_DATA_DIFF / 'diff/train'} "
-        f"--dir-data-eval {ARTIFACT_DATA_DIFF / 'diff/eval'} "
-        f"--dir-output {ARTIFACT_MODELS} "
-    )
+
+    def train_cmd(train_experiment_names, train_benchmark_names, eval_experiment_names, eval_benchmark_names):
+        train_args = (
+            f"--config-file {MODELING_CONFIG_FILE} "
+            f"--dir-data {ARTIFACT_DATA_DIFF / 'diff'} "
+            f"--dir-output {ARTIFACT_MODELS} "
+        )
+
+        args = {
+            "--train-experiment-names": train_experiment_names,
+            "--train-benchmark-names": train_benchmark_names,
+            "--eval-experiment-names": eval_experiment_names,
+            "--eval-benchmark-names": eval_benchmark_names,
+        }
+
+        for k, v in args.items():
+            if v is not None:
+                train_args = train_args + f"{k}='{v}' "
+
+        return f"python3 -m behavior train {train_args}"
 
     return {
-        "actions": [
-            f"mkdir -p {ARTIFACT_MODELS}",
-            f"python3 -m behavior train {train_args}",
-        ],
+        "actions": [f"mkdir -p {ARTIFACT_MODELS}", CmdAction(train_cmd)],
         "targets": [ARTIFACT_MODELS],
         "verbosity": VERBOSITY_DEFAULT,
+        "params": [
+            {
+                "name": "train_experiment_names",
+                "long": "train_experiment_names",
+                "help": "Comma separated experiments/experiments glob patterns for training models.",
+                "default": None,
+            },
+            {
+                "name": "train_benchmark_names",
+                "long": "train_benchmark_names",
+                "help": "Comma separated benchmarks/benchmarks glob patterns for training models.",
+                "default": "*",
+            },
+            {
+                "name": "eval_experiment_names",
+                "long": "eval_experiment_names",
+                "help": "Comma separated experiments/experiments glob patterns for evaluating models on.",
+                "default": None,
+            },
+            {
+                "name": "eval_benchmark_names",
+                "long": "eval_benchmark_names",
+                "help": "Comma separated benchmarks/benchmarks glob patterns for evaluating models on.",
+                "default": "*",
+            },
+        ],
     }
 
 
@@ -90,14 +197,16 @@ def task_behavior_microservice():
     Behavior modeling: models as a microservice (via Flask).
     """
 
-    def run_microservice():
-        # Find the latest experiment.
-        # TODO(WAN): Make this configurable.
-        experiment_list = sorted(exp_path for exp_path in ARTIFACT_MODELS.glob("*"))
-        assert len(experiment_list) > 0, "No experiments found."
-        experiment_name = experiment_list[-1]
+    def run_microservice(models):
+        if models is None:
+            # Find the latest experiment by last modified timestamp.
+            experiment_list = sorted((exp_path for exp_path in ARTIFACT_MODELS.glob("*")), key=os.path.getmtime)
+            assert len(experiment_list) > 0, "No experiments found."
+            models = experiment_list[-1]
+        else:
+            assert os.path.isdir(models), f"Specified path {models} is not a valid directory."
 
-        server_cmd = local["python3"]["-m", "behavior", "microservice", "--models-path", experiment_name]
+        server_cmd = local["python3"]["-m", "behavior", "microservice", "--models-path", models]
         dest_stdout = "artifacts/behavior/microservice/microservice.out"
         ret = server_cmd.run_nohup(stdout=dest_stdout)
         print(f"Behavior models microservice: {dest_stdout} {ret.pid}")
@@ -105,6 +214,14 @@ def task_behavior_microservice():
     return {
         "actions": ["mkdir -p ./artifacts/behavior/microservice/", run_microservice],
         "verbosity": VERBOSITY_DEFAULT,
+        "params": [
+            {
+                "name": "models",
+                "long": "models",
+                "help": "Path to folder containing models that should be used.",
+                "default": None,
+            },
+        ],
     }
 
 
@@ -117,4 +234,80 @@ def task_behavior_microservice_kill():
             "pkill --full '^Behavior Models Microservice' || true",
         ],
         "verbosity": VERBOSITY_DEFAULT,
+    }
+
+
+def task_behavior_pg_analyze_benchmark():
+    """
+    Behavior modeling:
+
+    Run ANALYZE on all the tables in the given benchmark.
+    This updates internal statistics for estimating cardinalities and costs.
+
+    Parameters
+    ----------
+    benchmark : str
+        The benchmark whose tables should be analyzed.
+    """
+
+    def pg_analyze(benchmark):
+        if benchmark is None or benchmark not in BENCHDB_TO_TABLES:
+            print(f"Benchmark {benchmark} is not specified or does not exist.")
+            return False
+
+        for table in BENCHDB_TO_TABLES[benchmark]:
+            query = f"ANALYZE VERBOSE {table};"
+            local[str(ARTIFACT_psql)]["--dbname=benchbase"]["--command"][query]()
+
+    return {
+        "actions": [pg_analyze],
+        "file_dep": [ARTIFACT_psql],
+        "uptodate": [False],
+        "verbosity": VERBOSITY_DEFAULT,
+        "params": [
+            {
+                "name": "benchmark",
+                "long": "benchmark",
+                "help": "Benchmark whose tables should be analyzed.",
+                "default": None,
+            },
+        ],
+    }
+
+
+def task_behavior_pg_prewarm_benchmark():
+    """
+    Behavior modeling:
+
+    Run pg_prewarm() on all the tables in the given benchmark.
+    This warms the buffer pool and OS page cache.
+
+    Parameters
+    ----------
+    benchmark : str
+        The benchmark whose tables should be prewarmed.
+    """
+
+    def pg_prewarm(benchmark):
+        if benchmark is None or benchmark not in BENCHDB_TO_TABLES:
+            print(f"Benchmark {benchmark} is not specified or does not exist.")
+            return False
+
+        for table in BENCHDB_TO_TABLES[benchmark]:
+            query = f"SELECT * FROM pg_prewarm('{table}');"
+            local[str(ARTIFACT_psql)]["--dbname=benchbase"]["--command"][query]()
+
+    return {
+        "actions": [pg_prewarm],
+        "file_dep": [ARTIFACT_psql],
+        "uptodate": [False],
+        "verbosity": VERBOSITY_DEFAULT,
+        "params": [
+            {
+                "name": "benchmark",
+                "long": "benchmark",
+                "help": "Benchmark whose tables should be analyzed.",
+                "default": None,
+            },
+        ],
     }

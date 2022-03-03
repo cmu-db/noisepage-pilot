@@ -1,8 +1,5 @@
 # Modeling Configuration
 modeling:
-  train_bench_db: tpcc
-  eval_bench_db: tpcc
-  experiment_name: null
   methods: [lr, dt, rf, gbm]
   normalize: True
   log_transform: False

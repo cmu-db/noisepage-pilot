@@ -138,6 +138,38 @@ def task_noisepage_init():
     }
 
 
+def task_noisepage_swap_config():
+    """
+    NoisePage: swaps the postgresql.conf for the current running instance.
+    """
+
+    def swap_config(config):
+        local["./pg_ctl"]["stop", "-D", DEFAULT_PGDATA, "-m", "smart"].run(retcode=None)
+        local["cp"][f"{config}", f"{DEFAULT_PGDATA}/postgresql.conf"].run_nohup()
+        ret = local["./pg_ctl"]["start", "-D", DEFAULT_PGDATA].run_nohup(stdout="noisepage.out")
+        print(f"NoisePage PID: {ret.pid}")
+
+    return {
+        "actions": [
+            lambda: os.chdir(ARTIFACTS_PATH),
+            swap_config,
+            "until ./pg_isready ; do sleep 1 ; done",
+            lambda: os.chdir(doit.get_initial_workdir()),
+        ],
+        "file_dep": [ARTIFACT_pg_ctl],
+        "uptodate": [False],
+        "verbosity": VERBOSITY_DEFAULT,
+        "params": [
+            {
+                "name": "config",
+                "long": "config",
+                "help": "Path to the postgresql.conf configuration file.",
+                "default": DEFAULT_POSTGRESQL_CONF_PATH,
+            },
+        ],
+    }
+
+
 def task_noisepage_hutch_install():
     """
     NoisePage: install hutch extension to support EXPLAIN (format tscout).

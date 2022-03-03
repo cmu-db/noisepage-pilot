@@ -6,6 +6,7 @@ flake8
 flask
 isort
 lightgbm
+niet
 numpy>=1.20 # numpy.typing.
 pandarallel # Forecast. Parallelize pandas computations.
 pandas
