@@ -1,6 +1,7 @@
 black
 doit
 xlrd
+cython
 featurewiz==0.1.0
 flake8
 flask
@@ -20,6 +21,7 @@ pylint
 pyyaml
 scikit-learn>=1.0.0 # Behavior models.
 setproctitle
+setuptools
 torch # Forecast. LSTM.
 toml
 tqdm

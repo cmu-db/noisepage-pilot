@@ -178,8 +178,8 @@ struct ExplainMicroserviceCost {
     features.AddMember("total_cost", GetValue(node, "total_cost").GetDouble(), target.GetAllocator());
     features.AddMember("plan_rows", uint64_t(GetValue(node, "plan_rows").GetDouble()), target.GetAllocator());
     features.AddMember("plan_width", GetValue(node, "plan_width").GetInt64(), target.GetAllocator());
-    features.AddMember("diffed_startup_cost", node["Diffed Startup Cost"].GetDouble(), target.GetAllocator());
-    features.AddMember("diffed_total_cost", node["Diffed Total Cost"].GetDouble(), target.GetAllocator());
+    features.AddMember("startup_cost", node["Diffed Startup Cost"].GetDouble(), target.GetAllocator());
+    features.AddMember("total_cost", node["Diffed Total Cost"].GetDouble(), target.GetAllocator());
 
     // Determine which behavior model this is.
     // Currently, names mostly match if you strip out spaces.
@@ -246,10 +246,8 @@ struct ExplainMicroserviceCost {
         rapidjson::Document doc;
         doc.Parse(res->body.c_str());
         for (rapidjson::Value::ConstValueIterator it = doc.Begin(); it != doc.End(); ++it) {
-          // This ensures that we never return `elapsed_us` as a target.
-          SPIEL_CHECK_TRUE(!it->IsObject() || !it->HasMember("elapsed_us"));
-          if (it->IsObject() && it->HasMember("diffed_elapsed_us")) {
-            model_cost_ += (*it)["diffed_elapsed_us"].GetDouble();
+          if (it->IsObject() && it->HasMember("elapsed_us")) {
+            model_cost_ += (*it)["elapsed_us"].GetDouble();
           } else {
             // We can't write res->body since that is the entire response body. Instead,
             // we just take this particular element, serialize it, and output it.

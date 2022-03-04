@@ -22,7 +22,7 @@ from sklearn.metrics import (
     r2_score,
 )
 
-from behavior import BASE_TARGET_COLS, DIFFED_TARGET_COLS, PLAN_NODE_NAMES
+from behavior import BASE_TARGET_COLS, PLAN_NODE_NAMES
 from behavior.modeling.model import BehaviorModel
 
 logger = logging.getLogger(__name__)
@@ -52,14 +52,14 @@ def evaluate(model, df, output_dir, mode):
 
     # Split the features and targets.
     X = df[model.features].values
-    y = df[DIFFED_TARGET_COLS].values
+    y = df[BASE_TARGET_COLS].values
 
     # Run inference.
     y_pred = model.predict(X)
 
     # Pair and re-order the target columns for more readable outputs.
-    pred_cols = [f"pred_{col}" for col in DIFFED_TARGET_COLS]
-    paired_cols = zip(pred_cols, DIFFED_TARGET_COLS)
+    pred_cols = [f"pred_{col}" for col in BASE_TARGET_COLS]
+    paired_cols = zip(pred_cols, BASE_TARGET_COLS)
     reordered_cols = model.features + list(itertools.chain.from_iterable(paired_cols))
 
     # Save the inference results (including features and predictions).
@@ -68,14 +68,14 @@ def evaluate(model, df, output_dir, mode):
         temp: NDArray[Any] = np.concatenate((X, y, y_pred), axis=1)  # type: ignore [no-untyped-call]
         test_result_df = pd.DataFrame(
             temp,
-            columns=model.features + DIFFED_TARGET_COLS + pred_cols,
+            columns=model.features + BASE_TARGET_COLS + pred_cols,
         )
         test_result_df[reordered_cols].to_csv(preds_file, float_format="%.1f", index=False)
 
     # Save the decision tree if relevant.
     if model.method == "dt" and mode == "train":
         # We have one decision tree for each target variable.
-        for idx, target_name in enumerate(DIFFED_TARGET_COLS):
+        for idx, target_name in enumerate(BASE_TARGET_COLS):
             # Generate the dotgraph.
             dot = tree.export_graphviz(
                 model.model.estimators_[idx],
@@ -97,7 +97,7 @@ def evaluate(model, df, output_dir, mode):
         f.write(f"Num Features used: {len(model.features)}\n")
 
         # Evaluate performance for every resource consumption metric.
-        for target_idx, target in enumerate(DIFFED_TARGET_COLS):
+        for target_idx, target in enumerate(BASE_TARGET_COLS):
             f.write(f"===== Target: {target} =====\n")
             target_pred = y_pred[:, target_idx]
             target_true = y[:, target_idx]
@@ -173,9 +173,6 @@ def prep_train_data(df):
     # Remove all the "undifferenced" target columns, as we only predict
     # the "differenced" resource costs.
     cols_to_remove: list[str] = [
-        "rid",
-        "statement_id",
-        "invocation_id",
         "start_time",
         "end_time",
         "cpu_id",
@@ -185,7 +182,7 @@ def prep_train_data(df):
         "statement_timestamp",
         "left_child_plan_node_id",
         "right_child_plan_node_id",
-    ] + BASE_TARGET_COLS
+    ]
 
     # Remove all columns which include the relation ID.
     relid_cols = [col for col in df.columns if col.endswith("relid")]
@@ -198,7 +195,7 @@ def prep_train_data(df):
     # Remove all features with zero variance.
     zero_var_cols = []
     for col in df.columns:
-        if df[col].nunique() == 1 and col not in DIFFED_TARGET_COLS:
+        if df[col].nunique() == 1 and col not in BASE_TARGET_COLS:
             zero_var_cols.append(col)
 
     if zero_var_cols:
@@ -209,7 +206,7 @@ def prep_train_data(df):
     df.sort_index(axis=1, inplace=True)
 
     # Now that we've filtered the columns, any column that isn't a target must be a feature.
-    feat_cols: list[str] = [col for col in df.columns if col not in DIFFED_TARGET_COLS]
+    feat_cols: list[str] = [col for col in df.columns if col not in BASE_TARGET_COLS]
 
     # If there are no remaining features, we still want to make a trivial model.  To do this,
     # we simply insert a single "bias" feature column of 1's.
@@ -286,9 +283,9 @@ def main(
         df_train = prep_train_data(train_df)
 
         # Partition the features and targets.
-        feat_cols = [col for col in df_train.columns if col not in DIFFED_TARGET_COLS]
+        feat_cols = [col for col in df_train.columns if col not in BASE_TARGET_COLS]
         x_train = df_train[feat_cols].values
-        y_train = df_train[DIFFED_TARGET_COLS].values
+        y_train = df_train[BASE_TARGET_COLS].values
 
         # Check if no valid training data was found (for the current operating unit).
         if x_train.shape[1] == 0 or y_train.shape[1] == 0:

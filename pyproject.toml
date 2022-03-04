@@ -18,6 +18,10 @@ extension-pkg-allow-list = [
 [tool.pylint.format]
 max-line-length=120
 
+# pylint doesn't interface well with pandas: https://github.com/PyCQA/pylint/issues/4577
+[tool.pylint.typecheck]
+generated-members= "pandas.*"
+
 # disable list taken from https://github.com/PyCQA/pylint/issues/617
 [tool.pylint.messages_control]
 disable = [

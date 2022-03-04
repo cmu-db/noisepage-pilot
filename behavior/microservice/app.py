@@ -10,7 +10,7 @@ import setproctitle
 from flask import Flask, g, jsonify, render_template, request, send_from_directory
 from plumbum import cli
 
-from behavior import DIFFED_TARGET_COLS
+from behavior import BASE_TARGET_COLS
 from behavior.modeling.model import BehaviorModel
 
 app = Flask(__name__, static_url_path="")
@@ -67,7 +67,7 @@ def _infer_model(model_type, ou_type, features):
     Y = Y[0]
     end = time.time()
 
-    Y = dict(zip(DIFFED_TARGET_COLS, Y))
+    Y = dict(zip(BASE_TARGET_COLS, Y))
 
     # Modify Y so that we also account for inference_time, model_type, and ou_type.
     Y["inference_time"] = end - start
