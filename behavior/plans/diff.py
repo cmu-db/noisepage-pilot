@@ -7,13 +7,6 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-
-# diff_c.so is compiled from behavior/plans/diff_c.pyx. If an error is thrown
-# saying that diff_c can't be found, then please ensure your PYTHONPATH is
-# setup correctly.
-#
-# pylint: disable=E0401
-from diff_c import diff_matrix
 from pandas import DataFrame
 from plumbum import cli
 from tqdm import tqdm
@@ -96,6 +89,13 @@ def diff_query_invocation(subinvocation):
     None : if the invocation cannot be diffed successfully.
     DataFrame of diffed data that has the same layout as subinvocation (except for index).
     """
+    # diff_c.so is compiled from behavior/plans/diff_c.pyx. If an error is thrown
+    # saying that diff_c can't be found, then please ensure your PYTHONPATH is
+    # setup correctly.
+    #
+    # pylint: disable=E0401,C0415
+    from diff_c import diff_matrix
+
     # The 2D underlying subinvocation array is cast to a float64[][] for efficient Cython
     # indexing into numpy ndarrays.
     matrix = subinvocation.to_numpy(dtype=np.float64, copy=False)
@@ -218,7 +218,7 @@ def diff_queries(unified):
     unified = invocation_groups.progress_apply(process_query_invocation)
 
     # Drop subinvocation_id since we no longer require it.
-    unified = unified.drop(["subinvocation_id"], axis=1, inplace=True)
+    unified.drop(columns=["subinvocation_id"], axis=1, inplace=True)
     return unified
 
 
@@ -279,7 +279,7 @@ def save_results(diff_data_dir, ou_to_features, unified):
         if result.shape[0] > 0:
             # If we find that there are matching output rows, write them out.
             # Don't write out the index columns.
-            result.to_csv(f"{diff_data_dir}/{PLAN_NODE_NAMES[ou_index]}.csv", float_format="%f", index=False)
+            result.to_csv(f"{diff_data_dir}/{PLAN_NODE_NAMES[ou_index]}.csv", float_format="%g", index=False)
 
 
 def main(data_dir, output_dir, experiment) -> None:

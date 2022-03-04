@@ -146,7 +146,7 @@ def task_behavior_train():
     def train_cmd(train_experiment_names, train_benchmark_names, eval_experiment_names, eval_benchmark_names):
         train_args = (
             f"--config-file {MODELING_CONFIG_FILE} "
-            f"--dir-data {ARTIFACT_DATA_DIFF / 'diff'} "
+            f"--dir-data {ARTIFACT_DATA_DIFF} "
             f"--dir-output {ARTIFACT_MODELS} "
         )
 
