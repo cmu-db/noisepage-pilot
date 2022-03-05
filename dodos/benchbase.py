@@ -68,12 +68,12 @@ def task_benchbase_build():
             f"mkdir -p {ARTIFACTS_PATH}",
             lambda: os.chdir(BUILD_PATH),
             # Compile BenchBase.
-            "./mvnw clean package -Dmaven.test.skip=true",
+            "./mvnw clean package -Dmaven.test.skip=true -P postgres",
             lambda: os.chdir("target"),
-            "tar xvzf benchbase-2021-SNAPSHOT.tgz",
+            "tar xvzf benchbase-postgres.tgz",
             # Move artifacts out.
             lambda: os.chdir(doit.get_initial_workdir()),
-            f"mv {BUILD_PATH / f'target/benchbase-2021-SNAPSHOT/*'} {ARTIFACTS_PATH}",
+            f"mv {BUILD_PATH / f'target/benchbase-postgres/*'} {ARTIFACTS_PATH}",
             # Reset working directory.
             lambda: os.chdir(doit.get_initial_workdir()),
         ],
