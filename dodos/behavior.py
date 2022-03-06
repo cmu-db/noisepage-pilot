@@ -115,7 +115,7 @@ def task_behavior_perform_plan_diff():
     return {
         "actions": [
             # This is necessary to force a rebuild everytime. Recompile diff_c.pyx.
-            "rm behavior/plans/diff_c.c",
+            "rm -f behavior/plans/diff_c.c",
             f"python3 behavior/plans/setup.py build_ext --build-lib artifacts/ --build-temp {default_build_path()}",
             f"mkdir -p {ARTIFACT_DATA_DIFF}",
             CmdAction(datadiff_action, buffering=1),
