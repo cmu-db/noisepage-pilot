@@ -13,7 +13,7 @@ from tqdm import tqdm
 
 from behavior import BASE_TARGET_COLS, BENCHDB_TO_TABLES, DIFF_COLS, PLAN_NODE_NAMES
 
-from . import BLACKLIST_OUS, COMMON_SCHEMA, STANDARDIZE_COLUMNS
+from . import BLOCKED_OUS, COMMON_SCHEMA, STANDARDIZE_COLUMNS
 
 logger = logging.getLogger(__name__)
 
@@ -39,10 +39,6 @@ def load_csv(ou_index, csv_file):
         Dataframe constructed from the CSV file for differencing.
     df_features : pd.DataFrame
         Dataframe constructed from the CSV file of non-differencing columns.
-
-    ou_index : index of the PLAN_NODE_NAMES that the dataframe coresponds to
-    df[targets] : dataframe constructed from the CSV file for differencing
-    df[features] : dataframe constructed from the CSV file of non-differencing columns
 
     Notes
     -----
@@ -93,8 +89,9 @@ def diff_query_invocation(subinvocation):
 
     Returns
     -------
-    None : if the invocation cannot be diffed successfully.
-    DataFrame of diffed data that has the same layout as subinvocation (except for index).
+    diffed_data : pd.DataFrame or None
+        DataFrame of diffed data that has the same layout as subinvocation (except for index)
+        or None if the invocation cannot be diffed.
     """
     # diff_c.so is compiled from behavior/plans/diff_c.pyx. If an error is thrown
     # saying that diff_c can't be found, then please ensure your PYTHONPATH is
@@ -136,7 +133,7 @@ def separate_subinvocation(start_times, end_times, root_start_times, root_end_ti
     root_end_times : numpy.array[int64]
         Array of end times of all root plan nodes (plan_node_id = 0).
 
-    subinvocations : output[numpy.array[int64]]
+    subinvocations : numpy.array[int64]
         Output array to indicate for an OU [i] which [y] in root_start_times the OU belongs to.
         If output[i] = y, then root_start_times[y] <= start_times[i] && end_times[i] <= root_end_times[y].
     """
@@ -162,7 +159,7 @@ def process_query_invocation(subframe):
 
     Parameters
     ----------
-    subframe : Dataframe following the COMMON_SCHEMA with BASE_TARGET_COLS
+    subframe : pd.DataFrame
         Dataframe contains the data that we want to difference. The dataframe must be
         data that is associated with a given query session template.
 
@@ -249,7 +246,7 @@ def load_tscout_data(tscout_data_dir):
     result_paths = {
         i: tscout_data_dir / f"Exec{node_name}.csv"
         for i, node_name in enumerate(PLAN_NODE_NAMES)
-        if node_name not in BLACKLIST_OUS
+        if node_name not in BLOCKED_OUS
     }
     result_paths = {
         key: value for (key, value) in result_paths.items() if value.exists() and os.stat(value).st_size > 0

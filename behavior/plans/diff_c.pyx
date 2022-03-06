@@ -22,8 +22,8 @@ ctypedef np.int64_t ITYPE_t
 @cython.boundscheck(False)
 @cython.wraparound(False)
 def diff_matrix(np.ndarray[FTYPE_t, ndim=2] matrix):
-    cdef int rows = matrix.shape[0]
-    cdef int col = matrix.shape[1]
+    cdef int rows = np.PyArray_DIMS(matrix)[0]
+    cdef int col = np.PyArray_DIMS(matrix)[1]
 
     cdef int plan_id = PLAN_NODE_ID_SCHEMA_INDEX
     cdef int left_id = LEFT_CHILD_PLAN_NODE_ID_SCHEMA_INDEX

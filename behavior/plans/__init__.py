@@ -1,14 +1,17 @@
 from __future__ import annotations
 
-# These OUs are currently blacklisted from being handled by plan diff-ing. Note that Gather/GatherMerge
-# are only present for data where there is a parallel query operation. If in the future, we want to
-# support differencing on parallel data, we would require the following:
+# These OUs are currently blocked from being handled by plan diff-ing. Note that Gather/GatherMerge
+# are only present for data where there is a parallel query operation. As such, this process will
+# not output any plan data that uses any blocked OU (by extension, blocked OU data will not appear
+# in the output data files).
+#
+# If in the future, we want to support differencing on parallel data, we would require the following:
 #
 # 1- TScout instrumentation such that the PID for all OUs in a given query are the same regardless if it
 #    is being executed by the Leader or the parallel workers.
 #
 # 2- Define a mechanism by which metrics should be altered.
-BLACKLIST_OUS = ["Gather", "GatherMerge"]
+BLOCKED_OUS = ["Gather", "GatherMerge"]
 
 # OUs read from CSV have distinct schemas since each OU contains different features that are extracted.
 # The `COMMON_SCHEMA` defined below standardizes a set of features for each OU in order to perform
@@ -21,11 +24,11 @@ COMMON_SCHEMA: list[str] = [
     # (query_id, statement_timestamp, pid) identify a unique query invocation.
     # `query_id` is a post-parse representation of the user's query.
     #
-    # `pid` is used to identify a given terminal/client session.
-    #
     # `statement_timestamp` identifies a given invocation on a given terminal. This is because postgres
     # invokes SetCurrentStatementStartTimestamp() on every simple query invocation and also on every
     # EXECUTE in the extended query protocol.
+    #
+    # `pid` is used to identify a given terminal/client session.
     "query_id",
     "statement_timestamp",
     "pid",
