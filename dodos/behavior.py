@@ -109,7 +109,7 @@ def task_behavior_perform_plan_diff():
         if glob_pattern is not None:
             datadiff_args = datadiff_args + f"--glob-pattern '{glob_pattern}'"
 
-        # Alter PYTHONPATH so it can find the cython compiled modules.
+        # Include the cython compiled modules in PYTHONPATH.
         return f"PYTHONPATH=artifacts/behavior/plans:$PYTHONPATH python3 -m behavior datadiff {datadiff_args}"
 
     return {

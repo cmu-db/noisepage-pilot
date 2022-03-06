@@ -14,11 +14,11 @@ BLACKLIST_OUS = ["Gather", "GatherMerge"]
 # The `COMMON_SCHEMA` defined below standardizes a set of features for each OU in order to perform
 # differencing correctly.
 COMMON_SCHEMA: list[str] = [
-    # These identify the (OU, row) of this particular datapoint in the unified frame.
+    # (ou_index, data_id) identify the (OU, row) of this particular datapoint in the unified frame.
     # ou_index corresponds to an index into PLAN_NODE_NAMES.
     "ou_index",
     "data_id",
-    # These identify a unique query invocation.
+    # (query_id, statement_timestamp, pid) identify a unique query invocation.
     # `query_id` is a post-parse representation of the user's query.
     #
     # `pid` is used to identify a given terminal/client session.
@@ -32,7 +32,7 @@ COMMON_SCHEMA: list[str] = [
     # Start Time and End Time of the given OU invocation.
     "start_time",
     "end_time",
-    # These are used to reconstruct the plan tree.
+    # (plan_node_id, left_child_plan_node_id, right_child_plan_node_id) are used to reconstruct the plan tree.
     "plan_node_id",
     "left_child_plan_node_id",
     "right_child_plan_node_id",

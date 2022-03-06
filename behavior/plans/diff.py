@@ -29,19 +29,25 @@ def load_csv(ou_index, csv_file):
         corresponds to.
 
     csv_file: Path
-        Path to the CSV file that should be read>
+        Path to the CSV file that should be read.
 
     Returns
     -------
-    Tuple[ou_index, df[targets], df[features]]
+    ou_index : int
+        Index of the PLAN_NODE_NAMES that the dataframe coresponds to.
+    df_targets : pd.DataFrame
+        Dataframe constructed from the CSV file for differencing.
+    df_features : pd.DataFrame
+        Dataframe constructed from the CSV file of non-differencing columns.
 
     ou_index : index of the PLAN_NODE_NAMES that the dataframe coresponds to
     df[targets] : dataframe constructed from the CSV file for differencing
     df[features] : dataframe constructed from the CSV file of non-differencing columns
 
-    Note:
-        - Both dataframes contain `ou_index` and `data_id` for joining the two dataframes
-        - Dataframe for differencing follows the COMMON_SCHEMA layout
+    Notes
+    -----
+        - Both `df_targets` and `df_features` contain `ou_index` and `data_id`. These features are used for joining the two dataframes.
+        - `df_targets` follows the COMMON_SCHEMA layout
     """
 
     # Read the CSV file and add `ou_index` and `data_id`.
@@ -49,13 +55,13 @@ def load_csv(ou_index, csv_file):
     df["ou_index"] = ou_index
     df["data_id"] = df.index
 
-    # Determines which columns to remap. A non-target input column that is suffixed by a
+    # Determine which columns to remap. A non-target input column that is suffixed by a
     # column in STANDARDIZE_COLUMNS is remapped to produce a common schema.
     remapper: dict[str, str] = {}
     for init_col in df.columns:
         if init_col not in STANDARDIZE_COLUMNS and init_col not in BASE_TARGET_COLS:
             for common_col in STANDARDIZE_COLUMNS:
-                if common_col in init_col:
+                if init_col.endswith(common_col):
                     remapper[init_col] = common_col
                     break
     df.rename(columns=remapper, inplace=True)
@@ -63,7 +69,7 @@ def load_csv(ou_index, csv_file):
     # Here we produce two different dataframes from the original CSV file.
     #
     # df[targets] produces a dataframe containing all the common schema columns and the
-    # target columns. This dataframe is used to perform plan differencing on.
+    # target columns. Plan differencing is performed on this dataframe.
     #
     # df[features] contains all the other columns in the input data that were not used
     # for differencing along with `ou_index` and `data_id`. It is worth noting that
@@ -82,7 +88,8 @@ def diff_query_invocation(subinvocation):
 
     Parameters
     ----------
-    subinvocation : DataFrame describing a single invocation of an unique query instance
+    subinvocation : pd.DataFrame
+        Dataframe describing a single invocation of an unique query instance.
 
     Returns
     -------
@@ -116,7 +123,6 @@ def separate_subinvocation(start_times, end_times, root_start_times, root_end_ti
 
     Parameters
     ----------
-
     start_times : numpy.array[int64]
         Array of start times for all OUs belonging to the same query template.
 
@@ -125,14 +131,14 @@ def separate_subinvocation(start_times, end_times, root_start_times, root_end_ti
         start_times[i] and end_times[i] correspond to the same OU.
 
     root_start_times : numpy.array[int64]
-        Array of start times of all root plan nodes (plan_node_id = 0)
+        Array of start times of all root plan nodes (plan_node_id = 0).
 
-    root_ned_times : numpy.array[int64]
-        Array of end times of all root plan nodes (plan_node_id = 0)
+    root_end_times : numpy.array[int64]
+        Array of end times of all root plan nodes (plan_node_id = 0).
 
     subinvocations : output[numpy.array[int64]]
-        Output array to indicate for an OU [i] which [y] in root_start_Times the OU belongs to.
-        If output[i] = y, then root_start_times[y] <= start_times{i] && end_times[i] <= root_end_times[y]
+        Output array to indicate for an OU [i] which [y] in root_start_times the OU belongs to.
+        If output[i] = y, then root_start_times[y] <= start_times[i] && end_times[i] <= root_end_times[y].
     """
 
     # For each OU start time, find all root plan nodes [y] that start earlier.
@@ -141,7 +147,7 @@ def separate_subinvocation(start_times, end_times, root_start_times, root_end_ti
     # For each OU end time, find all root plan nodes [y] that end afterwards.
     end_matches = [np.argwhere(root_end_times >= end) for end in end_times]
 
-    # FOr each OU data point, find the intersection between root plan nodes that have start earlier and end afterwards.
+    # For each OU data point, find the intersection between root plan nodes that start earlier and end afterwards.
     intersects = [
         np.intersect1d(start_match, end_match) for (start_match, end_match) in zip(start_matches, end_matches)
     ]
@@ -224,7 +230,7 @@ def diff_queries(unified):
 
 def load_tscout_data(tscout_data_dir):
     """
-    Load TScout data into dataframes
+    Load TScout data into dataframes.
 
     Parameters
     ----------
@@ -233,11 +239,11 @@ def load_tscout_data(tscout_data_dir):
 
     Returns:
     --------
-    unified : Dataframe
-         Dataframe containing datapoints from all OUs arranged by COMMON_SCHEMA>
+    unified : pd.DataFrame
+         Dataframe containing datapoints from all OUs arranged by COMMON_SCHEMA.
 
-    features : dict[int, dataframe]
-         DIctionary mapping a ou_index (index in PLAN_NODE_NAMES) to OU specific features.
+    features : dict[int, pd.DataFrame]
+         Dictionary mapping a ou_index (index in PLAN_NODE_NAMES) to OU specific features.
     """
 
     result_paths = {

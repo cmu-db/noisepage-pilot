@@ -18,7 +18,7 @@ ITYPE = np.int64
 ctypedef np.float64_t FTYPE_t
 ctypedef np.int64_t ITYPE_t
 
-# Skip bounds check and the wraparound checks
+# Skip checking bounds and wraparound for performance.
 @cython.boundscheck(False)
 @cython.wraparound(False)
 def diff_matrix(np.ndarray[FTYPE_t, ndim=2] matrix):
