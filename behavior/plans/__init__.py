@@ -70,8 +70,7 @@ STANDARDIZE_COLUMNS: list[str] = [
 PLAN_NODE_ID_SCHEMA_INDEX = DIFFERENCING_SCHEMA.index("plan_node_id")
 LEFT_CHILD_PLAN_NODE_ID_SCHEMA_INDEX = DIFFERENCING_SCHEMA.index("left_child_plan_node_id")
 RIGHT_CHILD_PLAN_NODE_ID_SCHEMA_INDEX = DIFFERENCING_SCHEMA.index("right_child_plan_node_id")
-STARTUP_COST_SCHEMA_INDEX = DIFFERENCING_SCHEMA.index("startup_cost")
-TOTAL_COST_SCHEMA_INDEX = DIFFERENCING_SCHEMA.index("total_cost")
+TARGET_START_SCHEMA_INDEX = DIFFERENCING_SCHEMA.index("total_cost")
 
 
 class PlanDiffIncompleteSubinvocationException(Exception):

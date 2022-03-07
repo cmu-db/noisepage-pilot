@@ -10,8 +10,7 @@ from behavior.plans import (
     LEFT_CHILD_PLAN_NODE_ID_SCHEMA_INDEX,
     PLAN_NODE_ID_SCHEMA_INDEX,
     RIGHT_CHILD_PLAN_NODE_ID_SCHEMA_INDEX,
-    STARTUP_COST_SCHEMA_INDEX,
-    TOTAL_COST_SCHEMA_INDEX,
+    TARGET_START_SCHEMA_INDEX,
     PlanDiffIncompleteSubinvocationException,
     PlanDiffInvalidDataException,
     PlanDiffUnsupportedParallelException,
@@ -44,9 +43,7 @@ def diff_query_tree(np.ndarray[FTYPE_t, ndim=2] matrix):
     cdef int plan_id = PLAN_NODE_ID_SCHEMA_INDEX
     cdef int left_id = LEFT_CHILD_PLAN_NODE_ID_SCHEMA_INDEX
     cdef int right_id = RIGHT_CHILD_PLAN_NODE_ID_SCHEMA_INDEX
-    cdef int startup_cost = STARTUP_COST_SCHEMA_INDEX
-    cdef int target = TOTAL_COST_SCHEMA_INDEX
-    cdef int total_cost = TOTAL_COST_SCHEMA_INDEX
+    cdef int target = TARGET_START_SCHEMA_INDEX
 
     # Define a 1 dimensional array that has the same length as the number of rows.
     # offset is used to build a mapping offset[i] = Y such that plan node ID [i]
@@ -106,11 +103,11 @@ def diff_query_tree(np.ndarray[FTYPE_t, ndim=2] matrix):
             tail += 1
 
     for i in range(rows):
-        # In certain cases, total_cost has the property that the child node's total cost might
+        # In certain cases, total cost has the property that the child node's total cost might
         # exceed the parent node's total cost (e.g., Limit on top of a SeqScan). In other cases,
-        # we may want to adjust NestedLoop()'s total_cost as a function of the number of tuples
+        # we may want to adjust NestedLoop()'s total cost as a function of the number of tuples
         # produced by the outer table and the type of inner table probe (e.g., Materialize/IndexScan).
-        # TODO(wz2): More robust total_cost "differenced" adjustments.
+        # TODO(wz2): More robust total cost "differenced" adjustments.
         #
         # We also sanity-clip the rest of the targets to ensure that there are no negative values.
         # This is possible due to variance in data collection.
