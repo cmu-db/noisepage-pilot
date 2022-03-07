@@ -25,8 +25,8 @@ def derive_input_features(train, test=None, targets=None, config=None):
     Returns
     -------
     metadata : list[str]
-        List of strings that describe how to convert the input train into the selected
-        input features for the model.
+        List of strings that describe how to transform the input data into input features
+        expected by the model.
     """
     assert len(targets) > 0, "No targets specified for derive_input_features()"
 
@@ -39,8 +39,9 @@ def derive_input_features(train, test=None, targets=None, config=None):
         for block in blocked:
             assert block not in column, f"Found blocked {block} inside column name {column}."
 
-    # Drop all target columns that we are not trying to optimize for predicting.
+    # Drop all target columns that we are not trying to otpimize for.
     # For instance, if targets=["elapsed_us"], then we drop all other Y's.
+    # This prevents featurewiz from trying to use other Y's as X's.
     train_input = train
     test_input = test
     drop_targets = set(BASE_TARGET_COLS) - set(targets)
@@ -79,11 +80,11 @@ def extract_all_features(df):
     Returns
     -------
     metadata : list[str]
-        List of strings that describe how to convert the input train into the selected
-        input features for the model.
+        List of strings that describe how to transform the input data into input features
+        expected by the model.
     """
     input_columns = set(df.columns) - set(BASE_TARGET_COLS)
-    return input_columns
+    return list(input_columns)
 
 
 def extract_input_features(df, metadata):
@@ -102,7 +103,7 @@ def extract_input_features(df, metadata):
     Returns
     -------
     pandas.DataFrame
-        DataFrame with the model's input features.
+        Input dataframe transformed into the model's input features.
     """
 
     # Create an empty dataframe that we will extend.
