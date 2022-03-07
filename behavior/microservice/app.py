@@ -6,6 +6,7 @@ from typing import Dict
 
 import flask
 import numpy as np
+import pandas as pd
 import setproctitle
 from flask import Flask, g, jsonify, render_template, request, send_from_directory
 from plumbum import cli
@@ -51,14 +52,13 @@ def _infer_model(model_type, ou_type, features):
     except KeyError as err:
         return f"Error cannot find {model_type} model: {err}"
 
-    # Check that all the features are present.
-    diff = set(behavior_model.features).difference(features)
-    if len(diff) > 0:
-        return f"{model_type}:{ou_type} Features missing: {diff}"
-
-    # Extract the features.
-    X = [features[feature] for feature in behavior_model.features]
-    X = np.array(X).astype(float).reshape(1, -1)
+    # Convert the input features into a pandas dataframe.
+    try:
+        df = pd.DataFrame.from_dict(features)
+        X = behavior_model.convert_raw_input(df)
+        X = X.to_numpy(dtype=np.float, copy=False)
+    except KeyError as e:
+        return f"Error cannot convert input feature: {e}"
 
     # Predict the Y values. Record how long it takes to predict Y values.
     start = time.time()

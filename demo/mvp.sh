@@ -1,5 +1,8 @@
 set -ex
 
+# Initialize all submodules.
+git submodule update --init --recursive
+
 # Install all dependencies in case requirements.txt has changed since last run.
 # TODO(wz2): We may want to lock the versions.
 pip3 install --upgrade -r requirements.txt
@@ -19,7 +22,7 @@ doit behavior_microservice_kill
 doit behavior_generate_workloads
 doit behavior_execute_workloads
 doit behavior_perform_plan_diff
-doit behavior_train
+doit behavior_train --use_featurewiz=True
 
 # Forecast: generate training data.
 # This is annoying to automate because we need to enable/disable

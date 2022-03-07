@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 
+import doit
 from doit.action import CmdAction
 from plumbum import local
 
@@ -17,6 +18,7 @@ from dodos.noisepage import (
 
 ARTIFACTS_PATH = default_artifacts_path()
 BUILD_PATH = default_build_path()
+FEATUREWIZ_PATH = Path("behavior/modeling/featurewiz/")
 
 # Input: various configuration files.
 DATAGEN_CONFIG_FILE = Path("config/behavior/datagen.yaml").absolute()
@@ -28,6 +30,24 @@ ARTIFACT_WORKLOADS = ARTIFACTS_PATH / "workloads"
 ARTIFACT_DATA_RAW = ARTIFACTS_PATH / "data/raw"
 ARTIFACT_DATA_DIFF = ARTIFACTS_PATH / "data/diff"
 ARTIFACT_MODELS = ARTIFACTS_PATH / "models"
+FEATUREWIZ_REQ_FILE = FEATUREWIZ_PATH / "requirements.txt"
+
+
+def task_behavior_featurewiz_clone():
+    """
+    Behavior modeling: clone and setup featurewiz.
+    """
+    return {
+        "actions": [
+            f"git clone https://github.com/17zhangw/featurewiz.git --branch stable --single-branch --depth 1 {FEATUREWIZ_PATH}",
+            lambda: os.chdir(FEATUREWIZ_PATH),
+            "pip3 install -r requirements.txt",
+            lambda: os.chdir(doit.get_initial_workdir()),
+        ],
+        "targets": [FEATUREWIZ_REQ_FILE],
+        "uptodate": [True],
+        "verbosity": VERBOSITY_DEFAULT,
+    }
 
 
 def task_behavior_generate_workloads():
@@ -143,7 +163,9 @@ def task_behavior_train():
     Behavior modeling: train OU models.
     """
 
-    def train_cmd(train_experiment_names, train_benchmark_names, eval_experiment_names, eval_benchmark_names):
+    def train_cmd(
+        train_experiment_names, train_benchmark_names, eval_experiment_names, eval_benchmark_names, use_featurewiz
+    ):
         train_args = (
             f"--config-file {MODELING_CONFIG_FILE} "
             f"--dir-data {ARTIFACT_DATA_DIFF} "
@@ -157,6 +179,9 @@ def task_behavior_train():
             "--eval-benchmark-names": eval_benchmark_names,
         }
 
+        if use_featurewiz == "True":
+            train_args = train_args + "--use-featurewiz "
+
         for k, v in args.items():
             if v is not None:
                 train_args = train_args + f"{k}='{v}' "
@@ -164,7 +189,8 @@ def task_behavior_train():
         return f"python3 -m behavior train {train_args}"
 
     return {
-        "actions": [f"mkdir -p {ARTIFACT_MODELS}", CmdAction(train_cmd)],
+        "actions": [f"mkdir -p {ARTIFACT_MODELS}", CmdAction(train_cmd, buffering=1)],
+        "file_dep": [FEATUREWIZ_REQ_FILE],
         "targets": [ARTIFACT_MODELS],
         "verbosity": VERBOSITY_DEFAULT,
         "params": [
@@ -192,6 +218,12 @@ def task_behavior_train():
                 "help": "Comma separated benchmarks/benchmarks glob patterns for evaluating models on.",
                 "default": "*",
             },
+            {
+                "name": "use_featurewiz",
+                "long": "use_featurewiz",
+                "help": "Whether to use featurewiz for feature selection.",
+                "default": False,
+            },
         ],
     }
 
@@ -218,6 +250,7 @@ def task_behavior_microservice():
     return {
         "actions": ["mkdir -p ./artifacts/behavior/microservice/", run_microservice],
         "verbosity": VERBOSITY_DEFAULT,
+        "file_dep": [FEATUREWIZ_REQ_FILE],
         "params": [
             {
                 "name": "models",

@@ -23,6 +23,7 @@ from sklearn.metrics import (
 )
 
 from behavior import BASE_TARGET_COLS, PLAN_NODE_NAMES
+from behavior.modeling import BLOCKED_FEATURES, featurize
 from behavior.modeling.model import BehaviorModel
 
 logger = logging.getLogger(__name__)
@@ -51,7 +52,7 @@ def evaluate(model, df, output_dir, mode):
         raise ValueError(f"Invalid mode: {mode}")
 
     # Split the features and targets.
-    X = df[model.features].values
+    X = featurize.extract_input_features(df, model.features)
     y = df[BASE_TARGET_COLS].values
 
     # Run inference.
@@ -155,69 +156,28 @@ def load_data(data_dirs):
     return ou_name_to_df
 
 
-def prep_train_data(df):
-    """Pre-process the training data.
+def prep_input_data(df):
+    """Pre-process the input data.
 
     Parameters
     ----------
     df : DataFrame
-        Training data for one operating unit.
+        Input (train/test) data for one operating unit.
 
     Returns
     -------
     DataFrame
-        Pre-processed training data.
+        Pre-processed input data.
     """
-
-    # We must filter metadata columns from the operating unit datasets.
-    # Remove all the "undifferenced" target columns, as we only predict
-    # the "differenced" resource costs.
-    cols_to_remove: list[str] = [
-        "start_time",
-        "end_time",
-        "cpu_id",
-        "query_id",
-        "plan_node_id",
-        "pid",
-        "statement_timestamp",
-        "left_child_plan_node_id",
-        "right_child_plan_node_id",
-    ]
-
-    # Remove all columns which include the relation ID.
-    relid_cols = [col for col in df.columns if col.endswith("relid")]
-    cols_to_remove += relid_cols
+    # Remove all features that are blocked.
+    blocked = [col for col in df.columns for block in BLOCKED_FEATURES if col.endswith(block)]
 
     # Don't try to remove any columns which aren't actually in the DataFrame.
-    cols_to_remove = [col for col in cols_to_remove if col in df.columns]
-    df.drop(cols_to_remove, axis=1, inplace=True)
-
-    # Remove all features with zero variance.
-    zero_var_cols = []
-    for col in df.columns:
-        if df[col].nunique() == 1 and col not in BASE_TARGET_COLS:
-            zero_var_cols.append(col)
-
-    if zero_var_cols:
-        logger.debug("Dropping zero-variance features: %s", zero_var_cols)
-        df.drop(zero_var_cols, axis=1, inplace=True)
+    blocked = [col for col in blocked if col in df.columns]
+    df.drop(blocked, axis=1, inplace=True)
 
     # Sort the DataFrame by column for uniform downstream outputs.
     df.sort_index(axis=1, inplace=True)
-
-    # Now that we've filtered the columns, any column that isn't a target must be a feature.
-    feat_cols: list[str] = [col for col in df.columns if col not in BASE_TARGET_COLS]
-
-    # If there are no remaining features, we still want to make a trivial model.  To do this,
-    # we simply insert a single "bias" feature column of 1's.
-    if not feat_cols:
-        logger.warning("All features were constant.  Defaulting to a single constant bias column.")
-        df["bias"] = 1
-        feat_cols = ["bias"]
-
-    logger.info("Training Data | Num Observations: %s", df.shape[0])
-    logger.info("Num Features: %s | Feature List: %s", len(feat_cols), feat_cols)
-
     return df
 
 
@@ -251,6 +211,7 @@ def main(
     train_benchmark_names,
     eval_experiment_names,
     eval_benchmark_names,
+    use_featurewiz,
 ):
     # Load modeling configuration.
     if not config_file.exists():
@@ -278,13 +239,26 @@ def main(
         f.write(f"Train: {train_files}\n")
         f.write(f"Eval: {eval_files}\n")
 
+    # Prepare all the input evaluation data.
+    _ = [prep_input_data(df) for (_, df) in eval_ou_to_df.items()]
+
     for ou_name, train_df in train_ou_to_df.items():
         logger.info("Begin Training OU: %s", ou_name)
-        df_train = prep_train_data(train_df)
+        df_train = prep_input_data(train_df)
+        df_eval = eval_ou_to_df[ou_name] if ou_name in eval_ou_to_df else None
+
+        if use_featurewiz:
+            # TODO(wz2): Currently prioritize the `elapsed_us` target. We may want to specify multiple
+            # targets in the future and/or consider training a model for each target separately.
+            features = featurize.derive_input_features(
+                df_train, test=df_eval, targets=["elapsed_us"], config=config["featurize"]
+            )
+        else:
+            # Get a metadata representation for extracting all feature columns.
+            features = featurize.extract_all_features(df_train)
 
         # Partition the features and targets.
-        feat_cols = [col for col in df_train.columns if col not in BASE_TARGET_COLS]
-        x_train = df_train[feat_cols].values
+        x_train = featurize.extract_input_features(df_train, features)
         y_train = df_train[BASE_TARGET_COLS].values
 
         # Check if no valid training data was found (for the current operating unit).
@@ -292,7 +266,7 @@ def main(
             logger.warning(
                 "OU: %s has no valid training data, skipping. Feature cols: %s, X_train shape: %s, y_train shape: %s",
                 ou_name,
-                feat_cols,
+                features,
                 x_train.shape,
                 y_train.shape,
             )
@@ -306,7 +280,7 @@ def main(
                 ou_name,
                 base_model_name,
                 config,
-                feat_cols,
+                features,
             )
 
             # Train the model.
@@ -322,11 +296,6 @@ def main(
                 logger.warning("OU: %s has training data but no evaluation data.", ou_name)
             else:
                 # Evaluate the model against the evaluation data.
-                df_eval = eval_ou_to_df[ou_name]
-
-                if "bias" in feat_cols:
-                    df_eval["bias"] = 1
-
                 evaluate(ou_model, df_eval, full_outdir, mode="eval")
 
 
@@ -377,6 +346,10 @@ class TrainCLI(cli.Application):
         default="*",
         help="Comma separated list of benchmarks and/or benchmarks glob patterns to evaluate models on.",
     )
+    use_featurewiz = cli.Flag(
+        "--use-featurewiz",
+        help="Whether to use featurewiz for feature selection.",
+    )
 
     def main(self):
         self.train_experiment_names = (
@@ -394,6 +367,7 @@ class TrainCLI(cli.Application):
             self.train_benchmark_names,
             self.eval_experiment_names,
             self.eval_benchmark_names,
+            self.use_featurewiz,
         )
 
 

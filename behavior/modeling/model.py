@@ -18,7 +18,7 @@ from sklearn.neural_network import MLPRegressor
 from sklearn.preprocessing import RobustScaler, StandardScaler
 from sklearn.tree import DecisionTreeRegressor
 
-from behavior.modeling import METHODS
+from behavior.modeling import METHODS, featurize
 
 
 def get_model(method, config):
@@ -117,7 +117,7 @@ class BehaviorModel:
         config : dict[str, Any]
             The dictionary of configuration parameters for this model.
         features : list[str]
-            The list of input features for this model.
+            Metadata describing input features for this model.
         """
         self.method = method
         self.base_model_name = base_model_name
@@ -180,6 +180,24 @@ class BehaviorModel:
             y = np.clip(y, 0, None)
 
         return y
+
+    def convert_raw_input(self, X):
+        """
+        Given X which is a raw input feature vector, this function returns X'
+        by applying the feature configuration contained in self.features. X'
+        can be passed to predict.
+
+        Parameters
+        ----------
+        X : pandas.DataFrame
+            Input DataFrame of X's to predict the Y's for.
+
+        Returns
+        -------
+        X' : pandas.DataFrame
+            Transformed X' that can be used as inputs to the model.
+        """
+        return featurize.extract_input_features(X, self.features)
 
     def save(self, output_dir):
         """Save the model to disk.

@@ -1,8 +1,6 @@
 black
 doit
-xlrd
 cython
-featurewiz==0.1.0
 flake8
 flask
 graphviz

@@ -27,9 +27,12 @@ def task_ci_python():
 
     return {
         "actions": [
-            *[f"black {config['check']} --verbose {folder}" for folder in folders],
-            *[f"isort {config['check']} {folder}" for folder in folders],
-            *[f"flake8 --statistics {folder}" for folder in folders],
+            *[
+                f"black --exclude behavior/modeling/featurewiz {config['check']} --verbose {folder}"
+                for folder in folders
+            ],
+            *[f"isort --skip behavior/modeling/featurewiz {config['check']} {folder}" for folder in folders],
+            *[f"flake8 --exclude behavior/modeling/featurewiz --statistics {folder}" for folder in folders],
             # TODO(WAN): Only run pylint on behavior for now.
             *[f"pylint --verbose {folder}" for folder in ["behavior"]],
         ],
