@@ -11,9 +11,14 @@ from pandas import DataFrame
 from plumbum import cli
 from tqdm import tqdm
 
-from behavior import BASE_TARGET_COLS, BENCHDB_TO_TABLES, DIFF_COLS, PLAN_NODE_NAMES
+from behavior import BASE_TARGET_COLS, BENCHDB_TO_TABLES, PLAN_NODE_NAMES
+from behavior.plans import (
+    PlanDiffIncompleteSubinvocationException,
+    PlanDiffInvalidDataException,
+    PlanDiffUnsupportedParallelException,
+)
 
-from . import BLOCKED_OUS, COMMON_SCHEMA, STANDARDIZE_COLUMNS
+from . import BLOCKED_OUS, DIFFERENCING_SCHEMA, STANDARDIZE_COLUMNS
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +48,7 @@ def load_csv(ou_index, csv_file):
     Notes
     -----
         - Both `df_targets` and `df_features` contain `ou_index` and `data_id`. These features are used for joining the two dataframes.
-        - `df_targets` follows the COMMON_SCHEMA layout
+        - `df_targets` follows the DIFFERENCING_SCHEMA layout
     """
 
     # Read the CSV file and add `ou_index` and `data_id`.
@@ -71,7 +76,7 @@ def load_csv(ou_index, csv_file):
     # for differencing along with `ou_index` and `data_id`. It is worth noting that
     # `ou_index` and `data_id` can be used to reconstruct a datapoint across the
     # two dataframes.
-    targets = COMMON_SCHEMA + DIFF_COLS
+    targets = DIFFERENCING_SCHEMA
     features = ["ou_index", "data_id"] + list(set(df.columns) - set(targets))
 
     # pylint: disable=E1136
@@ -98,15 +103,21 @@ def diff_query_invocation(subinvocation):
     # setup correctly.
     #
     # pylint: disable=E0401,C0415
-    from diff_c import diff_matrix
+    from diff_c import diff_query_tree
 
     # The 2D underlying subinvocation array is cast to a float64[][] for efficient Cython
     # indexing into numpy ndarrays.
     matrix = subinvocation.to_numpy(dtype=np.float64, copy=False)
 
-    if not diff_matrix(matrix):
-        # The case where diff_matrix() returns False is the case where there is insufficient
-        # data to sufficiently difference the entire plan. In this case, return None.
+    try:
+        diff_query_tree(matrix)
+    except PlanDiffInvalidDataException:
+        print(subinvocation)
+        print(matrix)
+        assert False, "Invalid Data detected for subinvocation"
+    except (PlanDiffUnsupportedParallelException, PlanDiffIncompleteSubinvocationException):
+        # These are not fatal errors. In these cases, we just return None to indicate
+        # that there is no data that needs to be merged.
         return None
 
     # Otherwise, return a new dataframe with the difference data with the same column labels.
@@ -176,7 +187,7 @@ def process_query_invocation(subframe):
         #
         # In the case where OUs can't be mapped to a particular invocation ID (because the
         # root plan itself might be lost), then the subinvocation_id will remain -1.
-        # diff_matrix() will then drop the data point.
+        # diff_query_tree() will then drop the data point.
         subinvocation_ids = subframe["subinvocation_id"].values
         separate_subinvocation(
             subframe["start_time"].values,
@@ -201,7 +212,7 @@ def diff_queries(unified):
     ----------
     unified : Dataframe
         Dataframe contains all the data that needs to be diferenced. The dataframe must folow
-        the COMMON_SCHEMA layout.
+        the DIFFERENCING_SCHEMA layout.
 
     Returns
     -------
@@ -237,7 +248,7 @@ def load_tscout_data(tscout_data_dir):
     Returns:
     --------
     unified : pd.DataFrame
-         Dataframe containing datapoints from all OUs arranged by COMMON_SCHEMA.
+         Dataframe containing datapoints from all OUs arranged by DIFFERENCING_SCHEMA.
 
     features : dict[int, pd.DataFrame]
          Dictionary mapping a ou_index (index in PLAN_NODE_NAMES) to OU specific features.

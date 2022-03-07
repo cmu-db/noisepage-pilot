@@ -3,13 +3,18 @@ import numpy as np
 cimport cython
 cimport numpy as np
 
-# Import the offsets into the 2D array for relevant positions.
+# The following are relevant column offsets for the OU subinvocation matrix used by diff_query_tree().
+# These offsets describe the location of a DIFFERENCING_SCHEMA column in the 2D numpy matrix.
 
 from behavior.plans import (
     LEFT_CHILD_PLAN_NODE_ID_SCHEMA_INDEX,
     PLAN_NODE_ID_SCHEMA_INDEX,
     RIGHT_CHILD_PLAN_NODE_ID_SCHEMA_INDEX,
-    TARGET_START_SCHEMA_INDEX,
+    STARTUP_COST_SCHEMA_INDEX,
+    TOTAL_COST_SCHEMA_INDEX,
+    PlanDiffIncompleteSubinvocationException,
+    PlanDiffInvalidDataException,
+    PlanDiffUnsupportedParallelException,
 )
 
 np.import_array()
@@ -18,17 +23,30 @@ ITYPE = np.int64
 ctypedef np.float64_t FTYPE_t
 ctypedef np.int64_t ITYPE_t
 
+# This function accepts a 2D matrix following the DIFFERENCING_SCHEMA with target columns.
+# The matrix represents all OUs associated with a given invocation of a particular query template.
+# This function differences the OUs based on the plan node structure.
+#
+# This function does not return any values as it mutates the input 2D matrix in-place.
+# This function will raise the following exceptions:
+# - PlanDiffIncompleteSubinvocationException when a subinvocation is not complete.
+# - PlanDiffInvalidDataException when data is deemed to be invalid.
+# - PlanDiffUnsupportedParallelException when a subinvocation contains a parallel OU invocation.
+#
 # Skip checking bounds and wraparound for performance.
 @cython.boundscheck(False)
 @cython.wraparound(False)
-def diff_matrix(np.ndarray[FTYPE_t, ndim=2] matrix):
+def diff_query_tree(np.ndarray[FTYPE_t, ndim=2] matrix):
     cdef int rows = np.PyArray_DIMS(matrix)[0]
-    cdef int col = np.PyArray_DIMS(matrix)[1]
+    # Subtract 1 since the last column is subinvocation_id and we don't "difference" that.
+    cdef int col = np.PyArray_DIMS(matrix)[1] - 1
 
     cdef int plan_id = PLAN_NODE_ID_SCHEMA_INDEX
     cdef int left_id = LEFT_CHILD_PLAN_NODE_ID_SCHEMA_INDEX
     cdef int right_id = RIGHT_CHILD_PLAN_NODE_ID_SCHEMA_INDEX
-    cdef int target = TARGET_START_SCHEMA_INDEX
+    cdef int startup_cost = STARTUP_COST_SCHEMA_INDEX
+    cdef int target = TOTAL_COST_SCHEMA_INDEX
+    cdef int total_cost = TOTAL_COST_SCHEMA_INDEX
 
     # Define a 1 dimensional array that has the same length as the number of rows.
     # offset is used to build a mapping offset[i] = Y such that plan node ID [i]
@@ -41,19 +59,19 @@ def diff_matrix(np.ndarray[FTYPE_t, ndim=2] matrix):
         right = <int>matrix[i][right_id]
         if head == -1:
             # The plan_id should never be -1.
-            return False
+            raise PlanDiffInvalidDataException()
 
         # If any of the plan node IDs extracted above exceeds the number of rows, then
         # that means this invocation has insufficient data.
         if head >= rows or (left != -1 and left >= rows) or (right != -1 and right >= rows):
-            return False
+            raise PlanDiffIncompleteSubinvocationException()
 
         # If offset[head] has already been populated then that means that this invocation
         # somehow has 2 datapoints with the same plan ID.
         #
         # TODO(wz2): Once we need to difference parallel query execution, revisit this.
         if offset[head] != -1:
-            return False
+            raise PlanDiffUnsupportedParallelException()
         offset[head] = i
 
     # access is a BFS order of the query plan tree.
@@ -88,7 +106,12 @@ def diff_matrix(np.ndarray[FTYPE_t, ndim=2] matrix):
             tail += 1
 
     for i in range(rows):
-        # Clip all the metrics such that they are non-negative.
-        np.clip(matrix[head, target:col], 0, None)
-
-    return True
+        # In certain cases, total_cost has the property that the child node's total cost might
+        # exceed the parent node's total cost (e.g., Limit on top of a SeqScan). In other cases,
+        # we may want to adjust NestedLoop()'s total_cost as a function of the number of tuples
+        # produced by the outer table and the type of inner table probe (e.g., Materialize/IndexScan).
+        # TODO(wz2): More robust total_cost "differenced" adjustments.
+        #
+        # We also sanity-clip the rest of the targets to ensure that there are no negative values.
+        # This is possible due to variance in data collection.
+        matrix[i, target:col] = np.clip(matrix[i, target:col], 0, None)
