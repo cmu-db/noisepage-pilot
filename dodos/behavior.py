@@ -109,12 +109,16 @@ def task_behavior_perform_plan_diff():
         if glob_pattern is not None:
             datadiff_args = datadiff_args + f"--glob-pattern '{glob_pattern}'"
 
-        return f"python3 -m behavior datadiff {datadiff_args}"
+        # Include the cython compiled modules in PYTHONPATH.
+        return f"PYTHONPATH=artifacts/:$PYTHONPATH python3 -m behavior datadiff {datadiff_args}"
 
     return {
         "actions": [
+            # The following command is necessary to force a rebuild everytime. Recompile diff_c.pyx.
+            "rm -f behavior/plans/diff_c.c",
+            f"python3 behavior/plans/setup.py build_ext --build-lib artifacts/ --build-temp {default_build_path()}",
             f"mkdir -p {ARTIFACT_DATA_DIFF}",
-            CmdAction(datadiff_action),
+            CmdAction(datadiff_action, buffering=1),
         ],
         "file_dep": [
             dodos.benchbase.ARTIFACT_benchbase,
@@ -142,7 +146,7 @@ def task_behavior_train():
     def train_cmd(train_experiment_names, train_benchmark_names, eval_experiment_names, eval_benchmark_names):
         train_args = (
             f"--config-file {MODELING_CONFIG_FILE} "
-            f"--dir-data {ARTIFACT_DATA_DIFF / 'diff'} "
+            f"--dir-data {ARTIFACT_DATA_DIFF} "
             f"--dir-output {ARTIFACT_MODELS} "
         )
 

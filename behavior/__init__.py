@@ -145,7 +145,3 @@ BASE_TARGET_COLS = [
     "memory_bytes",
     "elapsed_us",
 ]
-
-DIFFED_TARGET_COLS: list[str] = [f"diffed_{col}" for col in BASE_TARGET_COLS]
-
-DIFF_COLS: list[str] = ["startup_cost", "total_cost"] + BASE_TARGET_COLS
