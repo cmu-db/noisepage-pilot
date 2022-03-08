@@ -108,10 +108,9 @@ def diff_query_invocation(subinvocation, diffed_matrices):
 
     try:
         diff_query_tree(matrix)
-    except PlanDiffInvalidDataException:
-        print(subinvocation)
-        print(matrix)
-        assert False, "Invalid Data detected for subinvocation"
+    except PlanDiffInvalidDataException as e:
+        print("Invalid Data detected for subinvocation", subinvocation, matrix)
+        raise e
     except (PlanDiffUnsupportedParallelException, PlanDiffIncompleteSubinvocationException):
         # These are not fatal errors. In these cases, we just return None to indicate
         # that there is no data that needs to be merged.
