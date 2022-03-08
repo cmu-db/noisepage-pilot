@@ -83,7 +83,7 @@ def load_csv(ou_index, csv_file):
     return ou_index, df[targets], df[features]
 
 
-def diff_query_invocation(subinvocation, diffed_matrixes):
+def diff_query_invocation(subinvocation, diffed_matrices):
     """
     Diffs a given query invocation by calling a CPython function.
 
@@ -92,8 +92,8 @@ def diff_query_invocation(subinvocation, diffed_matrixes):
     subinvocation : pd.DataFrame
         Dataframe describing a single invocation of an unique query instance.
 
-    diffed_matrixes : list[np.pdarray]
-        Output list to store diffed numpy matrixes.
+    diffed_matrices : list[np.pdarray]
+        Output list to store diffed numpy matrices.
     """
     # diff_c.so is compiled from behavior/plans/diff_c.pyx. If an error is thrown
     # saying that diff_c can't be found, then please ensure your PYTHONPATH is
@@ -117,8 +117,8 @@ def diff_query_invocation(subinvocation, diffed_matrixes):
         # that there is no data that needs to be merged.
         return None
 
-    # Append the diffed numpy array to diffed_matrixes for us to post-process at once.
-    diffed_matrixes.append(matrix)
+    # Append the diffed numpy array to diffed_matrices for us to post-process at once.
+    diffed_matrices.append(matrix)
     return None
 
 
@@ -162,7 +162,7 @@ def separate_subinvocation(start_times, end_times, root_start_times, root_end_ti
     subinvocations[:] = [-1 if len(intersect) == 0 else intersect[0] for intersect in intersects]
 
 
-def process_query_invocation(subframe, diffed_matrixes):
+def process_query_invocation(subframe, diffed_matrices):
     """
     Function used to difference all data associated with a given query session template.
 
@@ -174,8 +174,8 @@ def process_query_invocation(subframe, diffed_matrixes):
 
         In other words, <query_id, statement_timestamp, pid> is the same for all rows.
 
-    diffed_matrixes : list[np.pdarray]
-        Output list to store diffed numpy matrixes.
+    diffed_matrices : list[np.pdarray]
+        Output list to store diffed numpy matrices.
     """
     root_plans_times = subframe[subframe["plan_node_id"] == 0]
     if root_plans_times.shape[0] > 1:
@@ -196,14 +196,14 @@ def process_query_invocation(subframe, diffed_matrixes):
         subframe["subinvocation_id"] = subinvocation_ids
 
         # Now group by subinvocation_id and apply diff_query_invocation.
-        subframe.groupby(by=["subinvocation_id"]).apply(diff_query_invocation, diffed_matrixes=diffed_matrixes)
+        subframe.groupby(by=["subinvocation_id"]).apply(diff_query_invocation, diffed_matrices=diffed_matrices)
         return None
 
-    diff_query_invocation(subframe, diffed_matrixes=diffed_matrixes)
+    diff_query_invocation(subframe, diffed_matrices=diffed_matrices)
     return None
 
 
-def diff_queries(unified, diffed_matrixes):
+def diff_queries(unified, diffed_matrices):
     """
     Diff all queries in the input data.
 
@@ -213,8 +213,8 @@ def diff_queries(unified, diffed_matrixes):
         Dataframe contains all the data that needs to be diferenced. The dataframe must folow
         the DIFFERENCING_SCHEMA layout.
 
-    diffed_matrixes : list[np.pdarray]
-        Output list to store diffed numpy matrixes.
+    diffed_matrices : list[np.pdarray]
+        Output list to store diffed numpy matrices.
     """
     # Here we assume that <query_id, statement_timestamp, pid> identifies a unique query session template.
     # Grouping by <query_id, statement_timestamp, pid> will produce subframes of OUs for a given query session template.
@@ -222,7 +222,7 @@ def diff_queries(unified, diffed_matrixes):
 
     # We use apply() because we want to process the entire subframe as a single unit. transform() will not work
     # for this because transform() may separate the columns.
-    invocation_groups.progress_apply(process_query_invocation, diffed_matrixes=diffed_matrixes)
+    invocation_groups.progress_apply(process_query_invocation, diffed_matrices=diffed_matrices)
 
 
 def load_tscout_data(tscout_data_dir):
@@ -313,11 +313,11 @@ def main(data_dir, output_dir, experiment) -> None:
             # Reset the index on unified and default initialize the subinvocation_id field.
             unified.reset_index(drop=True, inplace=True)
             unified["subinvocation_id"] = -1
-            diffed_matrixes: list[np.ndarray] = []
-            diff_queries(unified, diffed_matrixes)
+            diffed_matrices: list[np.ndarray] = []
+            diff_queries(unified, diffed_matrices)
 
-            # Concatenate diffed_matrixes back into a single dataframe.
-            unified_np = np.concatenate(diffed_matrixes, axis=0)
+            # Concatenate diffed_matrices back into a single dataframe.
+            unified_np = np.concatenate(diffed_matrices, axis=0)
             unified = DataFrame(unified_np, copy=False, columns=unified.columns)
             unified.drop("subinvocation_id", axis=1, inplace=True)
             save_results(diff_data_dir, features, unified)
