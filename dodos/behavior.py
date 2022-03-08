@@ -33,13 +33,12 @@ ARTIFACT_MODELS = ARTIFACTS_PATH / "models"
 FEATUREWIZ_REQ_FILE = FEATUREWIZ_PATH / "requirements.txt"
 
 
-def task_behavior_featurewiz_clone():
+def task_behavior_featurewiz_install_deps():
     """
     Behavior modeling: clone and setup featurewiz.
     """
     return {
         "actions": [
-            f"git clone https://github.com/17zhangw/featurewiz.git --branch stable --single-branch --depth 1 {FEATUREWIZ_PATH}",
             lambda: os.chdir(FEATUREWIZ_PATH),
             "pip3 install -r requirements.txt",
             lambda: os.chdir(doit.get_initial_workdir()),
