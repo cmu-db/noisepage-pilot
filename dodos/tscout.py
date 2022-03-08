@@ -75,7 +75,7 @@ def task_tscout_shutdown():
             return False
 
         time.sleep(int(wait_time))
-        cmd.sudo["pkill", "-i", "tscout"](retcode=None)
+        cmd.sudo["pkill", "-SIGINT", "-i", "tscout"](retcode=None)
         time.sleep(int(flush_time))
 
         # Because TScout has to execute with sudo, the results are owned by root.
