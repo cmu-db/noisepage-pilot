@@ -39,7 +39,7 @@ def load_csv(ou_index, csv_file):
     Returns
     -------
     ou_index : int
-        Index of the PLAN_NODE_NAMES that the dataframe coresponds to.
+        Index of the PLAN_NODE_NAMES that the dataframe corresponds to.
     df_targets : pd.DataFrame
         Dataframe constructed from the CSV file for differencing.
     df_features : pd.DataFrame
@@ -129,20 +129,20 @@ def separate_subinvocation(start_times, end_times, root_start_times, root_end_ti
 
     Parameters
     ----------
-    start_times : numpy.array[int64]
+    start_times : np.array[int64]
         Array of start times for all OUs belonging to the same query template.
 
-    end_times : numpy.array[int64]
+    end_times : np.array[int64]
         Array of end times for all OUs belonging to the same query template.
         start_times[i] and end_times[i] correspond to the same OU.
 
-    root_start_times : numpy.array[int64]
+    root_start_times : np.array[int64]
         Array of start times of all root plan nodes (plan_node_id = 0).
 
-    root_end_times : numpy.array[int64]
+    root_end_times : np.array[int64]
         Array of end times of all root plan nodes (plan_node_id = 0).
 
-    subinvocations : numpy.array[int64]
+    subinvocations : np.array[int64]
         Output array to indicate for an OU [i] which [y] in root_start_times the OU belongs to.
         If output[i] = y, then root_start_times[y] <= start_times[i] && end_times[i] <= root_end_times[y].
     """
@@ -209,7 +209,7 @@ def diff_queries(unified, diffed_matrixes):
 
     Parameters
     ----------
-    unified : Dataframe
+    unified : pd.DataFrame
         Dataframe contains all the data that needs to be diferenced. The dataframe must folow
         the DIFFERENCING_SCHEMA layout.
 
@@ -234,7 +234,7 @@ def load_tscout_data(tscout_data_dir):
     tscout_data_dir : Path
         Data directory containing all the TScout raw data.
 
-    Returns:
+    Returns
     --------
     unified : pd.DataFrame
          Dataframe containing datapoints from all OUs arranged by DIFFERENCING_SCHEMA.
