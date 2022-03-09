@@ -52,10 +52,12 @@ def _infer_model(model_type, ou_type, features):
     except KeyError as err:
         return f"Error cannot find {model_type} model: {err}"
 
-    # Convert the input features into a pandas dataframe.
     try:
+        # Convert the input features into a pandas dataframe.
         df = pd.DataFrame.from_records([features])
+        # Standardize the input features (particularly, total_cost and startup_cost).
         standardize_input_data(df)
+        # Convert the input features into input features expected by the model.
         X = behavior_model.convert_raw_input(df)
         X = X.to_numpy(dtype=np.float, copy=False)
     except KeyError as e:

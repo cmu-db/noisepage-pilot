@@ -27,6 +27,9 @@ def task_ci_python():
 
     return {
         "actions": [
+            # We currently exclude behavior/modeling/featurewiz (which is a fork from AutoViML/featurewiz)
+            # from going through black/isort/flake8. This is done to prevent any merge conflicts when trying
+            # to pull future upstream changes from AutoViML.
             *[
                 f"black --exclude behavior/modeling/featurewiz {config['check']} --verbose {folder}"
                 for folder in folders

@@ -39,7 +39,7 @@ def derive_input_features(train, test=None, targets=None, config=None):
         for block in blocked:
             assert block not in column, f"Found blocked {block} inside column name {column}."
 
-    # Drop all target columns that we are not trying to otpimize for.
+    # Drop all target columns that we are not trying to optimize for.
     # For instance, if targets=["elapsed_us"], then we drop all other Y's.
     # This prevents featurewiz from trying to use other Y's as X's.
     drop_targets = set(BASE_TARGET_COLS) - set(targets)
