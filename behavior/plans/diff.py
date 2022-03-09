@@ -11,14 +11,14 @@ from pandas import DataFrame
 from plumbum import cli
 from tqdm import tqdm
 
-from behavior import BASE_TARGET_COLS, BENCHDB_TO_TABLES, PLAN_NODE_NAMES
+from behavior import BENCHDB_TO_TABLES, PLAN_NODE_NAMES, standardize_input_data
 from behavior.plans import (
     PlanDiffIncompleteSubinvocationException,
     PlanDiffInvalidDataException,
     PlanDiffUnsupportedParallelException,
 )
 
-from . import BLOCKED_OUS, DIFFERENCING_SCHEMA_WITH_TARGETS, STANDARDIZE_COLUMNS
+from . import BLOCKED_OUS, DIFFERENCING_SCHEMA_WITH_TARGETS
 
 logger = logging.getLogger(__name__)
 
@@ -56,16 +56,8 @@ def load_csv(ou_index, csv_file):
     df["ou_index"] = ou_index
     df["data_id"] = df.index
 
-    # Determine which columns to remap. A non-target input column that is suffixed by a
-    # column in STANDARDIZE_COLUMNS is remapped to produce a common schema.
-    remapper: dict[str, str] = {}
-    for init_col in df.columns:
-        if init_col not in STANDARDIZE_COLUMNS and init_col not in BASE_TARGET_COLS:
-            for common_col in STANDARDIZE_COLUMNS:
-                if init_col.endswith(common_col):
-                    remapper[init_col] = common_col
-                    break
-    df.rename(columns=remapper, inplace=True)
+    # Standardize the input schema.
+    standardize_input_data(df)
 
     # Here we produce two different dataframes from the original CSV file.
     #

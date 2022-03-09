@@ -48,21 +48,6 @@ DIFFERENCING_SCHEMA: list[str] = [
 
 DIFFERENCING_SCHEMA_WITH_TARGETS = DIFFERENCING_SCHEMA + ["total_cost", "startup_cost"] + BASE_TARGET_COLS
 
-# The set of columns to standardize the input data's columns on. A column that ends with any
-# of the values defined below is renamed to the defined value.
-STANDARDIZE_COLUMNS: list[str] = [
-    "query_id",
-    "plan_node_id",
-    "left_child_plan_node_id",
-    "right_child_plan_node_id",
-    "startup_cost",
-    "total_cost",
-    "start_time",
-    "end_time",
-    "statement_timestamp",
-    "pid",
-]
-
 # Given a 2D DataFrame following the DIFFERENCING_SCHEMA, these give the column offsets of the plan node,
 # the left child plan node, the right child plan node, and where the target columns begin.
 PLAN_NODE_ID_SCHEMA_INDEX = DIFFERENCING_SCHEMA_WITH_TARGETS.index("plan_node_id")

@@ -39,6 +39,7 @@ def task_behavior_featurewiz_install_deps():
     """
     return {
         "actions": [
+            "git submodule update --init --recursive",
             lambda: os.chdir(FEATUREWIZ_PATH),
             "pip3 install -r requirements.txt",
             lambda: os.chdir(doit.get_initial_workdir()),
@@ -250,6 +251,7 @@ def task_behavior_microservice():
         "actions": ["mkdir -p ./artifacts/behavior/microservice/", run_microservice],
         "verbosity": VERBOSITY_DEFAULT,
         "file_dep": [FEATUREWIZ_REQ_FILE],
+        "uptodate": [False],
         "params": [
             {
                 "name": "models",

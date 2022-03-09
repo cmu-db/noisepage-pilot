@@ -136,8 +136,6 @@ struct ExplainMicroserviceCost {
 
  private:
   void Augment(rapidjson::Document &doc, rapidjson::Document::Object &node) {
-    // TODO(WAN): Robustness for checking that node is a Plan from PostgreSQL's EXPLAIN (FORMAT JSON).
-
     // Currently, the only augmentation done is differencing.
     // Differencing refers to isolating a node's contribution to a feature by subtracting away children contributions.
     // For example, for this plan:
@@ -152,17 +150,18 @@ struct ExplainMicroserviceCost {
     if (node.HasMember("Plans")) {
       for (auto &child_node : node["Plans"].GetArray()) {
         rapidjson::Document::Object &&child = child_node.GetObject();
-        Augment(doc, child);
+        // Get the cost before we call Augment() on the child.
         children_startup_cost += GetValue(child, "startup_cost").GetDouble();
         children_total_cost += GetValue(child, "total_cost").GetDouble();
+        Augment(doc, child);
       }
     }
     // Compute the diffed features.
     double diffed_startup_cost = GetValue(node, "startup_cost").GetDouble() - children_startup_cost;
     double diffed_total_cost = GetValue(node, "total_cost").GetDouble() - children_total_cost;
     // Add the diffed features back to the JSON object.
-    node.AddMember("Diffed Startup Cost", diffed_startup_cost, doc.GetAllocator());
-    node.AddMember("Diffed Total Cost", diffed_total_cost, doc.GetAllocator());
+    GetValue(node, "startup_cost") = rapidjson::Value(diffed_startup_cost);
+    GetValue(node, "total_cost") = rapidjson::Value(diffed_total_cost);
   }
 
   void PrepareCostRequest(rapidjson::Document &target, rapidjson::Document::Object &node) {
@@ -172,42 +171,15 @@ struct ExplainMicroserviceCost {
     rapidjson::Value features;
     features.SetObject();
 
-    // TODO(WAN): Robustness for checking that node is a Plan from PostgreSQL's EXPLAIN (FORMAT JSON).
-    features.AddMember("bias", 1, target.GetAllocator());
-    features.AddMember("startup_cost", GetValue(node, "startup_cost").GetDouble(), target.GetAllocator());
-    features.AddMember("total_cost", GetValue(node, "total_cost").GetDouble(), target.GetAllocator());
-    features.AddMember("plan_rows", uint64_t(GetValue(node, "plan_rows").GetDouble()), target.GetAllocator());
-    features.AddMember("plan_width", GetValue(node, "plan_width").GetInt64(), target.GetAllocator());
-    features.AddMember("startup_cost", node["Diffed Startup Cost"].GetDouble(), target.GetAllocator());
-    features.AddMember("total_cost", node["Diffed Total Cost"].GetDouble(), target.GetAllocator());
-
-    // Determine which behavior model this is.
-    // Currently, names mostly match if you strip out spaces.
-    // TODO (Karthik): Currently the "tag" returns the OU name.
-    // Make the output from Hutch play nicely with this.
-    std::string model_name = std::regex_replace(node["node_type"].GetString(), std::regex("\\s+"), "");
-    // Model-specific hacks.
-    if (model_name == "Aggregate") {
-      model_name = "Agg";
-    } else if (model_name == "ModifyTable") {
-      // See PostgreSQL nodes.h/CmdType. At time of writing: UNKNOWN, SELECT, UPDATE, INSERT, DELETE, UTILITY, NOTHING.
-      // C standard guarantees that if you don't specify enum value, it starts at 0 and goes sequentially.
-      std::string opstr = node["Operation"].GetString();
-      std::string opnum = "-1";
-      if (opstr == "Select") {
-        opnum = "1";
-      } else if (opstr == "Update") {
-        opnum = "2";
-      } else if (opstr == "Insert") {
-        opnum = "3";
-      } else if (opstr == "Delete") {
-        opnum = "4";
+    for (rapidjson::Value::MemberIterator it = node.MemberBegin(); it != node.MemberEnd(); it++) {
+      // Pass all features provided by Hutch directly to model inference only if
+      // the attribute value is a scalar.
+      if (!it->value.IsObject() && !it->value.IsArray()) {
+        // Explicitly invoke rapidjson::Value() copy constructor so we aren't moving
+        // elements from one node to another.
+        features.AddMember(rapidjson::Value(it->name, target.GetAllocator()),
+                           rapidjson::Value(it->value, target.GetAllocator()), target.GetAllocator());
       }
-
-      rapidjson::Value opnum_val(opnum.c_str(), target.GetAllocator());
-      features.AddMember("ModifyTable_operation", opnum_val, target.GetAllocator());
-    } else if (model_name == "NestedLoop") {
-      model_name = "NestLoop";
     }
 
     // Determine which behavior model type to use.
@@ -215,8 +187,11 @@ struct ExplainMicroserviceCost {
     // Just kidding. No choice allowed, random forests only.
     // TODO(WAN): More seriously, we should expose this as a parameter.
 
-    rapidjson::Value model_name_val(model_name.c_str(), target.GetAllocator());
-    node_element.AddMember("ou_type", model_name_val, target.GetAllocator());
+    // Determine which behavior model this is.
+    auto node_member = node.FindMember("node_type");
+    assert(node_member != node.MemberEnd() && "Expected to find node_type member.");
+    node_element.AddMember("ou_type", rapidjson::Value(node_member->value, target.GetAllocator()),
+                           target.GetAllocator());
     node_element.AddMember("features", features, target.GetAllocator());
     target.PushBack(node_element, target.GetAllocator());
 
@@ -284,8 +259,8 @@ struct ExplainMicroserviceCost {
     return false;
   }
 
-  const rapidjson::Value &GetValue(rapidjson::Value &node, std::string key) {
-    for (rapidjson::Value::ConstMemberIterator itr = node.MemberBegin(); itr != node.MemberEnd(); itr++) {
+  rapidjson::Value &GetValue(rapidjson::Value &node, std::string key) {
+    for (rapidjson::Value::MemberIterator itr = node.MemberBegin(); itr != node.MemberEnd(); itr++) {
       if (EndsWith(itr->name.GetString(), key)) {
         return itr->value;
       }

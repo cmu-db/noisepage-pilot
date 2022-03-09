@@ -42,12 +42,13 @@ def derive_input_features(train, test=None, targets=None, config=None):
     # Drop all target columns that we are not trying to otpimize for.
     # For instance, if targets=["elapsed_us"], then we drop all other Y's.
     # This prevents featurewiz from trying to use other Y's as X's.
-    train_input = train
-    test_input = test
     drop_targets = set(BASE_TARGET_COLS) - set(targets)
     if len(drop_targets) > 0:
         train_input = train.drop(drop_targets, axis=1, inplace=False)
         test_input = test.drop(drop_targets, axis=1, inplace=False)
+    else:
+        train_input = train.copy(deep=True)
+        test_input = test.copy(deep=True)
 
     # Invoke featurewiz to find the best features to use.
     features, _ = FW.featurewiz(
@@ -105,7 +106,6 @@ def extract_input_features(df, metadata):
     pandas.DataFrame
         Input dataframe transformed into the model's input features.
     """
-
     # Create an empty dataframe that we will extend.
     output = pandas.DataFrame(columns=None, index=None)
     for column in metadata:

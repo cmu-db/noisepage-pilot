@@ -11,7 +11,7 @@ import setproctitle
 from flask import Flask, g, jsonify, render_template, request, send_from_directory
 from plumbum import cli
 
-from behavior import BASE_TARGET_COLS
+from behavior import BASE_TARGET_COLS, standardize_input_data
 from behavior.modeling.model import BehaviorModel
 
 app = Flask(__name__, static_url_path="")
@@ -54,7 +54,8 @@ def _infer_model(model_type, ou_type, features):
 
     # Convert the input features into a pandas dataframe.
     try:
-        df = pd.DataFrame.from_dict(features)
+        df = pd.DataFrame.from_records([features])
+        standardize_input_data(df)
         X = behavior_model.convert_raw_input(df)
         X = X.to_numpy(dtype=np.float, copy=False)
     except KeyError as e:
