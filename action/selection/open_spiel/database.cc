@@ -173,8 +173,8 @@ struct ExplainMicroserviceCost {
 
     for (rapidjson::Value::MemberIterator it = node.MemberBegin(); it != node.MemberEnd(); it++) {
       // Pass all features provided by Hutch directly to model inference only if
-      // the attribute value is a scalar.
-      if (!it->value.IsObject() && !it->value.IsArray()) {
+      // the attribute value is a numeric scalar.
+      if (!it->value.IsObject() && !it->value.IsArray() && !it->value.IsString()) {
         // Explicitly invoke rapidjson::Value() copy constructor so we aren't moving
         // elements from one node to another.
         features.AddMember(rapidjson::Value(it->name, target.GetAllocator()),
@@ -188,6 +188,7 @@ struct ExplainMicroserviceCost {
     // TODO(WAN): More seriously, we should expose this as a parameter.
 
     // Determine which behavior model this is.
+    // TODO(wz2): Optionally also attach `node` so we can match predictions back to the plan tree.
     auto node_member = node.FindMember("node_type");
     assert(node_member != node.MemberEnd() && "Expected to find node_type member.");
     node_element.AddMember("ou_type", rapidjson::Value(node_member->value, target.GetAllocator()),

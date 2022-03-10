@@ -1,7 +1,13 @@
+import numpy as np
 import pandas
 
 from behavior import BASE_TARGET_COLS
 from behavior.modeling.featurewiz import featurewiz as FW
+
+# To prevent having any actual zeros in the training/testing data which can yield
+# Inf, we bias each observation by a small epsilon reflected below. The epsilon is
+# added so our X's and Y's no longer includes 0.0.
+BIAS_EPSILON = 1e-6
 
 
 def derive_input_features(train, test=None, targets=None, config=None):
@@ -43,12 +49,17 @@ def derive_input_features(train, test=None, targets=None, config=None):
     # For instance, if targets=["elapsed_us"], then we drop all other Y's.
     # This prevents featurewiz from trying to use other Y's as X's.
     drop_targets = set(BASE_TARGET_COLS) - set(targets)
+    train_input = train.copy(deep=True)
+    test_input = test.copy(deep=True) if test is not None else None
     if len(drop_targets) > 0:
-        train_input = train.drop(drop_targets, axis=1, inplace=False)
-        test_input = test.drop(drop_targets, axis=1, inplace=False)
-    else:
-        train_input = train.copy(deep=True)
-        test_input = test.copy(deep=True)
+        train_input.drop(drop_targets, axis=1, inplace=True)
+        if test_input is not None:
+            test_input.drop(drop_targets, axis=1, inplace=True)
+
+    # Add the EPSILON to remove zeros from the dataset.
+    train_input = train_input + BIAS_EPSILON
+    if test_input is not None:
+        test_input = test_input + BIAS_EPSILON
 
     # Invoke featurewiz to find the best features to use.
     features, _ = FW.featurewiz(
@@ -65,7 +76,12 @@ def derive_input_features(train, test=None, targets=None, config=None):
         nrows=None,
     )
 
-    return list(features.columns)
+    if len(features.columns) - len(targets) == 0:
+        # In this case, featurewiz thinks all the features are irrelevant.
+        # For this, we add a fake "bias" attribute.
+        return ["bias"]
+
+    return list(features.columns)[0 : -len(targets)]
 
 
 def extract_all_features(df):
@@ -97,7 +113,7 @@ def extract_input_features(df, metadata):
     Parameters
     ----------
     df : pandas.DataFrame
-        DataFrame of input X's to convert.
+        DataFrame of input X's to convert. All features in df must be numeric.
     metadata : list[str]
         List of strings describing how to transform df into the model's features.
 
@@ -106,9 +122,13 @@ def extract_input_features(df, metadata):
     pandas.DataFrame
         Input dataframe transformed into the model's input features.
     """
-    # Create an empty dataframe that we will extend.
-    output = pandas.DataFrame(columns=None, index=None)
+
+    # To prevent some transformations from yielding Inf, we strip all zeros
+    # from the input data by adding a small epsilon.
+    df = df + BIAS_EPSILON
+    output_columns = []
     for column in metadata:
+
         # These checks reverse the transformation done by featurewiz.
         # featurewiz/databunch.py: gen_numeric_interaction_features()
 
@@ -133,10 +153,19 @@ def extract_input_features(df, metadata):
                 # Get columns from df based on the split components.
                 columns = [df[component] for component in components if component != ""]
                 # Compute the derived column
-                output[column] = func(*columns)
+                output = func(*columns)
+                output.name = column
+                output_columns.append(output)
 
         if not found:
-            # In the case that an op is not found, we use the column directly.
-            output[column] = df[[column]]
+            if column == "bias":
+                # Create the fake bias column.
+                ones = np.ones(df.shape[0])
+                bias = pandas.Series(data=ones, name=column, copy=False)
+                output_columns.append(bias)
+            else:
+                # In the case that an op is not found, we use the column directly.
+                output_columns.append(df[[column]])
 
+    output = pandas.concat(output_columns, axis=1)
     return output
