@@ -11,14 +11,14 @@ from pandas import DataFrame
 from plumbum import cli
 from tqdm import tqdm
 
-from behavior import BASE_TARGET_COLS, BENCHDB_TO_TABLES, PLAN_NODE_NAMES
+from behavior import BENCHDB_TO_TABLES, PLAN_NODE_NAMES, standardize_input_data
 from behavior.plans import (
     PlanDiffIncompleteSubinvocationException,
     PlanDiffInvalidDataException,
     PlanDiffUnsupportedParallelException,
 )
 
-from . import BLOCKED_OUS, DIFFERENCING_SCHEMA, STANDARDIZE_COLUMNS
+from . import BLOCKED_OUS, DIFFERENCING_SCHEMA_WITH_TARGETS
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +48,7 @@ def load_csv(ou_index, csv_file):
     Notes
     -----
         - Both `df_targets` and `df_features` contain `ou_index` and `data_id`. These features are used for joining the two dataframes.
-        - `df_targets` follows the DIFFERENCING_SCHEMA layout
+        - `df_targets` follows the DIFFERENCING_SCHEMA_WITH_TARGETS layout
     """
 
     # Read the CSV file and add `ou_index` and `data_id`.
@@ -56,16 +56,8 @@ def load_csv(ou_index, csv_file):
     df["ou_index"] = ou_index
     df["data_id"] = df.index
 
-    # Determine which columns to remap. A non-target input column that is suffixed by a
-    # column in STANDARDIZE_COLUMNS is remapped to produce a common schema.
-    remapper: dict[str, str] = {}
-    for init_col in df.columns:
-        if init_col not in STANDARDIZE_COLUMNS and init_col not in BASE_TARGET_COLS:
-            for common_col in STANDARDIZE_COLUMNS:
-                if init_col.endswith(common_col):
-                    remapper[init_col] = common_col
-                    break
-    df.rename(columns=remapper, inplace=True)
+    # Standardize the input schema.
+    standardize_input_data(df)
 
     # Here we produce two different dataframes from the original CSV file.
     #
@@ -76,7 +68,7 @@ def load_csv(ou_index, csv_file):
     # for differencing along with `ou_index` and `data_id`. It is worth noting that
     # `ou_index` and `data_id` can be used to reconstruct a datapoint across the
     # two dataframes.
-    targets = DIFFERENCING_SCHEMA
+    targets = DIFFERENCING_SCHEMA_WITH_TARGETS
     features = ["ou_index", "data_id"] + list(set(df.columns) - set(targets))
 
     # pylint: disable=E1136
@@ -210,7 +202,7 @@ def diff_queries(unified, diffed_matrices):
     ----------
     unified : pd.DataFrame
         Dataframe contains all the data that needs to be diferenced. The dataframe must folow
-        the DIFFERENCING_SCHEMA layout.
+        the DIFFERENCING_SCHEMA_WITH_TARGETS layout.
 
     diffed_matrices : list[np.pdarray]
         Output list to store diffed numpy matrices.
@@ -236,7 +228,7 @@ def load_tscout_data(tscout_data_dir):
     Returns
     --------
     unified : pd.DataFrame
-         Dataframe containing datapoints from all OUs arranged by DIFFERENCING_SCHEMA.
+         Dataframe containing datapoints from all OUs arranged by DIFFERENCING_SCHEMA_WITH_TARGETS.
 
     features : dict[int, pd.DataFrame]
          Dictionary mapping a ou_index (index in PLAN_NODE_NAMES) to OU specific features.

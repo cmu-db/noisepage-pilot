@@ -1,0 +1,5 @@
+[submodule "featurewiz"]
+	path = behavior/modeling/featurewiz
+	url = https://github.com/17zhangw/featurewiz.git
+	branch = stable
+    ignore = dirty

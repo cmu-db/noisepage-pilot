@@ -27,9 +27,15 @@ def task_ci_python():
 
     return {
         "actions": [
-            *[f"black {config['check']} --verbose {folder}" for folder in folders],
-            *[f"isort {config['check']} {folder}" for folder in folders],
-            *[f"flake8 --statistics {folder}" for folder in folders],
+            # We currently exclude behavior/modeling/featurewiz (which is a fork from AutoViML/featurewiz)
+            # from going through black/isort/flake8. This is done to prevent any merge conflicts when trying
+            # to pull future upstream changes from AutoViML.
+            *[
+                f"black --exclude behavior/modeling/featurewiz {config['check']} --verbose {folder}"
+                for folder in folders
+            ],
+            *[f"isort --skip behavior/modeling/featurewiz {config['check']} {folder}" for folder in folders],
+            *[f"flake8 --exclude behavior/modeling/featurewiz --statistics {folder}" for folder in folders],
             # TODO(WAN): Only run pylint on behavior for now.
             *[f"pylint --verbose {folder}" for folder in ["behavior"]],
         ],

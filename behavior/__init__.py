@@ -145,3 +145,43 @@ BASE_TARGET_COLS = [
     "memory_bytes",
     "elapsed_us",
 ]
+
+# The set of columns to standardize the input data's columns on. A column that ends with any
+# of the values defined below is renamed to the defined value.
+STANDARDIZE_COLUMNS: list[str] = [
+    "query_id",
+    "plan_node_id",
+    "left_child_plan_node_id",
+    "right_child_plan_node_id",
+    "startup_cost",
+    "total_cost",
+    "start_time",
+    "end_time",
+    "statement_timestamp",
+    "pid",
+]
+
+
+def standardize_input_data(df):
+    """
+    Standardizes input data for either model inference or for the data diff/model
+    training pipeline. Function remaps non-target input columns that are suffixed
+    by a column in STANDARDIZE_COLUMNS
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Input data dataframe that needs to be remapped.
+        Remapping is done in-place.
+    """
+
+    # Determine which columns to remap. A non-target input column that is suffixed by a
+    # column in STANDARDIZE_COLUMNS is remapped to produce a common schema.
+    remapper: dict[str, str] = {}
+    for init_col in df.columns:
+        if init_col not in STANDARDIZE_COLUMNS and init_col not in BASE_TARGET_COLS:
+            for common_col in STANDARDIZE_COLUMNS:
+                if init_col.endswith(common_col):
+                    remapper[init_col] = common_col
+                    break
+    df.rename(columns=remapper, inplace=True)

@@ -143,7 +143,9 @@ def task_behavior_train():
     Behavior modeling: train OU models.
     """
 
-    def train_cmd(train_experiment_names, train_benchmark_names, eval_experiment_names, eval_benchmark_names):
+    def train_cmd(
+        train_experiment_names, train_benchmark_names, eval_experiment_names, eval_benchmark_names, use_featurewiz
+    ):
         train_args = (
             f"--config-file {MODELING_CONFIG_FILE} "
             f"--dir-data {ARTIFACT_DATA_DIFF} "
@@ -157,6 +159,9 @@ def task_behavior_train():
             "--eval-benchmark-names": eval_benchmark_names,
         }
 
+        if use_featurewiz == "True":
+            train_args = train_args + "--use-featurewiz "
+
         for k, v in args.items():
             if v is not None:
                 train_args = train_args + f"{k}='{v}' "
@@ -164,9 +169,10 @@ def task_behavior_train():
         return f"python3 -m behavior train {train_args}"
 
     return {
-        "actions": [f"mkdir -p {ARTIFACT_MODELS}", CmdAction(train_cmd)],
+        "actions": [f"mkdir -p {ARTIFACT_MODELS}", CmdAction(train_cmd, buffering=1)],
         "targets": [ARTIFACT_MODELS],
         "verbosity": VERBOSITY_DEFAULT,
+        "uptodate": [False],
         "params": [
             {
                 "name": "train_experiment_names",
@@ -191,6 +197,12 @@ def task_behavior_train():
                 "long": "eval_benchmark_names",
                 "help": "Comma separated benchmarks/benchmarks glob patterns for evaluating models on.",
                 "default": "*",
+            },
+            {
+                "name": "use_featurewiz",
+                "long": "use_featurewiz",
+                "help": "Whether to use featurewiz for feature selection.",
+                "default": False,
             },
         ],
     }
@@ -218,6 +230,7 @@ def task_behavior_microservice():
     return {
         "actions": ["mkdir -p ./artifacts/behavior/microservice/", run_microservice],
         "verbosity": VERBOSITY_DEFAULT,
+        "uptodate": [False],
         "params": [
             {
                 "name": "models",

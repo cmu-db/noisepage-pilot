@@ -8,6 +8,19 @@ modeling:
   random_state: 42
   log_level: INFO
 
+  # Featurize Configuration
+  featurize:
+    # Specifies the threshold for removing variables as highly correlated.  The default is 0.7 which
+    # means variables less than -0.7 and greater than 0.7 in pearson's correlation will be candidates
+    # for removal.
+    corr_limit: 0.70
+
+    # Taken from featurewiz parameter description for verbose:
+    #  0: Limited output. Great for running this silently and getting fast results.
+    #  1: More verbiage. Great for knowing how results were and making changes to flags in input.
+    #  2: SULOV charts and output. Great for finding out what happens under the hood for SULOV method.
+    verbose : 0
+
   # Model-specific Configuration
   # To learn more about the configuration parameters, 
   # visit the scikit-learn or LightGBM documentation.
