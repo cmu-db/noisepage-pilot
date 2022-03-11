@@ -102,7 +102,7 @@ PLAN_NODE_NAMES = [
     "GatherMerge",
     "Group",
     "Hash",
-    "HashJoin",
+    "HashJoinImpl",
     "IncrementalSort",
     "IndexOnlyScan",
     "IndexScan",
