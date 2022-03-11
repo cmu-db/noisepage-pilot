@@ -15,6 +15,7 @@ modeling:
     # for removal.
     corr_limit: 0.70
 
+    # Taken from featurewiz parameter description for verbose:
     #  0: Limited output. Great for running this silently and getting fast results.
     #  1: More verbiage. Great for knowing how results were and making changes to flags in input.
     #  2: SULOV charts and output. Great for finding out what happens under the hood for SULOV method.
