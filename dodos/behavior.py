@@ -193,6 +193,7 @@ def task_behavior_train():
         "file_dep": [FEATUREWIZ_REQ_FILE],
         "targets": [ARTIFACT_MODELS],
         "verbosity": VERBOSITY_DEFAULT,
+        "uptodate": [False],
         "params": [
             {
                 "name": "train_experiment_names",
