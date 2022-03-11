@@ -163,11 +163,6 @@ def prep_input_data(df):
     ----------
     df : DataFrame
         Input (train/test) data for one operating unit.
-
-    Returns
-    -------
-    DataFrame
-        Pre-processed input data.
     """
     # Remove all features that are blocked.
     blocked = [col for col in df.columns for block in BLOCKED_FEATURES if col.endswith(block)]
@@ -178,7 +173,6 @@ def prep_input_data(df):
 
     # Sort the DataFrame by column for uniform downstream outputs.
     df.sort_index(axis=1, inplace=True)
-    return df
 
 
 def glob_files(base_dir, experiment_names, benchmark_names, train):
@@ -242,9 +236,9 @@ def main(
     # Prepare all the input evaluation data.
     _ = [prep_input_data(df) for (_, df) in eval_ou_to_df.items()]
 
-    for ou_name, train_df in train_ou_to_df.items():
+    for ou_name, df_train in train_ou_to_df.items():
         logger.info("Begin Training OU: %s", ou_name)
-        df_train = prep_input_data(train_df)
+        prep_input_data(df_train)
         df_eval = eval_ou_to_df[ou_name] if ou_name in eval_ou_to_df else None
 
         if use_featurewiz:
@@ -290,7 +284,7 @@ def main(
             full_outdir = output_dir / method / ou_name
             full_outdir.mkdir(parents=True, exist_ok=True)
             ou_model.save(dir_output)
-            evaluate(ou_model, train_df, full_outdir, mode="train")
+            evaluate(ou_model, df_train, full_outdir, mode="train")
 
             if ou_name not in eval_ou_to_df:
                 logger.warning("OU: %s has training data but no evaluation data.", ou_name)

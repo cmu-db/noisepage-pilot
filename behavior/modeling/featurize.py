@@ -125,7 +125,7 @@ def extract_input_features(df, metadata):
 
     # To prevent some transformations from yielding Inf, we strip all zeros
     # from the input data by adding a small epsilon.
-    df = df + BIAS_EPSILON
+    df[df == 0] = BIAS_EPSILON
     output_columns = []
     for column in metadata:
 
