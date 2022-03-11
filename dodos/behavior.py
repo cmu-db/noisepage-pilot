@@ -1,7 +1,6 @@
 import os
 from pathlib import Path
 
-import doit
 from doit.action import CmdAction
 from plumbum import local
 
@@ -18,7 +17,6 @@ from dodos.noisepage import (
 
 ARTIFACTS_PATH = default_artifacts_path()
 BUILD_PATH = default_build_path()
-FEATUREWIZ_PATH = Path("behavior/modeling/featurewiz/")
 
 # Input: various configuration files.
 DATAGEN_CONFIG_FILE = Path("config/behavior/datagen.yaml").absolute()
@@ -30,24 +28,6 @@ ARTIFACT_WORKLOADS = ARTIFACTS_PATH / "workloads"
 ARTIFACT_DATA_RAW = ARTIFACTS_PATH / "data/raw"
 ARTIFACT_DATA_DIFF = ARTIFACTS_PATH / "data/diff"
 ARTIFACT_MODELS = ARTIFACTS_PATH / "models"
-FEATUREWIZ_REQ_FILE = FEATUREWIZ_PATH / "requirements.txt"
-
-
-def task_behavior_featurewiz_install_deps():
-    """
-    Behavior modeling: clone and setup featurewiz.
-    """
-    return {
-        "actions": [
-            "git submodule update --init --recursive",
-            lambda: os.chdir(FEATUREWIZ_PATH),
-            "pip3 install -r requirements.txt",
-            lambda: os.chdir(doit.get_initial_workdir()),
-        ],
-        "targets": [FEATUREWIZ_REQ_FILE],
-        "uptodate": [True],
-        "verbosity": VERBOSITY_DEFAULT,
-    }
 
 
 def task_behavior_generate_workloads():
@@ -190,7 +170,6 @@ def task_behavior_train():
 
     return {
         "actions": [f"mkdir -p {ARTIFACT_MODELS}", CmdAction(train_cmd, buffering=1)],
-        "file_dep": [FEATUREWIZ_REQ_FILE],
         "targets": [ARTIFACT_MODELS],
         "verbosity": VERBOSITY_DEFAULT,
         "uptodate": [False],
@@ -251,7 +230,6 @@ def task_behavior_microservice():
     return {
         "actions": ["mkdir -p ./artifacts/behavior/microservice/", run_microservice],
         "verbosity": VERBOSITY_DEFAULT,
-        "file_dep": [FEATUREWIZ_REQ_FILE],
         "uptodate": [False],
         "params": [
             {

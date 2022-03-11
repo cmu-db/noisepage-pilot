@@ -4,11 +4,13 @@ This repository contains the pilot components for the [NoisePage DBMS](https://n
 
 ## Quickstart
 
-1. Install necessary packages.
+1. Init all submodules `git submodule update --init --recursive`.
+2. Install necessary packages.
+    - `cd behavior/modeling/featurewiz && pip3 install --upgrade -r requirements.txt`
     - `pip3 install --upgrade -r requirements.txt`
-2. List all the tasks.
+3. List all the tasks.
     - `doit list`
-3. Select and run a doit task from the task list, e.g. `doit action_recommendation`.  Task dependencies are executed automatically.
+4. Select and run a doit task from the task list, e.g. `doit action_recommendation`.  Task dependencies are executed automatically.
 
 ## Sample Doit Tasks
 
