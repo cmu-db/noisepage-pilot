@@ -22,7 +22,10 @@ doit behavior_microservice_kill
 doit behavior_generate_workloads
 doit behavior_execute_workloads
 doit behavior_perform_plan_diff
-doit behavior_train --use_featurewiz=True
+
+# By default, don't use featurewiz since that will increase the training time.
+# doit behavior_train --use_featurewiz=True
+doit behavior_train
 
 # Forecast: generate training data.
 # This is annoying to automate because we need to enable/disable
