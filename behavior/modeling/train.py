@@ -144,7 +144,7 @@ def load_data(data_dirs):
 
     ou_name_to_df: dict[str, DataFrame] = {}
     for ou_name in PLAN_NODE_NAMES:
-        ou_results = [fp for fp in result_paths if fp.name.startswith(ou_name)]
+        ou_results = [fp for fp in result_paths if fp.name == f"{ou_name}.csv"]
         if len(ou_results) > 0:
             logger.debug("Found %s run(s) for %s", len(ou_results), ou_name)
             ou_name_to_df[ou_name] = pd.concat(map(pd.read_csv, ou_results))
