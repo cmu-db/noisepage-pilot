@@ -283,6 +283,10 @@ main() {
   evaluations_folder="./artifacts/project/evaluations"
   mkdir -p "./${evaluations_folder}"
 
+  # TODO(Matt): Verify that these paths are correct.
+  # Make a copy of the postgresql.conf file.
+  cp /etc/postgresql/14/main/postgresql.conf /etc/postgresql/14/main/postgresql.conf.old
+
   for benchmark_spec in "${BENCHMARKS[@]}"; do
     while IFS=',' read -r benchmark workload_csv; do
       benchmark_dump_path="./${benchmark_dump_folder}/${benchmark}_primary"
@@ -291,6 +295,8 @@ main() {
       # TODO(Matt): Verify that these paths are correct.
       # Remove the auto.conf that might have existed from prior student runs.
       rm -rf /var/lib/postgresql/14/main/postgresql.auto.conf
+      # Restore the original postgresql.conf file.
+      cp /etc/postgresql/14/main/postgresql.conf.old /etc/postgresql/14/main/postgresql.conf
 
       # Create the project database.
       _setup_database
@@ -321,6 +327,8 @@ main() {
         # TODO(Matt): Verify that these paths are correct.
         # Remove the auto.conf that might have been created by a prior student.
         rm -rf /var/lib/postgresql/14/main/postgresql.auto.conf
+        # Restore the original postgresql.conf file.
+        cp /etc/postgresql/14/main/postgresql.conf.old /etc/postgresql/14/main/postgresql.conf
 
         while IFS=',' read -r git_url andrew_id; do
           student_submission_path="${student_submission_folder}/${andrew_id}"
