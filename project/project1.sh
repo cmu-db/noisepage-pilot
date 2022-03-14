@@ -125,6 +125,10 @@ _grade_iteration() {
   if [ "$(jq -r '.VACUUM' ${config_file})" == "true" ]; then
     PGPASSWORD=${DB_PASS} psql --host=localhost --username=${DB_USER} --dbname=${DB_NAME} --command="VACUUM FULL;"
   fi
+  # Restart the server if requested.
+  if [ "$(jq -r '.RESTART' ${config_file})" == "true" ]; then
+    sudo service postgresql restart
+  fi
   # Reset the DBMS's internal metrics.
   PGPASSWORD=${DB_PASS} psql --host=localhost --username=${DB_USER} --dbname=${DB_NAME} --command="SELECT pg_stat_reset();"
 
@@ -284,6 +288,10 @@ main() {
       benchmark_dump_path="./${benchmark_dump_folder}/${benchmark}_primary"
       evaluation_baseline_path="${evaluations_folder}/${benchmark}/baseline/"
 
+      # TODO(Matt): Verify that these paths are correct.
+      # Remove the auto.conf that might have existed from prior student runs.
+      rm -rf /var/lib/postgresql/14/main/postgresql.auto.conf
+
       # Create the project database.
       _setup_database
       # Load the benchmark data.
@@ -310,6 +318,10 @@ main() {
       # Preliminaries done!
       # Time to test student submissions.
       for student in "${STUDENTS[@]}"; do
+        # TODO(Matt): Verify that these paths are correct.
+        # Remove the auto.conf that might have been created by a prior student.
+        rm -rf /var/lib/postgresql/14/main/postgresql.auto.conf
+
         while IFS=',' read -r git_url andrew_id; do
           student_submission_path="${student_submission_folder}/${andrew_id}"
           student_submission_path="${student_submission_folder}/${andrew_id}"
