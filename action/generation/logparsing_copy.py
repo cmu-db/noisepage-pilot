@@ -5,6 +5,8 @@ import pandas as pd
 import pglast
 import connector
 from pglast import ast, visitors
+from collections import defaultdict
+import numpy as np
 
 _PG_LOG_COLUMNS: List[str] = [
     "log_time",
@@ -189,24 +191,26 @@ def aggregate_templates(df, conn, percent_threshold=1):
         aggregated[aggregated['cumsum'] <= percent_threshold])
 
     # get column refs
-    filtered['where_colrefs', 'group_by_colrefs'] = filtered['sample'].apply(
-        get_all_colrefs, args=(table_cols,))
+    filtered['where_colrefs'], filtered['group_by_colrefs'] = zip(*filtered['sample'].apply(
+        get_all_colrefs, args=(table_cols,)))
 
-    return filtered[['sample', 'count', 'cumsum', 'colrefs', 'where_colrefs', 'group_by_colrefs']]
+    return filtered[['sample', 'count', 'cumsum', 'where_colrefs', 'group_by_colrefs']]
 
 
 def get_workload_colrefs(filtered):
-    # indexes = db_connector.get_existing_indexes()
-    table_colrefs_joint_counts = defaultdict(lambda: defaultdict(np.uint64))
+    # TODO: all colref_types extraction are hard coded
+    colref_types = ['where_colrefs', 'group_by_colrefs']
+    table_colrefs_joint_counts = {k: defaultdict(lambda: defaultdict(np.uint64)) for k in colref_types}
 
-    for _, row in filtered.iterrows():
-        refs = row['colrefs']
-        tables = set([tab for (tab, _) in refs])
-        for table in tables:
-            cols_for_tabs = [col for (tab, col) in refs if tab == table]
-            if len(cols_for_tabs) == 0:
-                continue
-            joint_ref = tuple(dict.fromkeys(cols_for_tabs))
-            table_colrefs_joint_counts[table][joint_ref] += row['count']
+    for colref_type_str in colref_types:
+        for _, row in filtered.iterrows():
+            refs = row[colref_type_str]
+            tables = set([tab for (tab, _) in refs])
+            for table in tables:
+                cols_for_tabs = [col for (tab, col) in refs if tab == table]
+                if len(cols_for_tabs) == 0:
+                    continue
+                joint_ref = tuple(dict.fromkeys(cols_for_tabs))
+                table_colrefs_joint_counts[colref_type_str][table][joint_ref] += row['count']
 
     return table_colrefs_joint_counts

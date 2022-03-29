@@ -48,6 +48,7 @@ def generate_indexes(workload_csv):
     filtered = logparsing.aggregate_templates(parsed, conn)
     colrefs = get_workload_colrefs(filtered)
     # end: folded into wkld obj
+    # where_colrefs = workload.get_where_colrefs() returns the same format as this "colrefs"
     exhaustive = index_actions.ExhaustiveIndexGenerator(
         colrefs, constants.MAX_IND_WIDTH)
     actions = list(exhaustive)
