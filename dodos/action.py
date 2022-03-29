@@ -31,8 +31,17 @@ def task_action_generation():
     Action generation: generate actions to choose from.
     """
 
+    # INPUT:
+    # - Primary conn:
+    #   - Read schemas + db state info
+    #   - Request workload
+    # - Pilot conn:
+    #   - Write to file (v0)
+    #   - Write to system table (v1)
+    # - Workload (from where?)
+
     def generate_actions(args):
-        cmd = f"python3 ./action/generation/generate_create_index_tpcc.py --output-sql {ARTIFACT_ACTIONS} {args}"
+        cmd = f"python3 ./action/generation/action_selection.py"
         return cmd
 
     return {
@@ -41,7 +50,7 @@ def task_action_generation():
             # Generate create index suggestions for TPC-C.
             CmdAction(generate_actions),
         ],
-        "file_dep": ["./action/generation/generate_create_index_tpcc.py"],
+        "file_dep": ["./action/generation/action_selection.py"],
         "targets": [ARTIFACT_ACTIONS],
         "uptodate": [False],
         "verbosity": VERBOSITY_DEFAULT,
