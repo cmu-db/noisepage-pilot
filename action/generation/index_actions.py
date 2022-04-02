@@ -1,5 +1,6 @@
 from operator import index
-from .action import ActionGenerator, Action
+from action import ActionGenerator
+from action import Action
 import itertools
 import copy
 

@@ -2,6 +2,7 @@
 import constants
 import logging
 import psycopg
+from typing import List, Dict, Tuple
 
 
 class Connector():
@@ -24,19 +25,19 @@ class Connector():
         self._connection.execute(statement)
         self._connection.commit()
 
-    def exec_commit(self, statement: str) -> list[str]:
+    def exec_commit(self, statement: str) -> List[str]:
         cur = self._connection.execute(statement)
         results = cur.fetchall()
         self._connection.commit()
         return results
 
-    def exec_transaction_no_result(self, statements: list[str]):
+    def exec_transaction_no_result(self, statements: List[str]):
         with self._connection.transaction():
             cur = self._connection.cursor()
             for stmt in statements:
                 cur.execute(stmt)
 
-    def exec_transaction(self, statements: list[str]) -> list[list[str]]:
+    def exec_transaction(self, statements: List[str]) -> List[List[str]]:
         res = []
         with self._connection.transaction():
             cur = self._connection.cursor()
@@ -86,7 +87,7 @@ class Connector():
         self.exec_commit_no_result("ANALYZE;")
 
     # TODO: Consider removing restrictions on tables considered
-    def get_table_info(self) -> dict[str, list[str]]:
+    def get_table_info(self) -> Dict[str, List[str]]:
         info = dict()
         tables = self.exec_commit(
             """
@@ -105,7 +106,7 @@ class Connector():
         return info
 
     # TODO: Consider removing restrictions on indexes considered
-    def get_index_info(self) -> list[(str, str, list[str], int, int)]:
+    def get_index_info(self) -> List[Tuple[str, str, List[str], int, int]]:
         info = []
         indexes = self.exec_commit(
             """
@@ -138,7 +139,7 @@ class Connector():
         return info
 
     # TODO: Consider using sqlparse to parse this string
-    def _parse_index_info(self, info: str) -> tuple[str, list[str]]:
+    def _parse_index_info(self, info: str) -> Tuple[str, List[str]]:
         s1 = info.split(" USING ")
         assert(len(s1) == 2)
         s2 = s1[0].split(" ON ")

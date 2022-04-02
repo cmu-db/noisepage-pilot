@@ -1,7 +1,6 @@
 from collections import defaultdict
-import pandas as pd
 import numpy as np
-import pglast
+from plumbum import cli
 
 import logparsing
 import index_actions
@@ -40,19 +39,27 @@ def find_indexes(obj):
     return []
 
 
-def generate_indexes(workload_csv):
-    conn = connector.Connector()
+class GenerateCreateIndex(cli.Application):
+    output_sql = cli.SwitchAttr("--output-sql", str, mandatory=True)
+    workload_csv = cli.SwitchAttr("--workload-csv", str, mandatory=True)
+    filter_tables = cli.Flag("--filter-tables", default=False)
 
-    # TODO: fold these things into a workload obj
-    parsed = logparsing.parse_csv_log(workload_csv)
-    filtered = logparsing.aggregate_templates(parsed, conn)
-    colrefs = get_workload_colrefs(filtered)
-    # end: folded into wkld obj
-    exhaustive = index_actions.ExhaustiveIndexGenerator(
-        colrefs, constants.MAX_IND_WIDTH)
-    actions = list(exhaustive)
-    return actions
+    def main(self):
+        conn = connector.Connector()
+
+        # TODO: fold these things into a workload obj
+        parsed = logparsing.parse_csv_log(self.workload_csv)
+        filtered = logparsing.aggregate_templates(parsed, conn)
+        colrefs = get_workload_colrefs(filtered)
+        # end: folded into wkld obj
+        exhaustive = index_actions.ExhaustiveIndexGenerator(
+            colrefs, constants.MAX_INDEX_WIDTH)
+        actions = list(exhaustive)
+
+        with open(self.output_sql, "w") as f:
+            for action in actions:
+                print(str(action), file=f)
 
 
 if __name__ == "__main__":
-    generate_indexes(constants.WORKLOAD_CSV)
+    GenerateCreateIndex.run()

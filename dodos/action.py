@@ -41,7 +41,7 @@ def task_action_generation():
     # - Workload (from where?)
 
     def generate_actions(args):
-        cmd = f"python3 ./action/generation/action_selection.py"
+        cmd = f"python3 ./action/generation/action_selection.py --output-sql {ARTIFACT_ACTIONS} {args}"
         return cmd
 
     return {
@@ -58,7 +58,7 @@ def task_action_generation():
             {
                 "name": "args",
                 "long": "args",
-                "default": "--min-num-cols 1 --max-num-cols 4",
+                "default": "--workload-csv workload.csv",
             },
         ],
     }
