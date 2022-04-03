@@ -1,6 +1,7 @@
 from collections import defaultdict
 import numpy as np
 from plumbum import cli
+from workload import Workload
 
 import logparsing
 import index_actions
@@ -46,14 +47,10 @@ class GenerateCreateIndex(cli.Application):
 
     def main(self):
         conn = connector.Connector()
-
-        # TODO: fold these things into a workload obj
-        parsed = logparsing.parse_csv_log(self.workload_csv)
-        filtered = logparsing.aggregate_templates(parsed, conn)
-        colrefs = get_workload_colrefs(filtered)
-        # end: folded into wkld obj
-        exhaustive = index_actions.ExhaustiveIndexGenerator(
-            colrefs, constants.MAX_INDEX_WIDTH)
+        workload = Workload(self.workload_csv, conn)
+    
+        exhaustive = index_actions.WorkloadIndexGenerator(
+            workload, constants.MAX_INDEX_WIDTH)
         actions = list(exhaustive)
 
         with open(self.output_sql, "w") as f:

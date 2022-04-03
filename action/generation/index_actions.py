@@ -4,6 +4,8 @@ from action import Action
 import itertools
 import copy
 
+from workload import Workload
+
 import pglast
 from pglast import ast, stream
 from pglast.enums.parsenodes import *
@@ -89,15 +91,16 @@ class SimpleIndexGenerator(ActionGenerator):
                 yield CreateIndexAction(tablename, cols)
 
 
-class ExhaustiveIndexGenerator(ActionGenerator):
+class WorkloadIndexGenerator(ActionGenerator):
     '''
     For each query, this action generator produces a CREATE INDEX statement
     for each table's columns which appears together.
     '''
 
     # TODO: change this to take workload object instead of joint_refs
-    def __init__(self, joint_refs, max_width=1) -> None:
+    def __init__(self, workload: Workload, max_width=1) -> None:
         ActionGenerator.__init__(self)
+        joint_refs = workload.get_where_colrefs()
         self.tables = list(joint_refs.keys())
         self.joint_refs = joint_refs
         self.actions_per_table = [len(joint_refs[t]) for t in self.tables]
