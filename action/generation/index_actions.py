@@ -1,12 +1,13 @@
-from operator import index
+from collections import defaultdict
+import copy
+import itertools
+import numpy as np
+
 from action import ActionGenerator
 from action import Action
-import itertools
-import copy
-
+from connector import Connector
 from workload import Workload
 
-import pglast
 from pglast import ast, stream
 from pglast.enums.parsenodes import *
 
@@ -89,6 +90,37 @@ class SimpleIndexGenerator(ActionGenerator):
         for tablename, table in self.joint_refs.items():
             for cols in table:
                 yield CreateIndexAction(tablename, cols)
+
+
+class ExhaustiveIndexGenerator(ActionGenerator):
+    '''
+    For each query, this action generator produces a CREATE INDEX statement
+    for each table's columns.
+    '''
+
+    def __init__(self, conn: Connector, max_width=1) -> None:
+        ActionGenerator.__init__(self)
+        table_info = conn.get_table_info()
+        self.tables = list(table_info.keys())
+        joint_refs = {k: defaultdict(lambda: defaultdict(np.uint64))
+                      for k in self.tables}
+        for (table, cols) in table_info:
+            joint_refs[table][tuple(cols)] = 1
+        self.joint_refs = joint_refs
+        self.max_width = max_width
+
+    def _iter_table_widths(self, table, width):
+        col_perms = set()
+        for cols in self.joint_refs[table]:
+            for perm in itertools.permutations(cols, width):
+                col_perms.add(perm)
+                yield CreateIndexAction(table, perm)
+
+    def __iter__(self) -> str:
+        for table in self.tables:
+            for width in range(1, self.max_width + 1):
+                for action in self._iter_table_widths(table, width):
+                    yield action
 
 
 class WorkloadIndexGenerator(ActionGenerator):
