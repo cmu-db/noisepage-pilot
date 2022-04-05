@@ -104,7 +104,7 @@ class ExhaustiveIndexGenerator(ActionGenerator):
         self.tables = list(table_info.keys())
         joint_refs = {k: defaultdict(lambda: defaultdict(np.uint64))
                       for k in self.tables}
-        for (table, cols) in table_info:
+        for (table, cols) in table_info.items():
             joint_refs[table][tuple(cols)] = 1
         self.joint_refs = joint_refs
         self.max_width = max_width

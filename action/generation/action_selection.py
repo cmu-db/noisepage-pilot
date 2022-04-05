@@ -47,10 +47,10 @@ class GenerateCreateIndex(cli.Application):
 
     def main(self):
         conn = connector.Connector()
-        workload = Workload(self.workload_csv, conn)
+        # workload = Workload(self.workload_csv, conn)
     
-        exhaustive = index_actions.WorkloadIndexGenerator(
-            workload, constants.MAX_INDEX_WIDTH)
+        exhaustive = index_actions.ExhaustiveIndexGenerator(
+            conn, constants.MAX_INDEX_WIDTH)
         actions = list(exhaustive)
 
         with open(self.output_sql, "w") as f:
