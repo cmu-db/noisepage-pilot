@@ -66,30 +66,12 @@ class DropIndexGenerator(ActionGenerator):
     For each existing index, yield a DROP INDEX statement.
     '''
 
-    def __init__(self, indexes) -> None:
+    def __init__(self, conn: Connector) -> None:
         ActionGenerator.__init__(self)
-        self.indexes = indexes
-
+        self.indexes = conn.get_index_info()
     def __iter__(self):
-        for _, indname, _, _, _ in self.indexes:
+        for indname, _, _, _, _ in self.indexes:
             yield DropIndexAction(indname)
-
-
-class SimpleIndexGenerator(ActionGenerator):
-    '''
-    For each query, this action generator produces a CREATE INDEX statement
-    for each table's columns which appears together.
-    '''
-
-    # TODO: change this to take workload object instead of joint_refs
-    def __init__(self, joint_refs) -> None:
-        ActionGenerator.__init__(self)
-        self.joint_refs = joint_refs
-
-    def __iter__(self):
-        for tablename, table in self.joint_refs.items():
-            for cols in table:
-                yield CreateIndexAction(tablename, cols)
 
 
 class ExhaustiveIndexGenerator(ActionGenerator):
