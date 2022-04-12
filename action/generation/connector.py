@@ -169,3 +169,11 @@ class Connector():
         ORDER BY pg_relation_size(s.indexrelid) DESC;
         '''
         return self.exec_commit(query)
+
+    # BEGIN knob interactions
+    def get_config(self, name):
+        # TODO(Mike): Add error checking (throw err if knob does not exists)
+        query = f"SELECT setting, unit FROM pg_settings WHERE name = '{name}';"
+        return self.exec_commit(query)[0]
+    # We should not have knob actions here.
+    # END knob interactions
