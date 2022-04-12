@@ -13,7 +13,7 @@ from enum import Enum
 
 
 class KnobAction(Action):
-    def __init__(self, name, setting: str = None, alterSystem = True):
+    def __init__(self, name, setting: str = None, alterSystem = False):
         Action.__init__(self)
         self.name = name
         self.setting = setting
@@ -31,12 +31,14 @@ class KnobAction(Action):
         return f'ALTER SYSTEM {sqlstr}' if self.alterSystem else sqlstr
 
 
-class RelativeKnobType(Enum):
+class KnobType(Enum):
     DELTA = auto()
     PCT = auto()
+    ABSOLUTE = auto()
+    POW2 = auto()
 
 
-class RelativeKnobGenerator(ActionGenerator):
+class NumericalKnobGenerator(ActionGenerator):
     '''
     Create a ALTER SYSTEM stmt for a given knob name and numerical range
     '''
@@ -45,7 +47,7 @@ class RelativeKnobGenerator(ActionGenerator):
         self,
         connector: Connector,
         name: str,
-        type: RelativeKnobType = RelativeKnobType.PCT,
+        type: KnobType = KnobType.PCT,
         minVal: float = 0.1,
         maxVal: float = 5,
         interval: float = 0.1
@@ -59,15 +61,18 @@ class RelativeKnobGenerator(ActionGenerator):
         self.interval = interval
 
     def __iter__(self):
-        val, unit = self.connector.get_config(self.name)
-        print(val,unit)
+        val, _ = self.connector.get_config(self.name)
         change = self.minVal
         while change <= self.maxVal:
             newVal = str(val)
-            if self.type == RelativeKnobType.PCT:
+            if self.type == KnobType.PCT:
                 newVal = str(float(val) * change)
-            elif self.type == RelativeKnobType.DELTA:
+            elif self.type == KnobType.DELTA:
                 newVal = str(float(val) + change)
+            elif self.type == KnobType.ABSOLUTE:
+                newVal = str(change)
+            elif self.type == KnobType.POW2:
+                newVal = str(2**change)
             else:
                 newVal = None
             yield KnobAction(self.name, newVal)
